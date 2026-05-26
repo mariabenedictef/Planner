@@ -109,7 +109,6 @@
   .subnav .arrows button:hover{background:var(--surface-2)}
   .subnav .today-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:12.5px}
 
-  /* Fokus strip */
   .strip{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
   .strip .group{display:flex;flex-direction:column;gap:2px;min-width:140px}
   .strip .label{font-size:11px;font-weight:600;letter-spacing:1px;color:var(--ink-muted);text-transform:uppercase}
@@ -670,7 +669,6 @@
     .countdown-card .cd-title { font-size: 17px; line-height: 1.25; }
     .countdown-card .cd-days { font-size: 38px; }
     .countdown-card.featured .cd-days { font-size: 44px; }
-    .home-focus { padding: 14px 16px; gap: 16px; }
     .home-quick { padding: 14px 16px; }
     .home-quick input { font-size: 16px; padding: 14px 16px; min-height: 48px; border-radius: 10px; }
     .home-quick-hint { font-size: 12px; margin-top: 8px; }
@@ -977,9 +975,6 @@
   .home-quick{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:18px}
   .home-quick input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--surface);color:var(--ink)}
   .home-quick .home-quick-hint{font-size:11px;color:var(--ink-muted);margin-top:6px}
-  .home-focus{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;margin-bottom:18px;display:flex;gap:24px;flex-wrap:wrap;align-items:center}
-  .home-focus .label{font-size:11px;letter-spacing:1px;color:var(--ink-muted);font-weight:600;text-transform:uppercase}
-  .home-focus .value{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--ink);margin-left:8px}
 
   /* Task completion animation */
   .todo-row.completing,.ptask.completing,.kcard.completing,.tasks-block li.completing{animation:taskComplete 380ms ease-out forwards}
@@ -1078,7 +1073,7 @@
 // ============================================================
 const I18N = {
   appName: 'Planlegger',
-  views: { home:'Hjem', projects:'Prosjekter', todos:"To Do's", day:'Dag', week:'Uke', month:'Måned', overview:'Årsoversikt', fokus:'Fokus' },
+  views: { home:'Hjem', projects:'Prosjekter', todos:"To Do's", day:'Dag', week:'Uke', month:'Måned', overview:'Årsoversikt' },
   filters: { all:'Alle', arbeid:'Jobb', privat:'Privat' },
   weekdaysShort: ['Man','Tir','Ons','Tor','Fre','Lør','Søn'],
   weekdaysLong: ['Mandag','Tirsdag','Onsdag','Torsdag','Fredag','Lørdag','Søndag'],
@@ -1355,10 +1350,12 @@ function loadState(){
     });
     // Migrate old filter setting
     if (merged.settings && merged.settings.filter === 'personlig') merged.settings.filter = 'privat';
-    // Migrate legacy view name: 'strategy' was renamed to 'fokus' to match the UI label.
-    // NOTE: if you ever do another mass rename, the literal below should stay 'strategy' — it's
-    // checking what's in OLD saved state, not what the current code uses.
-    if (merged.settings && merged.settings.view === 'strategy') merged.settings.view = 'fokus';
+    // Migrate retired view names: 'strategy' (old) and 'fokus' (newer) both fall back to 'home'.
+    // The Fokus view was removed on 2026-05-26 because Maria no longer needed it.
+    // Data in state.yearFocus/quarterFocus/monthFocus/reviews is preserved but no longer rendered.
+    if (merged.settings && (merged.settings.view === 'strategy' || merged.settings.view === 'fokus')) {
+      merged.settings.view = 'home';
+    }
     // Migration: legacy themes (array per year) -> yearFocus (string per year)
     Object.entries(merged.themes||{}).forEach(([y, arr])=>{
       if (Array.isArray(arr) && arr.length && !merged.yearFocus[y]){
@@ -1810,7 +1807,6 @@ function render(){
   else if (v==='week') renderWeek();
   else if (v==='day') renderDay();
   else if (v==='list') renderList();
-  else if (v==='fokus') renderFokus();
   else renderHome(); // fallback
   saveState();
 }
@@ -1869,23 +1865,6 @@ document.getElementById('settings-btn').onclick = openSettings;
 document.getElementById('fab').onclick = openQuickCapture;
 
 // ============================================================
-// FOCUS STRIP (visible above other views — only when content exists)
-// ============================================================
-function fokusStripHTML(year, quarter, month){
-  const yf = (state.yearFocus[year]||'').trim();
-  const qkey = `${year}-Q${quarter}`;
-  const qf = (state.quarterFocus[qkey]||'').trim();
-  const mkey = month!==undefined ? `${year}-${pad(month+1)}` : '';
-  const mf = mkey ? (state.monthFocus[mkey]||'').trim() : '';
-  if (!yf && !qf && !mf) return ''; // hidden when nothing is set
-  const groups = [];
-  if (mf) groups.push(`<div class="group"><div class="label">${I18N.monthsShort[month]} ${year}</div><div class="value">${escapeHTML(mf)}</div></div>`);
-  if (qf) groups.push(`<div class="group"><div class="label">Q${quarter} ${year}</div><div class="value">${escapeHTML(qf)}</div></div>`);
-  if (yf) groups.push(`<div class="group"><div class="label">${year}</div><div class="value">${escapeHTML(yf)}</div></div>`);
-  return `<div class="strip">${groups.join('')}<div class="edit"><button class="today-btn" onclick="state.settings.view='fokus';render()">Rediger</button></div></div>`;
-}
-
-// ============================================================
 // VIEW: HJEM (Home dashboard — landing view)
 // ============================================================
 function renderHome(){
@@ -1928,18 +1907,7 @@ function renderHome(){
   const todayTasks = tasksOnDay(todayK).filter(t=>!t.done);
   const todayCount = todayEvents.length + todayTasks.length;
 
-  // -------- Focus widget (only if set) --------
-  const yf = state.yearFocus[y]||'';
-  const mf = state.monthFocus[mKey]||'';
-  const focusHTML = (yf || mf) ? `
-    <div class="home-focus">
-      ${mf ? `<div><span class="label">${I18N.monthsShort[today.getMonth()]} ${y}</span><span class="value">${escapeHTML(mf)}</span></div>` : ''}
-      ${yf ? `<div><span class="label">${y}</span><span class="value">${escapeHTML(yf)}</span></div>` : ''}
-      <button onclick="state.settings.view='fokus';render()" style="margin-left:auto;padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Rediger</button>
-    </div>
-  ` : '';
-
-  // -------- Section 1: URGENT (prominent, with checkboxes) --------
+// -------- Section 1: URGENT (prominent, with checkboxes) --------
   const urgentHTML = `
     <div class="home-section">
       <h3 style="color:var(--alert);display:flex;align-items:center;gap:6px">⚠ Urgent ${urgent.length?`(${urgent.length})`:''}</h3>
@@ -2069,7 +2037,6 @@ function renderHome(){
   viewEl.innerHTML = `
     <div class="home-greeting">${greeting}, Maria</div>
     <div class="home-date">${I18N.weekdaysLong[monIdx(today)]} ${today.getDate()}. ${I18N.months[today.getMonth()]} ${y}${HOLIDAYS[todayK] ? ' · ' + HOLIDAYS[todayK] : ''}</div>
-    ${focusHTML}
     ${quickHTML}
     ${urgentHTML}
     ${todayTasksHTML}
@@ -2255,7 +2222,6 @@ function renderProjects(){
       <h2>Prosjekter <span class="yr">${active.length} aktive</span></h2>
       <button class="today-btn" onclick="openProjectForm()">+ Nytt prosjekt</button>
     </div>
-    ${fokusStripHTML(today.getFullYear(), quarterOf(today.getMonth()), today.getMonth())}
     <div class="projects-grid" id="pgrid"></div>
     ${archived.length?`<div style="margin-top:24px"><h3 style="font-family:var(--serif);font-weight:500;font-size:16px;color:var(--ink-muted);margin:0 0 10px">Arkiverte</h3><div class="projects-grid" id="pgrid-arch"></div></div>`:''}
   `;
@@ -3384,7 +3350,6 @@ function renderOverview(){
         <button id="ov-next" title="12 måneder fremover">›</button>
       </div>
     </div>
-    ${fokusStripHTML(today.getFullYear(), quarterOf(today.getMonth()), today.getMonth())}
 
     <div class="ov-section">
       <h3>Prosjekttidslinje</h3>
@@ -3468,7 +3433,6 @@ function renderMonth(){
       <h2>${fmtMonth(y,m)}</h2>
       <div class="arrows"><button id="prev">‹</button><button id="next">›</button></div>
     </div>
-    ${fokusStripHTML(y, quarterOf(m), m)}
     <div class="month-grid">
       <div class="row head">${I18N.weekdaysShort.map(w=>`<div class="cell">${w}</div>`).join('')}</div>
       <div id="mgrid"></div>
@@ -3550,7 +3514,6 @@ function renderWeek(){
       <h2>Uke ${wn} <span class="yr">${fmtDateShort(wk)} – ${fmtDateShort(addDays(wk,6))} ${wk.getFullYear()}</span></h2>
       <div class="arrows"><button id="prev">‹</button><button id="next">›</button></div>
     </div>
-    ${fokusStripHTML(wk.getFullYear(), quarterOf(wk.getMonth()), wk.getMonth())}
     <div class="week" id="weekgrid"></div>`;
 
   document.getElementById('prev').onclick = ()=>{ state.settings.anchor = dKey(addDays(wk,-7)); render(); };
@@ -3686,7 +3649,6 @@ function renderDay(){
       <h2>${I18N.weekdaysLong[monIdx(anchor)]} ${anchor.getDate()}. ${I18N.months[anchor.getMonth()]} <span class="yr">${anchor.getFullYear()}${hol?' · '+hol:''}</span></h2>
       <div class="arrows"><button id="prev">‹</button><button id="next">›</button></div>
     </div>
-    ${fokusStripHTML(anchor.getFullYear(), quarterOf(anchor.getMonth()), anchor.getMonth())}
     <div class="day-layout">
       <div class="day-main">
         <div class="day-hours" id="dhours"></div>
@@ -3939,7 +3901,6 @@ function renderList(){
     <div class="subnav">
       <h2>Agenda <span class="yr">neste 12 måneder</span></h2>
     </div>
-    ${fokusStripHTML(today.getFullYear(), quarterOf(today.getMonth()), today.getMonth())}
     <div class="list-view" id="lv"></div>`;
 
   const lv = document.getElementById('lv');
@@ -3992,149 +3953,6 @@ function renderList(){
     else if (t==='task') openTaskForm(r.dataset.id);
     else if (t==='projectTask') openProjectTaskForm(r.dataset.pid, r.dataset.id);
     else if (t==='milestone' || t==='projectTarget'){ state.settings.openProjectId = r.dataset.pid; state.settings.view='projects'; render(); }
-  });
-}
-
-// ============================================================
-// VIEW: FOKUS (themes, focuses, goals, habits)
-// ============================================================
-function renderFokus(){
-  const today = new Date();
-  const curY = today.getFullYear();
-  const curM = today.getMonth();
-  const curQ = quarterOf(curM);
-
-  viewEl.innerHTML = `
-    <div class="subnav"><h2>Fokus</h2></div>
-    <div class="stack">
-      <div class="panel">
-        <h3>Fokus per år</h3>
-        <div style="font-size:12px;color:var(--ink-muted);margin-bottom:10px">Frivillig. Tomme felt vises ikke noe annet sted.</div>
-        <div class="stack" id="years-block"></div>
-        <button class="add-link" id="add-year" style="margin-top:8px">+ Annet år</button>
-      </div>
-      <div class="panel">
-        <h3>Fokus per kvartal</h3>
-        <div class="stack" id="quarters-block"></div>
-        <button class="add-link" id="add-quarter" style="margin-top:8px">+ Annet kvartal</button>
-      </div>
-      <div class="panel">
-        <h3>Fokus per måned</h3>
-        <div class="stack" id="months-block"></div>
-        <button class="add-link" id="add-month" style="margin-top:8px">+ Annen måned</button>
-      </div>
-      <div class="panel">
-        <h3>Ukentlig refleksjon</h3>
-        <div id="review-block"></div>
-      </div>
-    </div>`;
-
-  // YEAR FOCUS: show current + next + any with content
-  const yearSet = new Set([curY, curY+1]);
-  Object.keys(state.yearFocus).forEach(y=>yearSet.add(parseInt(y)));
-  const years = [...yearSet].sort();
-  document.getElementById('years-block').innerHTML = years.map(y=>{
-    const v = state.yearFocus[y]||'';
-    return `<div>
-      <div style="font-family:var(--serif);font-size:15px;margin-bottom:6px">${y}</div>
-      <input id="yf-${y}" type="text" value="${escapeAttr(v)}" placeholder="F.eks. Bryllup, Helse, Karriere…" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px">
-    </div>`;
-  }).join('');
-  years.forEach(y=>{
-    document.getElementById('yf-'+y).addEventListener('blur', e=>{
-      const v = e.target.value.trim();
-      if (v) state.yearFocus[y] = v; else delete state.yearFocus[y];
-      saveState();
-    });
-  });
-  document.getElementById('add-year').onclick = ()=>{
-    const y = prompt('Hvilket år?', String(curY+2));
-    if (y && /^\d{4}$/.test(y)){ state.yearFocus[y] = state.yearFocus[y]||''; render(); }
-  };
-
-  // QUARTER FOCUS: current + next 4 + any with content
-  const qSet = new Set();
-  for (let i=0; i<5; i++){
-    const m = curM + i*3;
-    const y = curY + Math.floor(m/12);
-    qSet.add(`${y}-Q${quarterOf(m%12)}`);
-  }
-  Object.keys(state.quarterFocus).forEach(q=>qSet.add(q));
-  const quarters = [...qSet].sort();
-  document.getElementById('quarters-block').innerHTML = quarters.map(qkey=>{
-    const v = state.quarterFocus[qkey]||'';
-    return `<div>
-      <div style="font-family:var(--serif);font-size:14px;margin-bottom:4px">${qkey}</div>
-      <input id="qf-${qkey}" type="text" value="${escapeAttr(v)}" placeholder="F.eks. Bryllupsplanlegging…" style="width:100%;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-    </div>`;
-  }).join('');
-  quarters.forEach(qkey=>{
-    document.getElementById('qf-'+qkey).addEventListener('blur', e=>{
-      const v = e.target.value.trim();
-      if (v) state.quarterFocus[qkey] = v; else delete state.quarterFocus[qkey];
-      saveState();
-    });
-  });
-  document.getElementById('add-quarter').onclick = ()=>{
-    const y = prompt('Hvilket år?', String(curY));
-    if (!y || !/^\d{4}$/.test(y)) return;
-    const q = prompt('Hvilket kvartal? (1, 2, 3 eller 4)', '1');
-    if (!q || !['1','2','3','4'].includes(q)) return;
-    state.quarterFocus[`${y}-Q${q}`] = state.quarterFocus[`${y}-Q${q}`]||'';
-    render();
-  };
-
-  // MONTH FOCUS: current + next 6 + any with content
-  const mSet = new Set();
-  for (let i=0; i<7; i++){
-    const m = curM + i;
-    const y = curY + Math.floor(m/12);
-    const mm = ((m%12)+12)%12;
-    mSet.add(`${y}-${pad(mm+1)}`);
-  }
-  Object.keys(state.monthFocus).forEach(m=>mSet.add(m));
-  const monthsList = [...mSet].sort();
-  document.getElementById('months-block').innerHTML = monthsList.map(mkey=>{
-    const [y,mm] = mkey.split('-').map(Number);
-    const v = state.monthFocus[mkey]||'';
-    const label = `${I18N.months[mm-1].charAt(0).toUpperCase()+I18N.months[mm-1].slice(1)} ${y}`;
-    return `<div>
-      <div style="font-family:var(--serif);font-size:14px;margin-bottom:4px">${label}</div>
-      <input id="mf-${mkey}" type="text" value="${escapeAttr(v)}" placeholder="F.eks. Ferie, Avslapping, Sluttspurt…" style="width:100%;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-    </div>`;
-  }).join('');
-  monthsList.forEach(mkey=>{
-    document.getElementById('mf-'+mkey).addEventListener('blur', e=>{
-      const v = e.target.value.trim();
-      if (v) state.monthFocus[mkey] = v; else delete state.monthFocus[mkey];
-      saveState();
-    });
-  });
-  document.getElementById('add-month').onclick = ()=>{
-    const inp = prompt('Hvilken måned? (YYYY-MM, f.eks. 2027-06)', '');
-    if (!inp || !/^\d{4}-\d{2}$/.test(inp)) return;
-    state.monthFocus[inp] = state.monthFocus[inp]||'';
-    render();
-  };
-
-  // Weekly review
-  const wkAnchor = startOfWeek(today);
-  const wkKey = `${wkAnchor.getFullYear()}-W${pad(isoWeek(wkAnchor))}`;
-  const r = state.reviews[wkKey] || {};
-  document.getElementById('review-block').innerHTML = `
-    <div style="font-size:12px;color:var(--ink-muted);margin-bottom:8px">Uke ${isoWeek(wkAnchor)} · oppdater søndag eller når det passer</div>
-    <div class="review-form">
-      <div class="modal field"><label>Hva gikk bra?</label><textarea id="rv-wins" data-k="wins">${escapeHTML(r.wins||'')}</textarea></div>
-      <div class="modal field"><label>Hva lærte jeg?</label><textarea id="rv-lessons" data-k="lessons">${escapeHTML(r.lessons||'')}</textarea></div>
-      <div class="modal field"><label>Hva er neste?</label><textarea id="rv-next" data-k="next">${escapeHTML(r.next||'')}</textarea></div>
-      <div class="modal field"><label>Hva skal jeg slippe?</label><textarea id="rv-dropped" data-k="dropped">${escapeHTML(r.dropped||'')}</textarea></div>
-    </div>`;
-  ['wins','lessons','next','dropped'].forEach(k=>{
-    document.getElementById('rv-'+k).addEventListener('blur', e=>{
-      if (!state.reviews[wkKey]) state.reviews[wkKey] = { date: dKey(today) };
-      state.reviews[wkKey][k] = e.target.value.trim();
-      saveState();
-    });
   });
 }
 
@@ -4415,8 +4233,7 @@ function openMoreMenu(){
     {v:'day', label:I18N.views.day, icon:'📅'},
     {v:'week', label:I18N.views.week, icon:'🗓'},
     {v:'month', label:I18N.views.month, icon:'📆'},
-    {v:'overview', label:I18N.views.overview, icon:'🧭'},
-    {v:'fokus', label:I18N.views.fokus, icon:'✨'}
+    {v:'overview', label:I18N.views.overview, icon:'🧭'}
   ];
   const buttons = items.map(it=>
     `<button onclick="state.settings.view='${it.v}';closeModal();render()" style="display:flex;align-items:center;gap:14px;padding:16px 18px;font-size:16px;background:${state.settings.view===it.v?'var(--surface-2)':'transparent'};border:none;border-radius:12px;color:var(--ink);width:100%;text-align:left;${state.settings.view===it.v?'font-weight:600;':''}">
@@ -5588,38 +5405,7 @@ updateSyncIndicator();
   }
 })();
 
-// Sunday review nudge
-(function reviewNudge(){
-  const today = new Date();
-  if (today.getDay()===0){ // Sunday
-    const wkAnchor = startOfWeek(today);
-    const wkKey = `${wkAnchor.getFullYear()}-W${pad(isoWeek(wkAnchor))}`;
-    if (!state.reviews[wkKey] && !sessionStorage.getItem('nudged')){
-      sessionStorage.setItem('nudged','1');
-      setTimeout(()=>{
-        if (confirm('Søndag · vil du gjøre ukentlig refleksjon nå?')){
-          state.settings.view='fokus'; render();
-          setTimeout(()=>document.getElementById('rv-wins')?.focus(),200);
-        }
-      }, 800);
-    }
-  }
-})();
 </script>
 </body>
 </html>
--W${pad(isoWeek(wkAnchor))}`;
-    if (!state.reviews[wkKey] && !sessionStorage.getItem('nudged')){
-      sessionStorage.setItem('nudged','1');
-      setTimeout(()=>{
-        if (confirm('Søndag · vil du gjøre ukentlig refleksjon nå?')){
-          state.settings.view='fokus'; render();
-          setTimeout(()=>document.getElementById('rv-wins')?.focus(),200);
-        }
-      }, 800);
-    }
-  }
-})();
-</script>
-</body>
-</html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
