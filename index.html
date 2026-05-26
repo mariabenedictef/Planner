@@ -1069,6 +1069,39 @@
 'use strict';
 
 // ============================================================
+// EVENT DELEGATION — central HTML-handler registry
+// ============================================================
+// All HTML-bound click handlers live in HANDLERS. Templates use the act() helper
+// to produce data-action + data-args attributes. A single document-level click
+// listener dispatches to HANDLERS[action] with the parsed args.
+// This replaces the older pattern of 76 separate window.* global assignments.
+const HANDLERS = {};
+
+// Produce data-action + data-args attributes for use inside template literals.
+// Example: <button ${act('archiveProject', p.id)}>Arkiver</button>
+function act(name, ...args){
+  const a = args.length ? ` data-args='${JSON.stringify(args).replace(/'/g, "&#39;")}'` : '';
+  return `data-action="${name}"${a}`;
+}
+
+// Single delegated click handler. Looks up the action on the nearest ancestor with
+// a data-action attribute and invokes HANDLERS[action] with the parsed args.
+document.addEventListener('click', (ev) => {
+  const t = ev.target.closest && ev.target.closest('[data-action]');
+  if (!t) return;
+  const action = t.dataset.action;
+  const fn = HANDLERS[action];
+  if (typeof fn !== 'function') return;
+  let args = [];
+  if (t.dataset.args){
+    try { args = JSON.parse(t.dataset.args.replace(/&#39;/g, "'")); }
+    catch (err) { console.error('Could not parse data-args for ' + action, err, t.dataset.args); return; }
+  }
+  try { fn.apply(null, [...args, ev, t]); }
+  catch (err) { console.error('HANDLERS.' + action + ' threw:', err); }
+});
+
+// ============================================================
 // CONSTANTS — Norwegian labels, categories, dates
 // ============================================================
 const I18N = {
@@ -1463,7 +1496,7 @@ async function loadCloudBackups(){
   } catch(e){ return []; }
 }
 
-window.restoreCloudBackup = async (key)=>{
+HANDLERS.restoreCloudBackup = async (key)=>{
   const dateStr = key.replace('backup-','');
   if (!confirm(`Erstatt all nåværende data med sky-backup ${dateStr}?\n\nEt pre-sync-øyeblikksbilde lages automatisk før, så du kan rulle tilbake hvis du ombestemmer deg.`)) return;
   // Save current as pre-sync snapshot
@@ -1920,7 +1953,7 @@ function renderHome(){
               <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
               <input type="checkbox" ${t.done?'checked':''} onclick="event.stopPropagation()" onchange="toggleTask('${t.id}',event)">
               <div class="hi-date${overdue?' overdue':''}">${due}</div>
-              <div class="hi-title" onclick="openTaskForm('${t.id}')" style="cursor:pointer">${escapeHTML(t.title)}</div>
+              <div class="hi-title" data-action="openTaskForm" data-args='["${t.id}"]' style="cursor:pointer">${escapeHTML(t.title)}</div>
             </div>`;
           }).join('')}
         </div>`}
@@ -1937,7 +1970,7 @@ function renderHome(){
             const isProj = t._kind === 'projectTask';
             const isMilestone = t._kind === 'milestone';
             const click = isProj ? `openProjectTaskForm('${t._projectId}','${t.id}')` : (isMilestone ? `state.settings.openProjectId='${t._projectId}';state.settings.view='projects';render()` : `openTaskForm('${t.id}')`);
-            const toggleHandler = isProj ? `toggleProjectTask('${t._projectId}','${t.id}',event)` : (isMilestone ? `toggleProjectMilestone('${t._projectId}','${t.id}')` : `toggleTask('${t.id}',event)`);
+            const toggleHandler = isProj ? `HANDLERS.toggleProjectTask('${t._projectId}','${t.id}',event)` : (isMilestone ? `HANDLERS.toggleProjectMilestone('${t._projectId}','${t.id}')` : `HANDLERS.toggleTask('${t.id}',event)`);
             const icon = isMilestone ? '◆' : '';
             const projTag = t._projectTitle ? `<span class="proj-tag">· ${escapeHTML(t._projectTitle)}</span>` : '';
             return `<div class="home-item ${t.done?'done':''}">
@@ -1981,7 +2014,7 @@ function renderHome(){
             const hol = HOLIDAYS[k];
             const eventsHTML = events.length === 0 ? `<div class="wke-empty">—</div>` :
               events.slice(0, 8).map(e=>{
-                const click = e._ics?`openOutlookEvent('${e.id}')`:(e._kind==='project'?`state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()`:`editEvent('${e.id}')`);
+                const click = e._ics?`HANDLERS.openOutlookEvent('${e.id}')`:(e._kind==='project'?`state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()`:`HANDLERS.editEvent('${e.id}')`);
                 const cls = `wke cat-${e.category||'arbeid'}${e._ics?' ics':''}`;
                 const timePart = e.start ? `<strong>${e.start}</strong> ` : '';
                 return `<div class="${cls}" onclick="${click}" title="${escapeAttr(e.title)}">${timePart}${escapeHTML(e.title)}</div>`;
@@ -2027,7 +2060,7 @@ function renderHome(){
       <input id="home-quick-input" type="text" placeholder="Hva tenker du på? Trykk Enter for å legge i innboks…">
       <div class="home-quick-hint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span>Eller</span>
-        <button onclick="openDumpModal()" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer">📋 Dumpefelt</button>
+        <button data-action="openDumpModal" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer">📋 Dumpefelt</button>
         <span>for å lime inn et helt notat med flere oppgaver</span>
       </div>
     </div>
@@ -2220,14 +2253,14 @@ function renderProjects(){
   viewEl.innerHTML = `
     <div class="subnav">
       <h2>Prosjekter <span class="yr">${active.length} aktive</span></h2>
-      <button class="today-btn" onclick="openProjectForm()">+ Nytt prosjekt</button>
+      <button class="today-btn" data-action="openProjectForm">+ Nytt prosjekt</button>
     </div>
     <div class="projects-grid" id="pgrid"></div>
     ${archived.length?`<div style="margin-top:24px"><h3 style="font-family:var(--serif);font-weight:500;font-size:16px;color:var(--ink-muted);margin:0 0 10px">Arkiverte</h3><div class="projects-grid" id="pgrid-arch"></div></div>`:''}
   `;
 
   const pg = document.getElementById('pgrid');
-  pg.innerHTML = active.map(projectCardHTML).join('') + `<div class="new-project-card" onclick="openProjectForm()">+ Nytt prosjekt</div>`;
+  pg.innerHTML = active.map(projectCardHTML).join('') + `<div class="new-project-card" data-action="openProjectForm">+ Nytt prosjekt</div>`;
   pg.querySelectorAll('.pcard').forEach(el=>el.onclick=()=>{ state.settings.openProjectId = el.dataset.id; render(); });
 
   if (archived.length){
@@ -2325,10 +2358,10 @@ function _projectTasksSectionHTML(p){
       <h4>Oppgaver
         <span style="display:flex;align-items:center;gap:8px">
           <span class="pview-toggle">
-            <button onclick="setProjectViewMode('list')" class="${mode==='list'?'active':''}" title="Liste">≡ Liste</button>
-            <button onclick="setProjectViewMode('kanban')" class="${mode==='kanban'?'active':''}" title="Kanban">⊟ Kanban</button>
+            <button data-action="setProjectViewMode" data-args='["list"]' class="${mode==='list'?'active':''}" title="Liste">≡ Liste</button>
+            <button data-action="setProjectViewMode" data-args='["kanban"]' class="${mode==='kanban'?'active':''}" title="Kanban">⊟ Kanban</button>
           </span>
-          <button onclick="openProjectTaskForm('${p.id}')">+ Ny</button>
+          <button data-action="openProjectTaskForm" data-args='["${p.id}"]'>+ Ny</button>
         </span>
       </h4>
       <div id="ptasks">${body}</div>
@@ -2344,13 +2377,13 @@ function _projectMilestonesSectionHTML(p){
         <div class="pinline-add">
           <input id="pms-title" type="text" placeholder="Nytt delmål…">
           <input id="pms-date" class="small" type="date">
-          <button onclick="addProjectMilestone('${p.id}')">+ Legg til</button>
+          <button data-action="addProjectMilestone" data-args='["${p.id}"]'>+ Legg til</button>
         </div>
       </div>`;
   }
   return `
     <div class="psection" style="padding:10px 0;border-top:1px solid var(--line-soft)">
-      <button class="add-link" onclick="quickAddMilestone('${p.id}')" style="font-size:12.5px;color:var(--ink-soft);padding:4px 0">+ Legg til delmål (valgfritt)</button>
+      <button class="add-link" data-action="quickAddMilestone" data-args='["${p.id}"]' style="font-size:12.5px;color:var(--ink-soft);padding:4px 0">+ Legg til delmål (valgfritt)</button>
     </div>`;
 }
 
@@ -2358,7 +2391,7 @@ function _projectNotesSectionHTML(p){
   const noteCards = (p.noteList||[]).map(n=>{
     const preview = (n.content||'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
     const previewSnippet = preview ? escapeHTML(preview.slice(0,120)) + (preview.length>120?'…':'') : 'Tomt notat — klikk for å skrive';
-    return `<div class="note-card" onclick="openNoteEditor('${p.id}','${n.id}')">
+    return `<div class="note-card" data-action="openNoteEditor" data-args='["${p.id}","${n.id}"]'>
       <div class="note-card-title">${escapeHTML(n.title||'Uten tittel')}</div>
       <div class="${preview?'note-card-preview':'note-card-empty'}">${previewSnippet}</div>
     </div>`;
@@ -2368,7 +2401,7 @@ function _projectNotesSectionHTML(p){
       <h4>Notater & utkast <span style="font-weight:400;font-size:11px;color:var(--ink-muted);font-family:var(--font);font-style:italic;letter-spacing:0;text-transform:none">— lag flere notater for ulike temaer</span></h4>
       <div class="notes-grid">
         ${noteCards}
-        <div class="new-note-card" onclick="addProjectNote('${p.id}')">+ Nytt notat</div>
+        <div class="new-note-card" data-action="addProjectNote" data-args='["${p.id}"]'>+ Nytt notat</div>
       </div>
     </div>`;
 }
@@ -2381,7 +2414,7 @@ function _projectLinksSectionHTML(p){
       <div class="pinline-add">
         <input id="pl-title" class="small" type="text" placeholder="Tittel">
         <input id="pl-url" type="url" placeholder="https://…">
-        <button onclick="addProjectLink('${p.id}')">+ Legg til</button>
+        <button data-action="addProjectLink" data-args='["${p.id}"]'>+ Legg til</button>
       </div>
     </div>`;
 }
@@ -2411,10 +2444,10 @@ function _projectActionsSectionHTML(p){
   return `
     <div class="psection" style="display:flex;gap:8px;justify-content:space-between;align-items:center">
       <div style="display:flex;gap:8px">
-        <button onclick="openProjectForm('${p.id}')" style="padding:7px 12px;border-radius:6px;border:1px solid var(--line);font-size:13px">Rediger detaljer</button>
-        <button onclick="archiveProject('${p.id}')" style="padding:7px 12px;border-radius:6px;border:1px solid var(--line);font-size:13px">${p.archived?'Gjenåpne':'Arkivér'}</button>
+        <button data-action="openProjectForm" data-args='["${p.id}"]' style="padding:7px 12px;border-radius:6px;border:1px solid var(--line);font-size:13px">Rediger detaljer</button>
+        <button data-action="archiveProject" data-args='["${p.id}"]' style="padding:7px 12px;border-radius:6px;border:1px solid var(--line);font-size:13px">${p.archived?'Gjenåpne':'Arkivér'}</button>
       </div>
-      <button onclick="deleteProject('${p.id}')" style="padding:7px 12px;border-radius:6px;border:1px solid transparent;font-size:13px;color:var(--alert)">Slett prosjekt</button>
+      <button data-action="deleteProject" data-args='["${p.id}"]' style="padding:7px 12px;border-radius:6px;border:1px solid transparent;font-size:13px;color:var(--alert)">Slett prosjekt</button>
     </div>`;
 }
 
@@ -2435,7 +2468,7 @@ function _wireProjectPageReorder(p){
 }
 
 // Multi-note system per project
-window.addProjectNote = (pid)=>{
+HANDLERS.addProjectNote = (pid)=>{
   const p = state.projects.find(x=>x.id===pid);
   if (!p) return;
   if (!p.noteList) p.noteList = [];
@@ -2445,7 +2478,7 @@ window.addProjectNote = (pid)=>{
   openNoteEditor(pid, n.id);
 };
 
-window.openNoteEditor = (pid, nid)=>{
+HANDLERS.openNoteEditor = (pid, nid)=>{
   const p = state.projects.find(x=>x.id===pid);
   const n = p?.noteList?.find(x=>x.id===nid);
   if (!p || !n) return;
@@ -2495,8 +2528,8 @@ window.openNoteEditor = (pid, nid)=>{
       <div id="note-editor" class="note-editor" contenteditable="true" data-placeholder="Begynn å skrive…">${n.content||''}</div>
     </div>
     <div class="footer">
-      <button class="btn btn-danger" onclick="deleteProjectNote('${pid}','${nid}')">Slett notat</button>
-      <button class="btn btn-ghost" onclick="closeModal()">Lukk</button>
+      <button class="btn btn-danger" data-action="deleteProjectNote" data-args='["${pid}","${nid}"]'>Slett notat</button>
+      <button class="btn btn-ghost" data-action="closeModal">Lukk</button>
     </div>
     </div>`);
   const modalInner = document.getElementById('note-modal-inner');
@@ -2581,7 +2614,7 @@ window.openNoteEditor = (pid, nid)=>{
   }
 };
 
-window.saveProjectNote = (pid, nid)=>{
+HANDLERS.saveProjectNote = (pid, nid)=>{
   const p = state.projects.find(x=>x.id===pid);
   const n = p?.noteList?.find(x=>x.id===nid);
   if (!p || !n) return;
@@ -2592,7 +2625,7 @@ window.saveProjectNote = (pid, nid)=>{
   render();
 };
 
-window.deleteProjectNote = (pid, nid)=>{
+HANDLERS.deleteProjectNote = (pid, nid)=>{
   if (!confirm('Slett notatet? Dette kan ikke angres.')) return;
   const p = state.projects.find(x=>x.id===pid);
   if (!p) return;
@@ -2614,7 +2647,7 @@ function renderProjectKanban(p){
       ? '<div style="padding:10px 4px;font-size:11.5px;color:var(--ink-muted);font-style:italic;text-align:center">ren boks</div>'
       : items.slice().sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>{
           const overdue = t.due && t.due < today && !t.done ? ' overdue' : '';
-          return `<div class="kcard ${t.done?'done':''}" draggable="true" data-id="${t.id}" ondragstart="kanbanDragStart(event,'${t.id}')" ondragend="kanbanDragEnd(event)" onclick="openProjectTaskForm('${p.id}','${t.id}')">
+          return `<div class="kcard ${t.done?'done':''}" draggable="true" data-id="${t.id}" ondragstart="kanbanDragStart(event,'${t.id}')" ondragend="kanbanDragEnd(event)" data-action="openProjectTaskForm" data-args='["${p.id}","${t.id}"]'>
             <div class="kcard-title">${escapeHTML(t.title)}</div>
             ${t.due ? `<div class="kcard-meta${overdue}">${fmtDateShort(fromKey(t.due))}${t.endDate&&t.endDate>t.due?'–'+fmtDateShort(fromKey(t.endDate)):''}${t.recurring?' · ↻':''}</div>` : ''}
           </div>`;
@@ -2631,20 +2664,20 @@ function renderProjectKanban(p){
   </div>`;
 }
 
-window.kanbanDragStart = (e, id)=>{
+HANDLERS.kanbanDragStart = (e, id)=>{
   e.dataTransfer.setData('text/plain', id);
   e.dataTransfer.effectAllowed = 'move';
   e.target.style.opacity = '.5';
 };
-window.kanbanDragEnd = (e)=>{ e.target.style.opacity = ''; };
-window.kanbanOver = (e)=>{
+HANDLERS.kanbanDragEnd = (e)=>{ e.target.style.opacity = ''; };
+HANDLERS.kanbanOver = (e)=>{
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
   e.currentTarget.style.outline = '2px dashed var(--accent)';
   e.currentTarget.style.outlineOffset = '-2px';
 };
-window.kanbanLeave = (e)=>{ e.currentTarget.style.outline = ''; };
-window.kanbanDrop = (e, pid, status)=>{
+HANDLERS.kanbanLeave = (e)=>{ e.currentTarget.style.outline = ''; };
+HANDLERS.kanbanDrop = (e, pid, status)=>{
   e.preventDefault();
   e.currentTarget.style.outline = '';
   const tid = e.dataTransfer.getData('text/plain');
@@ -2656,7 +2689,7 @@ window.kanbanDrop = (e, pid, status)=>{
   render();
 };
 
-window.setProjectViewMode = (mode)=>{
+HANDLERS.setProjectViewMode = (mode)=>{
   state.settings.projectViewMode = mode;
   render();
 };
@@ -2671,9 +2704,9 @@ function renderProjectTasks(p){
     return `<div class="ptask ${t.done?'done':''}" data-task-id="${t.id}" draggable="true">
       <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
       <input type="checkbox" ${t.done?'checked':''} onchange="toggleProjectTask('${p.id}','${t.id}',event)">
-      <span class="pttitle" onclick="openProjectTaskForm('${p.id}','${t.id}')">${escapeHTML(t.title)}</span>
+      <span class="pttitle" data-action="openProjectTaskForm" data-args='["${p.id}","${t.id}"]'>${escapeHTML(t.title)}</span>
       ${t.due?`<span class="ptdate">${fmtDateShort(fromKey(t.due))}${range}</span>`:''}
-      <button class="ptdel" onclick="deleteProjectTask('${p.id}','${t.id}')">×</button>
+      <button class="ptdel" data-action="deleteProjectTask" data-args='["${p.id}","${t.id}"]'>×</button>
     </div>`;
   }).join('');
 }
@@ -2688,7 +2721,7 @@ function renderProjectMilestones(p){
     <input type="checkbox" ${m.done?'checked':''} onchange="toggleProjectMilestone('${p.id}','${m.id}')">
     <span class="pttitle">${escapeHTML(m.title)}</span>
     ${m.date?`<span class="ptdate">${fmtDateShort(fromKey(m.date))}</span>`:''}
-    <button class="ptdel" onclick="deleteProjectMilestone('${p.id}','${m.id}')">×</button>
+    <button class="ptdel" data-action="deleteProjectMilestone" data-args='["${p.id}","${m.id}"]'>×</button>
   </div>`).join('');
 }
 function renderProjectPeople(p){
@@ -2702,19 +2735,19 @@ function renderProjectPeople(p){
       <option value="confirmed" ${pp.status==='confirmed'?'selected':''}>Bekreftet</option>
       <option value="declined" ${pp.status==='declined'?'selected':''}>Avslått</option>
     </select>
-    <button class="ptdel" onclick="deleteProjectPerson('${p.id}','${pp.id}')">×</button>
+    <button class="ptdel" data-action="deleteProjectPerson" data-args='["${p.id}","${pp.id}"]'>×</button>
   </div>`).join('');
 }
 function renderProjectLinks(p){
   if (!(p.links||[]).length) return `<div class="empty-state">Ingen lenker lagret ennå</div>`;
   return p.links.map(l=>`<div class="plink">
     <a href="${escapeAttr(l.url)}" target="_blank" rel="noopener">${escapeHTML(l.title||l.url)}</a>
-    <button class="ptdel" onclick="deleteProjectLink('${p.id}','${l.id}')">×</button>
+    <button class="ptdel" data-action="deleteProjectLink" data-args='["${p.id}","${l.id}"]'>×</button>
   </div>`).join('');
 }
 
 // Project mutations
-window.toggleProjectTask = (pid,tid,ev)=>{
+HANDLERS.toggleProjectTask = (pid,tid,ev)=>{
   const p = state.projects.find(x=>x.id===pid);
   const t = p?.tasks.find(x=>x.id===tid);
   if (!t) return;
@@ -2740,10 +2773,10 @@ window.toggleProjectTask = (pid,tid,ev)=>{
     render();
   }
 };
-window.deleteProjectTask = (pid,tid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.tasks=p.tasks.filter(t=>t.id!==tid); render();} };
-window.toggleProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); const m=p?.milestones.find(x=>x.id===mid); if(m){m.done=!m.done; render();} };
-window.deleteProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.milestones=p.milestones.filter(m=>m.id!==mid); render();} };
-window.addProjectMilestone = (pid)=>{
+HANDLERS.deleteProjectTask = (pid,tid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.tasks=p.tasks.filter(t=>t.id!==tid); render();} };
+HANDLERS.toggleProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); const m=p?.milestones.find(x=>x.id===mid); if(m){m.done=!m.done; render();} };
+HANDLERS.deleteProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.milestones=p.milestones.filter(m=>m.id!==mid); render();} };
+HANDLERS.addProjectMilestone = (pid)=>{
   const t = document.getElementById('pms-title').value.trim();
   const d = document.getElementById('pms-date').value;
   if (!t) return;
@@ -2751,7 +2784,7 @@ window.addProjectMilestone = (pid)=>{
   p.milestones.push({id:uid(),title:t,date:d,done:false});
   render();
 };
-window.quickAddMilestone = (pid)=>{
+HANDLERS.quickAddMilestone = (pid)=>{
   const t = prompt('Hva er delmålet? (f.eks. "Save the Date sendt")', '');
   if (!t || !t.trim()) return;
   const d = prompt('Eventuell dato (YYYY-MM-DD, valgfritt — la stå tom hvis ingen)', '');
@@ -2759,7 +2792,7 @@ window.quickAddMilestone = (pid)=>{
   p.milestones.push({id:uid(), title:t.trim(), date:(d&&/^\d{4}-\d{2}-\d{2}$/.test(d))?d:'', done:false});
   render();
 };
-window.addProjectPerson = (pid)=>{
+HANDLERS.addProjectPerson = (pid)=>{
   const n = document.getElementById('pp-name').value.trim();
   const r = document.getElementById('pp-role').value.trim();
   if (!n) return;
@@ -2767,9 +2800,9 @@ window.addProjectPerson = (pid)=>{
   p.people.push({id:uid(),name:n,role:r,contact:'',status:''});
   render();
 };
-window.setPersonStatus = (pid,ppid,v)=>{ const p=state.projects.find(x=>x.id===pid); const pp=p?.people.find(x=>x.id===ppid); if(pp){pp.status=v; saveState();} };
-window.deleteProjectPerson = (pid,ppid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.people=p.people.filter(x=>x.id!==ppid); render();} };
-window.addProjectLink = (pid)=>{
+HANDLERS.setPersonStatus = (pid,ppid,v)=>{ const p=state.projects.find(x=>x.id===pid); const pp=p?.people.find(x=>x.id===ppid); if(pp){pp.status=v; saveState();} };
+HANDLERS.deleteProjectPerson = (pid,ppid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.people=p.people.filter(x=>x.id!==ppid); render();} };
+HANDLERS.addProjectLink = (pid)=>{
   const t = document.getElementById('pl-title').value.trim();
   const u = document.getElementById('pl-url').value.trim();
   if (!u) return;
@@ -2777,9 +2810,9 @@ window.addProjectLink = (pid)=>{
   p.links.push({id:uid(),title:t||u,url:u});
   render();
 };
-window.deleteProjectLink = (pid,lid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.links=p.links.filter(l=>l.id!==lid); render();} };
-window.archiveProject = (pid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.archived=!p.archived; render();} };
-window.deleteProject = (pid)=>{ if(!confirm('Slett prosjektet og alt innhold?')) return; state.projects=state.projects.filter(p=>p.id!==pid); state.settings.openProjectId=null; render(); };
+HANDLERS.deleteProjectLink = (pid,lid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.links=p.links.filter(l=>l.id!==lid); render();} };
+HANDLERS.archiveProject = (pid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.archived=!p.archived; render();} };
+HANDLERS.deleteProject = (pid)=>{ if(!confirm('Slett prosjektet og alt innhold?')) return; state.projects=state.projects.filter(p=>p.id!==pid); state.settings.openProjectId=null; render(); };
 
 // Project create/edit form (top-level fields only)
 function openProjectForm(id){
@@ -2802,8 +2835,8 @@ function openProjectForm(id){
       <div class="field"><label>Kort beskrivelse</label><textarea id="p-desc" placeholder="Hva er dette i én setning?">${escapeHTML(data.description||'')}</textarea></div>
     </div>
     <div class="footer">
-      <button onclick="closeModal()">${I18N.cancel}</button>
-      <button class="primary" onclick="saveProjectForm('${p?p.id:''}')">${I18N.save}</button>
+      <button data-action="closeModal">${I18N.cancel}</button>
+      <button class="primary" data-action="saveProjectForm" data-args='["${p?p.id:''}"]'>${I18N.save}</button>
     </div>`);
   setTimeout(()=>document.getElementById('p-title').focus(),50);
   if (isNew){
@@ -2821,8 +2854,8 @@ function openProjectForm(id){
     });
   }
 }
-window.openProjectForm = openProjectForm;
-window.saveProjectForm = id=>{
+HANDLERS.openProjectForm = openProjectForm;
+HANDLERS.saveProjectForm = id=>{
   const target = document.getElementById('p-target').value||'';
   const targetEndRaw = document.getElementById('p-targetEnd').value||'';
   const data = {
@@ -2904,13 +2937,13 @@ function openProjectTaskForm(pid, tid){
     </div>
     <div class="footer">
       ${t?`<button class="danger" onclick="(state.projects.find(x=>x.id==='${pid}').tasks=state.projects.find(x=>x.id==='${pid}').tasks.filter(x=>x.id!=='${tid}'));closeModal();render()">${I18N.delete}</button>`:''}
-      <button onclick="closeModal()">${I18N.cancel}</button>
-      <button class="primary" onclick="saveProjectTaskForm('${pid}','${t?t.id:''}')">${I18N.save}</button>
+      <button data-action="closeModal">${I18N.cancel}</button>
+      <button class="primary" data-action="saveProjectTaskForm" data-args='["${pid}","${t?t.id:''}"]'>${I18N.save}</button>
     </div>`);
   setTimeout(()=>document.getElementById('pt-title').focus(),50);
 }
-window.openProjectTaskForm = openProjectTaskForm;
-window.saveProjectTaskForm = (pid, tid)=>{
+HANDLERS.openProjectTaskForm = openProjectTaskForm;
+HANDLERS.saveProjectTaskForm = (pid, tid)=>{
   const p = state.projects.find(x=>x.id===pid);
   const due = document.getElementById('pt-due').value||'';
   const endDateRaw = document.getElementById('pt-endDate').value||'';
@@ -2956,14 +2989,14 @@ function renderTodos(){
     <div class="todo-quick">
       <input class="qtxt" id="qt-input" type="text" placeholder="Skriv en To Do og trykk Enter, eller bruk knappene under…" autofocus>
       <div class="qbtns">
-        <button onclick="quickAddTodo('inbox')">→ Innboks</button>
-        <button class="urgent" onclick="quickAddTodo('urgent')">⚠ Urgent</button>
-        <button class="short" onclick="quickAddTodo('short')">↗ Short term</button>
-        <button class="long" onclick="quickAddTodo('long')">⤳ Long term</button>
+        <button data-action="quickAddTodo" data-args='["inbox"]'>→ Innboks</button>
+        <button class="urgent" data-action="quickAddTodo" data-args='["urgent"]'>⚠ Urgent</button>
+        <button class="short" data-action="quickAddTodo" data-args='["short"]'>↗ Short term</button>
+        <button class="long" data-action="quickAddTodo" data-args='["long"]'>⤳ Long term</button>
         <select id="qt-project" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;background:#fff;color:var(--ink-soft)" onchange="if(this.value)quickAddTodo('project',this.value);this.value=''">
           <option value="">▸ Til prosjekt…</option>${projectsList}
         </select>
-        <button onclick="startVoiceCapture()" title="Snakk inn et notat (lagres i innboks)" style="margin-left:auto">🎤 Tale</button>
+        <button data-action="startVoiceCapture" title="Snakk inn et notat (lagres i innboks)" style="margin-left:auto">🎤 Tale</button>
       </div>
     </div>
 
@@ -2974,13 +3007,13 @@ function renderTodos(){
           <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
           <span class="ttitle" ondblclick="inlineEditStart(event,'${i.id}','inbox')">${escapeHTML(i.text)}</span>
           <div class="actions" style="opacity:1">
-            <button onclick="inboxToTodo('${i.id}','urgent')" title="Til Urgent">⚠</button>
-            <button onclick="inboxToTodo('${i.id}','short')" title="Til Short term">↗</button>
-            <button onclick="inboxToTodo('${i.id}','long')" title="Til Long term">⤳</button>
+            <button data-action="inboxToTodo" data-args='["${i.id}","urgent"]' title="Til Urgent">⚠</button>
+            <button data-action="inboxToTodo" data-args='["${i.id}","short"]' title="Til Short term">↗</button>
+            <button data-action="inboxToTodo" data-args='["${i.id}","long"]' title="Til Long term">⤳</button>
             <select onchange="if(this.value){inboxToProject('${i.id}',this.value);this.value=''}" style="padding:2px 4px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:#fff">
               <option value="">▸ Prosjekt</option>${projectsList}
             </select>
-            <button class="ag" onclick="deleteInbox('${i.id}')">×</button>
+            <button class="ag" data-action="deleteInbox" data-args='["${i.id}"]'>×</button>
           </div>
         </div>`).join('')}
       </div>
@@ -3067,10 +3100,10 @@ function todoRowHTML(t, projectsList){
     <input type="checkbox" ${t.done?'checked':''} onchange="toggleTask('${t.id}',event)">
     <span class="ttitle" data-edit-id="${t.id}" data-edit-kind="task" ondblclick="inlineEditStart(event,'${t.id}','task')">${escapeHTML(t.title)} ${due}</span>
     <div class="actions">
-      <button onclick="setTaskPriority('${t.id}','urgent')" title="Urgent">⚠</button>
-      <button onclick="setTaskPriority('${t.id}','short')" title="Short term">↗</button>
-      <button onclick="setTaskPriority('${t.id}','long')" title="Long term">⤳</button>
-      <button onclick="setTaskPriority('${t.id}','')" title="Fjern kategori">○</button>
+      <button data-action="setTaskPriority" data-args='["${t.id}","urgent"]' title="Urgent">⚠</button>
+      <button data-action="setTaskPriority" data-args='["${t.id}","short"]' title="Short term">↗</button>
+      <button data-action="setTaskPriority" data-args='["${t.id}","long"]' title="Long term">⤳</button>
+      <button data-action="setTaskPriority" data-args='["${t.id}",""]' title="Fjern kategori">○</button>
       <select onchange="if(this.value){postponeTask('${t.id}',this.value);this.value=''}" style="padding:2px 4px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:#fff" title="Utsett frist">
         <option value="">▸ Utsett</option>
         <option value="1d">+1 dag</option>
@@ -3081,27 +3114,27 @@ function todoRowHTML(t, projectsList){
       <select onchange="if(this.value){taskToProject('${t.id}',this.value);this.value=''}" style="padding:2px 4px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:#fff">
         <option value="">▸ Prosjekt</option>${projectsList}
       </select>
-      <button class="ag" onclick="openTaskForm('${t.id}')" title="Rediger detaljer">✎</button>
-      <button class="ag" onclick="deleteFreeTask('${t.id}')">×</button>
+      <button class="ag" data-action="openTaskForm" data-args='["${t.id}"]' title="Rediger detaljer">✎</button>
+      <button class="ag" data-action="deleteFreeTask" data-args='["${t.id}"]'>×</button>
     </div>
   </div>`;
 }
 
 // Drag-and-drop helpers
-window.todoDragStart = (e, id, kind)=>{
+HANDLERS.todoDragStart = (e, id, kind)=>{
   e.dataTransfer.setData('application/json', JSON.stringify({id, kind}));
   e.dataTransfer.effectAllowed = 'move';
   e.target.style.opacity = '.4';
 };
-window.todoDragEnd = (e)=>{ e.target.style.opacity = ''; };
-window.todoOver = (e)=>{
+HANDLERS.todoDragEnd = (e)=>{ e.target.style.opacity = ''; };
+HANDLERS.todoOver = (e)=>{
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
   e.currentTarget.style.outline = '2px dashed var(--accent)';
   e.currentTarget.style.outlineOffset = '-2px';
 };
-window.todoLeave = (e)=>{ e.currentTarget.style.outline = ''; };
-window.todoDrop = (e, prio)=>{
+HANDLERS.todoLeave = (e)=>{ e.currentTarget.style.outline = ''; };
+HANDLERS.todoDrop = (e, prio)=>{
   e.preventDefault();
   e.currentTarget.style.outline = '';
   try {
@@ -3117,7 +3150,7 @@ window.todoDrop = (e, prio)=>{
   } catch(_){}
 };
 
-window.quickAddTodo = (kind, projectId)=>{
+HANDLERS.quickAddTodo = (kind, projectId)=>{
   const inp = document.getElementById('qt-input');
   if (!inp) return;
   const text = inp.value.trim();
@@ -3136,12 +3169,12 @@ window.quickAddTodo = (kind, projectId)=>{
   render();
 };
 
-window.setTaskPriority = (id, prio)=>{
+HANDLERS.setTaskPriority = (id, prio)=>{
   const t = state.tasks.find(x=>x.id===id);
   if (t){ t.priority = prio; render(); }
 };
 
-window.taskToProject = (taskId, projectId)=>{
+HANDLERS.taskToProject = (taskId, projectId)=>{
   const idx = state.tasks.findIndex(x=>x.id===taskId);
   if (idx===-1) return;
   const t = state.tasks[idx];
@@ -3152,7 +3185,7 @@ window.taskToProject = (taskId, projectId)=>{
   render();
 };
 
-window.inboxToTodo = (inboxId, prio)=>{
+HANDLERS.inboxToTodo = (inboxId, prio)=>{
   const idx = state.inbox.findIndex(x=>x.id===inboxId);
   if (idx===-1) return;
   const i = state.inbox[idx];
@@ -3161,7 +3194,7 @@ window.inboxToTodo = (inboxId, prio)=>{
   render();
 };
 
-window.inboxToProject = (inboxId, projectId)=>{
+HANDLERS.inboxToProject = (inboxId, projectId)=>{
   const idx = state.inbox.findIndex(x=>x.id===inboxId);
   if (idx===-1) return;
   const i = state.inbox[idx];
@@ -3172,12 +3205,12 @@ window.inboxToProject = (inboxId, projectId)=>{
   render();
 };
 
-window.deleteFreeTask = (id)=>{
+HANDLERS.deleteFreeTask = (id)=>{
   state.tasks = state.tasks.filter(x=>x.id!==id);
   render();
 };
 
-window.postponeTask = (id, by)=>{
+HANDLERS.postponeTask = (id, by)=>{
   const t = state.tasks.find(x=>x.id===id);
   if (!t) return;
   const base = t.due ? fromKey(t.due) : new Date();
@@ -3192,7 +3225,7 @@ window.postponeTask = (id, by)=>{
 };
 
 // Inline-edit: double-click a .ttitle span to edit the title in place. Enter saves, Escape cancels.
-window.inlineEditStart = (e, id, kind)=>{
+HANDLERS.inlineEditStart = (e, id, kind)=>{
   e.stopPropagation();
   const span = e.currentTarget;
   let original;
@@ -3333,7 +3366,7 @@ function renderOverview(){
     const urgent = days<=14 ? 'urgent' : '';
     const click = item.projectId
       ? `state.settings.openProjectId='${item.projectId}';state.settings.view='projects';render()`
-      : item.eventId ? `editEvent('${item.eventId}')` : '';
+      : item.eventId ? `HANDLERS.editEvent('${item.eventId}')` : '';
     return `<div class="kd" onclick="${click}">
       <div class="kdate">${I18N.monthsShort[d.getMonth()]} <strong>${d.getDate()}</strong></div>
       <div class="ktitle">${escapeHTML(item.title)}<span class="meta">${item.kind}</span></div>
@@ -3343,7 +3376,7 @@ function renderOverview(){
 
   viewEl.innerHTML = `
     <div class="subnav">
-      <button class="today-btn" onclick="overviewToday()">${I18N.today}</button>
+      <button class="today-btn" data-action="overviewToday">${I18N.today}</button>
       <h2>Årsoversikt <span class="yr">${titleStr}</span></h2>
       <div class="arrows">
         <button id="ov-prev" title="12 måneder bakover">‹</button>
@@ -3374,7 +3407,7 @@ function renderOverview(){
   document.getElementById('ov-prev').onclick = ()=>{ state.settings.overviewAnchor = dKey(addMonths(anchor,-12)); render(); };
   document.getElementById('ov-next').onclick = ()=>{ state.settings.overviewAnchor = dKey(addMonths(anchor,12)); render(); };
 }
-window.overviewToday = ()=>{ state.settings.overviewAnchor=''; render(); };
+HANDLERS.overviewToday = ()=>{ state.settings.overviewAnchor=''; render(); };
 
 function monthMiniHTML(y,m,today){
   const days = monthDays(y,m);
@@ -3429,7 +3462,7 @@ function renderMonth(){
 
   viewEl.innerHTML = `
     <div class="subnav">
-      <button class="today-btn" onclick="goToday()">${I18N.today}</button>
+      <button class="today-btn" data-action="goToday">${I18N.today}</button>
       <h2>${fmtMonth(y,m)}</h2>
       <div class="arrows"><button id="prev">‹</button><button id="next">›</button></div>
     </div>
@@ -3467,7 +3500,7 @@ function renderMonth(){
       const isProj = e._kind === 'project';
       const cls = `ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}${multi}${cont}${last}`;
       const click = e._ics
-        ? `onclick="event.stopPropagation();openOutlookEvent('${e.id}')"`
+        ? `onclick="event.stopPropagation();HANDLERS.openOutlookEvent('${e.id}')"`
         : isProj
           ? `onclick="event.stopPropagation();state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()"`
           : '';
@@ -3510,7 +3543,7 @@ function renderWeek(){
 
   viewEl.innerHTML = `
     <div class="subnav">
-      <button class="today-btn" onclick="goToday()">${I18N.today}</button>
+      <button class="today-btn" data-action="goToday">${I18N.today}</button>
       <h2>Uke ${wn} <span class="yr">${fmtDateShort(wk)} – ${fmtDateShort(addDays(wk,6))} ${wk.getFullYear()}</span></h2>
       <div class="arrows"><button id="prev">‹</button><button id="next">›</button></div>
     </div>
@@ -3548,10 +3581,10 @@ function renderWeek(){
         const isProj = e._kind === 'project';
         const cls = `ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}${multi}${cont}${last}`;
         const click = e._ics
-          ? `openOutlookEvent('${e.id}')`
+          ? `HANDLERS.openOutlookEvent('${e.id}')`
           : isProj
             ? `state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()`
-            : `editEvent('${e.id}')`;
+            : `HANDLERS.editEvent('${e.id}')`;
         const style = evDurationStyle(e, 42);
         const prefix = (!e._isContinuation && isProj) ? '📍 ' : '';
         const timeP = (!e._isContinuation && e.start) ? `<strong>${e.start}${e.end?'–'+e.end:''}</strong> ` : '';
@@ -3585,7 +3618,7 @@ function buildDashboardHTML(){
     const k = dKey(d);
     eventsOnDay(k).forEach(e=>{
       if (!e._isContinuation){ // first day only
-        next7.push({ date:k, title:e.title, kind: e._ics?'📧 Outlook': e._kind==='project'?'★ ' + (e.title!==e.title?'':'måldato') :'📌 hendelse', clickHandler: e._ics?`openOutlookEvent('${e.id}')` : (e._kind==='project'?`state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()`:`editEvent('${e.id}')`) });
+        next7.push({ date:k, title:e.title, kind: e._ics?'📧 Outlook': e._kind==='project'?'★ ' + (e.title!==e.title?'':'måldato') :'📌 hendelse', clickHandler: e._ics?`HANDLERS.openOutlookEvent('${e.id}')` : (e._kind==='project'?`state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()`:`HANDLERS.editEvent('${e.id}')`) });
       }
     });
     tasksOnDay(k).forEach(t=>{
@@ -3605,7 +3638,7 @@ function buildDashboardHTML(){
 
   const urgentHTML = urgent.length ? urgent.slice(0,5).map(t=>{
     const due = t.due ? fmtDateShort(fromKey(t.due)) : '—';
-    return `<div class="dash-item" onclick="openTaskForm('${t.id}')">
+    return `<div class="dash-item" data-action="openTaskForm" data-args='["${t.id}"]'>
       <div class="ddate">${due}</div>
       <div class="dtitle">${escapeHTML(t.title)}</div>
     </div>`;
@@ -3645,7 +3678,7 @@ function renderDay(){
 
   viewEl.innerHTML = `
     <div class="subnav">
-      <button class="today-btn" onclick="goToday()">${I18N.today}</button>
+      <button class="today-btn" data-action="goToday">${I18N.today}</button>
       <h2>${I18N.weekdaysLong[monIdx(anchor)]} ${anchor.getDate()}. ${I18N.months[anchor.getMonth()]} <span class="yr">${anchor.getFullYear()}${hol?' · '+hol:''}</span></h2>
       <div class="arrows"><button id="prev">‹</button><button id="next">›</button></div>
     </div>
@@ -3655,7 +3688,7 @@ function renderDay(){
       </div>
       <div class="day-side">
         <div class="panel tasks-block">
-          <h4>Oppgaver i dag <button class="add-link" onclick="openTaskForm(null,{due:'${key}'})" style="float:right;font-size:12px;color:var(--ink-soft)">+ Ny</button></h4>
+          <h4>Oppgaver i dag <button class="add-link" onclick="HANDLERS.openTaskForm(null,{due:'${key}'})" style="float:right;font-size:12px;color:var(--ink-soft)">+ Ny</button></h4>
           ${tks.length?`<ul>${tks.map(t=>taskRowHTML(t)).join('')}</ul>`:`<div class="empty-state">${I18N.noTasks}</div>`}
         </div>
         <div class="panel">
@@ -3684,7 +3717,7 @@ function renderDay(){
       const cont = e._isContinuation ? ' multi-cont' : '';
       const last = e._isMultiDay && e._isLastDay ? ' multi-last' : '';
       const cls = `ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${multi}${cont}${last}`;
-      const click = e._ics ? `openOutlookEvent('${e.id}')` : `editEvent('${e.id}')`;
+      const click = e._ics ? `HANDLERS.openOutlookEvent('${e.id}')` : `HANDLERS.editEvent('${e.id}')`;
       const tail = e._ics ? (e.location?` <span style="color:var(--ink-muted);font-size:11px">${escapeHTML(e.location.slice(0,30))}</span>`:'') : (e.notes?` <span style="color:var(--ink-muted);font-size:11px">${escapeHTML(e.notes.slice(0,40))}</span>`:'');
       const style = evDurationStyle(e, 48);
       return `<div class="${cls}" onclick="event.stopPropagation();${click}" style="${style}"><strong>${e.start}${e.end?'–'+e.end:''}</strong> ${escapeHTML(e.title)}${tail}</div>`;
@@ -3702,7 +3735,7 @@ function renderDay(){
       const top = (minOff/60)*48;
       return `<div class="ev cat-${t.category||'arbeid'} task-block" onclick="event.stopPropagation();${click}" style="top:${top}px;height:42px" title="Tidsblokk · ${escapeAttr(t.title)}">
         <strong>${t.scheduledTime}</strong> ${escapeHTML(t.title)}
-        <span style="float:right;cursor:pointer;color:var(--ink-muted);padding:0 4px" onclick="event.stopPropagation();clearScheduledTime(${clearArgs})" title="Fjern tidsblokk">×</span>
+        <span style="float:right;cursor:pointer;color:var(--ink-muted);padding:0 4px" onclick="event.stopPropagation();HANDLERS.clearScheduledTime(${clearArgs})" title="Fjern tidsblokk">×</span>
       </div>`;
     }).join('');
     html += `<div class="hslot" data-hour="${h}" ondragover="taskToTimeOver(event)" ondragleave="taskToTimeLeave(event)" ondrop="taskToTimeDrop(event,${h},'${key}')">${evHTML}${taskHTML}</div>`;
@@ -3717,10 +3750,10 @@ function renderDay(){
       const isProj = e._kind === 'project';
       const cls = `ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}${multi}${cont}${last}`;
       const click = e._ics
-        ? `openOutlookEvent('${e.id}')`
+        ? `HANDLERS.openOutlookEvent('${e.id}')`
         : isProj
           ? `state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()`
-          : `editEvent('${e.id}')`;
+          : `HANDLERS.editEvent('${e.id}')`;
       const icon = e._isContinuation ? '' : (e._ics?'📧 ':(isProj?'📍 ':'📌 '));
       return `<div class="${cls}" onclick="${click}">${icon}${escapeHTML(e.title)}</div>`;
     }).join('');
@@ -3744,12 +3777,12 @@ function renderDay(){
 function taskRowHTML(t){
   // Time slot: scheduled = clickable to change, unscheduled = subtle "+ tid"-link
   const timeLink = (idStr, kind) => t.scheduledTime
-    ? `<span style="color:var(--accent);cursor:pointer;font-size:12px" onclick="event.stopPropagation();setTaskScheduledTime('${idStr}','${kind}')" title="Klikk for å endre tid">🕒 ${t.scheduledTime}</span>`
-    : `<span style="color:var(--ink-muted);cursor:pointer;font-size:11px;font-style:italic" onclick="event.stopPropagation();setTaskScheduledTime('${idStr}','${kind}')" title="Sett tidspunkt">+ tid</span>`;
+    ? `<span style="color:var(--accent);cursor:pointer;font-size:12px" onclick="event.stopPropagation();HANDLERS.setTaskScheduledTime('${idStr}','${kind}')" title="Klikk for å endre tid">🕒 ${t.scheduledTime}</span>`
+    : `<span style="color:var(--ink-muted);cursor:pointer;font-size:11px;font-style:italic" onclick="event.stopPropagation();HANDLERS.setTaskScheduledTime('${idStr}','${kind}')" title="Sett tidspunkt">+ tid</span>`;
   if (t._kind==='projectTask'){
     return `<li class="${t.done?'done':''}" draggable="true" ondragstart="taskToTimeStart(event,'${t._projectId}:${t.id}','projectTask')">
       <input type="checkbox" ${t.done?'checked':''} onchange="toggleProjectTask('${t._projectId}','${t.id}',event)">
-      <span class="tt" onclick="openProjectTaskForm('${t._projectId}','${t.id}')">${escapeHTML(t.title)} <span style="color:var(--ink-muted);font-size:11px">· ${escapeHTML(t._projectTitle)}</span></span>
+      <span class="tt" data-action="openProjectTaskForm" data-args='["${t._projectId}","${t.id}"]'>${escapeHTML(t.title)} <span style="color:var(--ink-muted);font-size:11px">· ${escapeHTML(t._projectTitle)}</span></span>
       ${timeLink(`${t._projectId}:${t.id}`, 'projectTask')}
     </li>`;
   }
@@ -3763,23 +3796,23 @@ function taskRowHTML(t){
   const prioPill = t.priority ? `<span class="pill prio-${t.priority}" style="margin-right:4px">${PRIO_BY_ID[t.priority]?.short||t.priority}</span>` : '';
   return `<li class="${t.done?'done':''}" draggable="true" ondragstart="taskToTimeStart(event,'${t.id}','task')">
     <input type="checkbox" ${t.done?'checked':''} onchange="toggleTask('${t.id}',event)">
-    <span class="tt" onclick="openTaskForm('${t.id}')">${prioPill}${escapeHTML(t.title)}</span>
+    <span class="tt" data-action="openTaskForm" data-args='["${t.id}"]'>${prioPill}${escapeHTML(t.title)}</span>
     ${timeLink(t.id, 'task')}
   </li>`;
 }
 
 // Drag from side panel task → drop on hour slot to time-block it
-window.taskToTimeStart = (e, id, kind)=>{
+HANDLERS.taskToTimeStart = (e, id, kind)=>{
   e.dataTransfer.setData('application/json', JSON.stringify({id, kind}));
   e.dataTransfer.effectAllowed = 'move';
 };
-window.taskToTimeOver = (e)=>{
+HANDLERS.taskToTimeOver = (e)=>{
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
   e.currentTarget.classList.add('drop-target');
 };
-window.taskToTimeLeave = (e)=>{ e.currentTarget.classList.remove('drop-target'); };
-window.taskToTimeDrop = (e, h, key)=>{
+HANDLERS.taskToTimeLeave = (e)=>{ e.currentTarget.classList.remove('drop-target'); };
+HANDLERS.taskToTimeDrop = (e, h, key)=>{
   e.preventDefault();
   e.currentTarget.classList.remove('drop-target');
   try {
@@ -3797,7 +3830,7 @@ window.taskToTimeDrop = (e, h, key)=>{
   } catch(_){}
 };
 // Tap-to-set time (iPhone-friendly alternative to drag-drop)
-window.setTaskScheduledTime = (idStr, kind)=>{
+HANDLERS.setTaskScheduledTime = (idStr, kind)=>{
   let t;
   if (kind === 'projectTask'){
     const [pid, tid] = idStr.split(':');
@@ -3821,7 +3854,7 @@ window.setTaskScheduledTime = (idStr, kind)=>{
   saveState(); render();
 };
 
-window.clearScheduledTime = (kind, pid, tid)=>{
+HANDLERS.clearScheduledTime = (kind, pid, tid)=>{
   if (kind === 'task'){
     const t = state.tasks.find(x=>x.id===tid);
     if (t) delete t.scheduledTime;
@@ -3842,7 +3875,7 @@ function _animateCompletion(ev, callback){
     callback();
   }
 }
-window.toggleTask = (id, ev) => {
+HANDLERS.toggleTask = (id, ev) => {
   const t = state.tasks.find(x=>x.id===id);
   if (!t) return;
   // For recurring tasks: completing advances to next instance instead of marking done
@@ -3956,7 +3989,7 @@ function renderList(){
   });
 }
 
-window.toggleMilestone = (gid,mid)=>{
+HANDLERS.toggleMilestone = (gid,mid)=>{
   const g = state.goals.find(x=>x.id===gid); if(!g) return;
   const m = g.milestones.find(x=>x.id===mid); if(!m) return;
   m.done = !m.done; render();
@@ -3987,13 +4020,13 @@ function openEventForm(id, defaults={}){
       <div class="field"><label>Notater</label><textarea id="ev-notes" placeholder="Detaljer, lenker, hva som må forberedes…">${escapeHTML(data.notes||'')}</textarea></div>
     </div>
     <div class="footer">
-      ${e?`<button class="danger" onclick="deleteEvent('${e.id}')">${I18N.delete}</button>`:''}
-      <button onclick="closeModal()">${I18N.cancel}</button>
-      <button class="primary" onclick="saveEventForm('${e?e.id:''}')">${I18N.save}</button>
+      ${e?`<button class="danger" data-action="deleteEvent" data-args='["${e.id}"]'>${I18N.delete}</button>`:''}
+      <button data-action="closeModal">${I18N.cancel}</button>
+      <button class="primary" data-action="saveEventForm" data-args='["${e?e.id:''}"]'>${I18N.save}</button>
     </div>`);
   setTimeout(()=>document.getElementById('ev-title').focus(),50);
 }
-window.saveEventForm = id=>{
+HANDLERS.saveEventForm = id=>{
   const endDateRaw = document.getElementById('ev-endDate').value||'';
   const startDate = document.getElementById('ev-date').value;
   const data = {
@@ -4014,8 +4047,8 @@ window.saveEventForm = id=>{
 };
 // Strip recurring instance suffix (e.g., 'abc-r5') to get the master event ID
 function _stripRecurId(id){ return id ? id.replace(/-r\d+$/, '') : id; }
-window.editEvent = id => openEventForm(_stripRecurId(id));
-window.deleteEvent = id => {
+HANDLERS.editEvent = id => openEventForm(_stripRecurId(id));
+HANDLERS.deleteEvent = id => {
   const baseId = _stripRecurId(id);
   const e = state.events.find(x=>x.id===baseId);
   if (e && e.recurring){
@@ -4067,14 +4100,14 @@ function openTaskForm(id, defaults={}){
       </details>
     </div>
     <div class="footer">
-      ${t?`<button class="danger" onclick="deleteTask('${t.id}')">${I18N.delete}</button>`:''}
-      <button onclick="closeModal()">${I18N.cancel}</button>
-      <button class="primary" onclick="saveTaskForm('${t?t.id:''}')">${I18N.save}</button>
+      ${t?`<button class="danger" data-action="deleteTask" data-args='["${t.id}"]'>${I18N.delete}</button>`:''}
+      <button data-action="closeModal">${I18N.cancel}</button>
+      <button class="primary" data-action="saveTaskForm" data-args='["${t?t.id:''}"]'>${I18N.save}</button>
     </div>`);
   setTimeout(()=>document.getElementById('tk-title').focus(),50);
 }
-window.openTaskForm = openTaskForm;
-window.saveTaskForm = id=>{
+HANDLERS.openTaskForm = openTaskForm;
+HANDLERS.saveTaskForm = id=>{
   const data = {
     title: document.getElementById('tk-title').value.trim(),
     due: document.getElementById('tk-due').value||'',
@@ -4089,7 +4122,7 @@ window.saveTaskForm = id=>{
   else { state.tasks.push(Object.assign({id:uid(),done:false}, data)); }
   closeModal(); render();
 };
-window.deleteTask = id => { state.tasks = state.tasks.filter(x=>x.id!==id); closeModal(); render(); };
+HANDLERS.deleteTask = id => { state.tasks = state.tasks.filter(x=>x.id!==id); closeModal(); render(); };
 
 // ============================================================
 // GOAL FORM
@@ -4122,8 +4155,8 @@ function openGoalForm(id){
       <div class="field"><label>Notater</label><textarea id="g-notes">${escapeHTML(data.notes||'')}</textarea></div>
     </div>
     <div class="footer">
-      ${g?`<button class="danger" onclick="deleteGoal('${g.id}')">${I18N.delete}</button>`:''}
-      <button onclick="closeModal()">${I18N.cancel}</button>
+      ${g?`<button class="danger" data-action="deleteGoal" data-args='["${g.id}"]'>${I18N.delete}</button>`:''}
+      <button data-action="closeModal">${I18N.cancel}</button>
       <button class="primary" id="g-save">${I18N.save}</button>
     </div>`);
   renderMS();
@@ -4141,8 +4174,8 @@ function openGoalForm(id){
     closeModal(); render();
   };
 }
-window.openGoalForm = openGoalForm;
-window.deleteGoal = id => { state.goals = state.goals.filter(x=>x.id!==id); closeModal(); render(); };
+HANDLERS.openGoalForm = openGoalForm;
+HANDLERS.deleteGoal = id => { state.goals = state.goals.filter(x=>x.id!==id); closeModal(); render(); };
 
 // ============================================================
 // HABIT FORM
@@ -4157,13 +4190,13 @@ function openHabitForm(id){
       <div class="field"><label>Kategori</label><select id="h-cat">${CATEGORIES.map(c=>`<option value="${c.id}" ${data.category===c.id?'selected':''}>${c.label}</option>`).join('')}</select></div>
     </div>
     <div class="footer">
-      ${h?`<button class="danger" onclick="deleteHabit('${h.id}')">${I18N.delete}</button>`:''}
-      <button onclick="closeModal()">${I18N.cancel}</button>
-      <button class="primary" onclick="saveHabitForm('${h?h.id:''}')">${I18N.save}</button>
+      ${h?`<button class="danger" data-action="deleteHabit" data-args='["${h.id}"]'>${I18N.delete}</button>`:''}
+      <button data-action="closeModal">${I18N.cancel}</button>
+      <button class="primary" data-action="saveHabitForm" data-args='["${h?h.id:''}"]'>${I18N.save}</button>
     </div>`);
 }
-window.openHabitForm = openHabitForm;
-window.saveHabitForm = id=>{
+HANDLERS.openHabitForm = openHabitForm;
+HANDLERS.saveHabitForm = id=>{
   const data = {
     title: document.getElementById('h-title').value.trim(),
     category: document.getElementById('h-cat').value,
@@ -4173,7 +4206,7 @@ window.saveHabitForm = id=>{
   else { state.habits.push(Object.assign({id:uid(),log:{}}, data)); }
   closeModal(); render();
 };
-window.deleteHabit = id => { state.habits = state.habits.filter(x=>x.id!==id); closeModal(); render(); };
+HANDLERS.deleteHabit = id => { state.habits = state.habits.filter(x=>x.id!==id); closeModal(); render(); };
 
 // ============================================================
 // QUICK CAPTURE
@@ -4187,12 +4220,12 @@ function openQuickCapture(){
       <div class="field">
         <label>Velg destinasjon</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button onclick="qcSave('inbox')" style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">→ Innboks</button>
-          <button onclick="qcSave('urgent')" style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #e6b8b8;background:#fce8e8;color:#883333">⚠ Urgent</button>
-          <button onclick="qcSave('short')" style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #dfc99a;background:#fbf1e1;color:#7a5a30">↗ Short term</button>
-          <button onclick="qcSave('long')" style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #bcc7d8;background:#e8eef7;color:#3a4a66">⤳ Long term</button>
-          <button onclick="qcSave('event')" style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">📅 Ny hendelse</button>
-          <button onclick="closeModal();startVoiceCapture()" style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)" title="Snakk inn et notat">🎤 Tale</button>
+          <button data-action="qcSave" data-args='["inbox"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">→ Innboks</button>
+          <button data-action="qcSave" data-args='["urgent"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #e6b8b8;background:#fce8e8;color:#883333">⚠ Urgent</button>
+          <button data-action="qcSave" data-args='["short"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #dfc99a;background:#fbf1e1;color:#7a5a30">↗ Short term</button>
+          <button data-action="qcSave" data-args='["long"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #bcc7d8;background:#e8eef7;color:#3a4a66">⤳ Long term</button>
+          <button data-action="qcSave" data-args='["event"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">📅 Ny hendelse</button>
+          <button onclick="closeModal();HANDLERS.startVoiceCapture()" style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)" title="Snakk inn et notat">🎤 Tale</button>
         </div>
         <select id="qc-project" onchange="if(this.value){qcSave('project',this.value);this.value=''}" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;color:var(--ink-soft)">
           <option value="">▸ Eller legg som oppgave i prosjekt…</option>${projectsList}
@@ -4202,14 +4235,14 @@ function openQuickCapture(){
     </div>
     <div class="footer">
       <button onclick="state.settings.view='todos';closeModal();render()">Se alle To Do's →</button>
-      <button onclick="closeModal()">${I18N.cancel}</button>
+      <button data-action="closeModal">${I18N.cancel}</button>
     </div>`);
   setTimeout(()=>document.getElementById('qc-text').focus(),50);
   document.getElementById('qc-text').addEventListener('keydown', e=>{
     if(e.key==='Enter'){ e.preventDefault(); qcSave('inbox'); }
   });
 }
-window.qcSave = (kind, projectId)=>{
+HANDLERS.qcSave = (kind, projectId)=>{
   const text = document.getElementById('qc-text').value.trim();
   if (!text) return;
   if (kind==='event'){ closeModal(); openEventForm(null,{title:text}); return; }
@@ -4223,7 +4256,7 @@ window.qcSave = (kind, projectId)=>{
   }
   closeModal(); render();
 };
-window.deleteInbox = id => { state.inbox = state.inbox.filter(x=>x.id!==id); render(); };
+HANDLERS.deleteInbox = id => { state.inbox = state.inbox.filter(x=>x.id!==id); render(); };
 
 // ============================================================
 // "MER" menu (mobile-only secondary nav)
@@ -4247,7 +4280,7 @@ function openMoreMenu(){
       ${buttons}
     </div>
     <div class="footer">
-      <button onclick="closeModal()">${I18N.cancel}</button>
+      <button data-action="closeModal">${I18N.cancel}</button>
     </div>`);
 }
 
@@ -4293,7 +4326,7 @@ function openSearch(){
       </div>
       <div class="search-results" id="search-results"><div class="empty">Begynn å skrive eller bruk filtrene…</div></div>
     </div>
-    <div class="footer"><button onclick="closeModal()">Lukk</button></div>`);
+    <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
   setTimeout(()=>document.getElementById('search-input').focus(),50);
   const trigger = ()=>{
     doSearch({
@@ -4455,8 +4488,8 @@ function openSettings(){
           <option value="dark" ${state.settings.theme==='dark'?'selected':''}>Mørk</option>
         </select>
       </div>
-      <div class="sl"><span>Påminnelser i nettleseren</span><button onclick="toggleNotifications()">${stat}</button></div>
-      <div class="sl"><span>Eksporter til JSON</span><button onclick="exportData()">Last ned</button></div>
+      <div class="sl"><span>Påminnelser i nettleseren</span><button data-action="toggleNotifications">${stat}</button></div>
+      <div class="sl"><span>Eksporter til JSON</span><button data-action="exportData">Last ned</button></div>
       <div class="sl"><span>Importer fra JSON</span><div style="position:relative;display:inline-block"><button type="button" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);color:var(--ink-soft);background:#fff;pointer-events:none">Velg fil</button><input id="imp" type="file" accept=".json,application/json" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%"></div></div>
       <div class="sl" style="flex-direction:column;align-items:stretch;gap:6px"><span>Sky-backups (automatisk hver uke, siste 12 uker)</span>
         <div id="cloud-backups-list" style="font-size:11.5px;color:var(--ink-muted);font-style:italic">Henter…</div>
@@ -4466,13 +4499,13 @@ function openSettings(){
           const isPre = k.startsWith('planlegger.preSync.');
           const dateStr = k.replace('planlegger.backup.','').replace('planlegger.preSync.','');
           const label = isPre ? '↓ Før synk: '+dateStr.replace('T',' ').slice(0,16) : dateStr;
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:var(--ink-soft)"><span>${label}</span><button onclick="restoreBackup('${k}')" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Gjenopprett</button></div>`;
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:var(--ink-soft)"><span>${label}</span><button data-action="restoreBackup" data-args='["${k}"]' style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Gjenopprett</button></div>`;
         }).join('') : '<span style="font-size:11.5px;color:var(--ink-muted);font-style:italic">Ingen backups ennå (lages automatisk daglig + før hver sync overskriver lokal)</span>'}
       </div>
-      <div class="sl"><span>Slett alt</span><button onclick="resetAll()" style="color:var(--alert)">Tilbakestill</button></div>
+      <div class="sl"><span>Slett alt</span><button data-action="resetAll" style="color:var(--alert)">Tilbakestill</button></div>
       <div class="sl"><span>Versjon</span><span style="color:var(--ink-muted)">v3.1</span></div>
     </div>
-    <div class="footer"><button onclick="closeModal()">Lukk</button></div>`);
+    <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
   document.getElementById('imp').addEventListener('change', importData);
   document.getElementById('ics-url').addEventListener('blur', e=>{ state.settings.icsUrl = e.target.value.trim(); saveState(); });
   // Populate cloud backups list (async)
@@ -4491,7 +4524,7 @@ function openSettings(){
     list.style.color = 'var(--ink-soft)';
     list.innerHTML = keys.map(k=>{
       const dateStr = k.replace('backup-','');
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px"><span>Uke ${dateStr}</span><button onclick="restoreCloudBackup('${k}')" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Gjenopprett</button></div>`;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px"><span>Uke ${dateStr}</span><button data-action="restoreCloudBackup" data-args='["${k}"]' style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Gjenopprett</button></div>`;
     }).join('');
   });
   document.getElementById('sync-save').onclick = ()=>{
@@ -4556,27 +4589,27 @@ function openSettings(){
     }
   });
 }
-window.setTheme = (theme)=>{
+HANDLERS.setTheme = (theme)=>{
   state.settings.theme = theme;
   saveState();
   applyTheme();
 };
 
-window.toggleNotifications = async ()=>{
+HANDLERS.toggleNotifications = async ()=>{
   state.settings.notifications = !state.settings.notifications;
   if (state.settings.notifications && 'Notification' in window){
     try { await Notification.requestPermission(); } catch(e){}
   }
   saveState(); openSettings();
 };
-window.exportData = ()=>{
+HANDLERS.exportData = ()=>{
   const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `planlegger-${todayKey()}.json`;
   a.click();
 };
-window.importData = e=>{
+HANDLERS.importData = e=>{
   const file = e.target.files[0]; if (!file) return;
   const r = new FileReader();
   r.onload = ev=>{
@@ -4589,7 +4622,7 @@ window.importData = e=>{
   };
   r.readAsText(file);
 };
-window.resetAll = ()=>{
+HANDLERS.resetAll = ()=>{
   if (!confirm('Slett alle data? Dette kan ikke angres.')) return;
   localStorage.removeItem(STORAGE_KEY);
   state = structuredClone(DEFAULT_STATE);
@@ -4813,7 +4846,7 @@ function lastSyncLabel(){
 }
 
 // Read-only modal for Outlook events
-window.openOutlookEvent = id => {
+HANDLERS.openOutlookEvent = id => {
   const e = state.outlookEvents.find(x=>x.id===id);
   if (!e) return;
   const multiDay = e.endDate && e.endDate > e.date;
@@ -4828,7 +4861,7 @@ window.openOutlookEvent = id => {
       ${e.description?`<div class="field"><label>Beskrivelse</label><div style="white-space:pre-wrap;font-size:13px">${escapeHTML(e.description)}</div></div>`:''}
       <div style="font-size:11.5px;color:var(--ink-muted);font-style:italic">Kommer fra Outlook — kan kun redigeres der.</div>
     </div>
-    <div class="footer"><button onclick="closeModal()">Lukk</button></div>`);
+    <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
 };
 
 // ============================================================
@@ -4860,7 +4893,7 @@ function renderMarkdown(text){
     const safe = name.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     const proj = state.projects.find(p=>p.title.toLowerCase() === name.toLowerCase());
     const cls = proj ? 'wikilink' : 'wikilink wikilink-broken';
-    return `<a class="${cls}" data-target="${safe}" onclick="event.preventDefault();resolveWikilink(this.dataset.target)" href="#">${name}</a>`;
+    return `<a class="${cls}" data-target="${safe}" onclick="event.preventDefault();HANDLERS.resolveWikilink(this.dataset.target)" href="#">${name}</a>`;
   });
   // Images & links (images first to avoid link conflict)
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_,alt,url)=>`<img src="${url}" alt="${alt}">`);
@@ -5098,7 +5131,7 @@ function parseDumpText(text){
   return text.split(/\n/).map(l=>parseDumpLine(l, today)).filter(Boolean);
 }
 
-window.openDumpModal = ()=>{
+HANDLERS.openDumpModal = ()=>{
   openModal(`
     <h3>Dumpefelt — organisér rotete tekst</h3>
     <div class="body">
@@ -5111,7 +5144,7 @@ window.openDumpModal = ()=>{
       <div id="dump-preview"></div>
     </div>
     <div class="footer">
-      <button onclick="closeModal()" class="btn btn-ghost">${I18N.cancel}</button>
+      <button data-action="closeModal" class="btn btn-ghost">${I18N.cancel}</button>
       <button id="dump-save" class="btn btn-primary" style="display:none">Lagre alle</button>
     </div>`);
   setTimeout(()=>document.getElementById('dump-input').focus(),50);
@@ -5170,7 +5203,7 @@ window.openDumpModal = ()=>{
 };
 
 // Wikilink resolver — match on project title (case-insensitive), navigate to project
-window.resolveWikilink = (target)=>{
+HANDLERS.resolveWikilink = (target)=>{
   const targetLower = (target||'').trim().toLowerCase();
   if (!targetLower) return;
   const proj = state.projects.find(p=>p.title.toLowerCase() === targetLower);
@@ -5229,7 +5262,7 @@ function showToast(msg, duration){
 }
 
 // Voice capture — converts speech to text and adds to inbox.
-window.startVoiceCapture = ()=>{
+HANDLERS.startVoiceCapture = ()=>{
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR){
     alert('Talegjenkjenning er ikke støttet i denne nettleseren. Funker i Chrome/Edge på PC og Safari på iPhone.');
@@ -5295,9 +5328,9 @@ function setupImagePaste(textarea, onChange){
   });
 }
 
-window.goToday = goToday;
-window.openEventForm = openEventForm;
-window.openTaskForm = openTaskForm;
+HANDLERS.goToday = goToday;
+HANDLERS.openEventForm = openEventForm;
+HANDLERS.openTaskForm = openTaskForm;
 
 // ============================================================
 // FIRST RUN — seed sensible defaults
@@ -5324,7 +5357,7 @@ function autoBackup(){
 function listBackups(){
   return Object.keys(localStorage).filter(k=>k.startsWith('planlegger.backup.') || k.startsWith('planlegger.preSync.')).sort().reverse();
 }
-window.restoreBackup = (key)=>{
+HANDLERS.restoreBackup = (key)=>{
   const dateStr = key.replace('planlegger.backup.','');
   if (!confirm(`Erstatt ALL nåværende data med backup fra ${dateStr}? Dette kan ikke angres.`)) return;
   const data = localStorage.getItem(key);
@@ -5408,4 +5441,4 @@ updateSyncIndicator();
 </script>
 </body>
 </html>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
