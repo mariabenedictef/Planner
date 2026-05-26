@@ -21,6 +21,9 @@ function act(name, ...args){
 document.addEventListener('click', (ev) => {
   const t = ev.target.closest && ev.target.closest('[data-action]');
   if (!t) return;
+  // Optional event modifiers via data attributes
+  if (t.dataset.stop === '1') ev.stopPropagation();
+  if (t.dataset.preventDefault === '1') ev.preventDefault();
   const action = t.dataset.action;
   const fn = HANDLERS[action];
   if (typeof fn !== 'function') return;
@@ -32,6 +35,87 @@ document.addEventListener('click', (ev) => {
   try { fn.apply(null, [...args, ev, t]); }
   catch (err) { console.error('HANDLERS.' + action + ' threw:', err); }
 });
+
+// ----- HTML-bound handler helpers (replaces former inline onclick expressions) -----
+
+// Notes editor: generic execCommand wrapper. Pass cmd as arg, optional value as second arg.
+HANDLERS.execCmd = (cmd, value) => {
+  document.execCommand(cmd, false, value === undefined ? null : value);
+  const ed = document.getElementById('note-editor');
+  if (ed) ed.focus();
+};
+
+// Notes editor: prompt for URL, then insert as link
+HANDLERS.insertLink = () => {
+  const u = prompt('Lim inn URL');
+  if (u) document.execCommand('createLink', false, u);
+  const ed = document.getElementById('note-editor');
+  if (ed) ed.focus();
+};
+
+// Open a project page (replaces inline state.ui.openProjectId=...;state.ui.view='projects';render())
+HANDLERS.openProject = (pid) => {
+  state.ui.openProjectId = pid;
+  state.ui.view = 'projects';
+  render();
+};
+
+// Back to project list (replaces inline state.ui.openProjectId=null;render())
+HANDLERS.backToProjects = () => {
+  state.ui.openProjectId = null;
+  render();
+};
+
+// Switch to a view, closing any open modal
+HANDLERS.switchView = (view) => {
+  state.ui.view = view;
+  if (document.querySelector('.modal-bg.open')) closeModal();
+  render();
+};
+
+// Toggle the "show completed todos" flag
+HANDLERS.toggleShowCompleted = () => {
+  state.ui.showCompletedTodos = !state.ui.showCompletedTodos;
+  saveState();
+  render();
+};
+
+// Open the task-form modal pre-filled with a due date (used by the day view "+ Ny")
+HANDLERS.openTaskFormWithDate = (key) => {
+  HANDLERS.openTaskForm(null, { due: key });
+};
+
+// Wikilink resolution from notes (replaces inline event.preventDefault();HANDLERS.resolveWikilink(this.dataset.target))
+HANDLERS.openWikilink = (...args) => {
+  // Last 2 args from listener are (event, element). The target is on the element's dataset.
+  const t = args[args.length - 1];
+  if (t && t.dataset && t.dataset.target) HANDLERS.resolveWikilink(t.dataset.target);
+};
+
+// Navigate to a specific date in the day view (used by backlinks)
+HANDLERS.goToDate = (date) => {
+  state.ui.anchor = date || todayKey();
+  state.ui.view = 'day';
+  render();
+};
+
+// Close modal then start voice capture (replaces inline closeModal();HANDLERS.startVoiceCapture())
+HANDLERS.closeModalThenVoice = () => {
+  closeModal();
+  HANDLERS.startVoiceCapture();
+};
+
+// Delete a project task while inside the task-edit modal, then close
+HANDLERS.deleteProjectTaskAndClose = (pid, tid) => {
+  const p = state.projects.find(x => x.id === pid);
+  if (p) p.tasks = (p.tasks || []).filter(t => t.id !== tid);
+  saveState();
+  closeModal();
+  render();
+};
+
+// "No-op" handler used purely for the side effect of stopping click propagation via data-stop="1"
+HANDLERS.noop = () => {};
 
 // ============================================================
 // CONSTANTS — Norwegian labels, categories, dates
@@ -274,8 +358,27 @@ const DEFAULT_STATE = {
   notes: {},
   reviews: {},
   inbox: [],
-  settings: { filter:'all', view:'home', notifications:true, anchor: dKey(new Date()), overviewAnchor: '', icsUrl:'', lastSync:'', syncUrl:'', syncToken:'', showCompletedTodos:false, projectViewMode:'list', theme:'auto' },
-  meta: { version:3, createdAt: new Date().toISOString() }
+  // UI preferences and current view state (formerly part of `settings`)
+  ui: {
+    view: 'home',
+    filter: 'all',
+    anchor: dKey(new Date()),
+    overviewAnchor: '',
+    theme: 'auto',
+    projectViewMode: 'list',
+    showCompletedTodos: false,
+    openProjectId: null,
+    notifications: true,
+  },
+  // Sync configuration and cloud state (formerly part of `settings`)
+  sync: {
+    icsUrl: '',
+    lastSync: '',
+    syncUrl: '',
+    syncToken: '',
+    lastWeeklyExport: '',
+  },
+  meta: { version: 4, createdAt: new Date().toISOString() }
 };
 
 let state = loadState();
@@ -286,9 +389,28 @@ function loadState(){
     if(!raw) return structuredClone(DEFAULT_STATE);
     const parsed = JSON.parse(raw);
     const merged = Object.assign(structuredClone(DEFAULT_STATE), parsed, {
-      settings: Object.assign({}, DEFAULT_STATE.settings, parsed.settings||{}),
+      ui: Object.assign({}, DEFAULT_STATE.ui, parsed.ui || {}),
+      sync: Object.assign({}, DEFAULT_STATE.sync, parsed.sync || {}),
       themes: Object.assign({}, DEFAULT_STATE.themes, parsed.themes||{}),
     });
+    // Migration (2026-05-26): flat state.settings → state.ui + state.sync.
+    // Also folds in two older legacy fixups: filter 'personlig' → 'privat',
+    // and view 'strategy'/'fokus' → 'home'.
+    if (parsed.settings && (!parsed.ui || !parsed.sync)) {
+      const s = parsed.settings;
+      const legacyFilter = (s.filter === 'personlig') ? 'privat' : s.filter;
+      const legacyView = (s.view === 'strategy' || s.view === 'fokus') ? 'home' : s.view;
+      merged.ui = Object.assign({}, DEFAULT_STATE.ui, {
+        view: legacyView, filter: legacyFilter, anchor: s.anchor, overviewAnchor: s.overviewAnchor,
+        theme: s.theme, projectViewMode: s.projectViewMode, showCompletedTodos: s.showCompletedTodos,
+        openProjectId: s.openProjectId, notifications: s.notifications,
+      }, parsed.ui || {});
+      merged.sync = Object.assign({}, DEFAULT_STATE.sync, {
+        icsUrl: s.icsUrl, lastSync: s.lastSync, syncUrl: s.syncUrl, syncToken: s.syncToken,
+        lastWeeklyExport: s.lastWeeklyExport,
+      }, parsed.sync || {});
+      delete merged.settings;
+    }
     // Migration: legacy goals -> projects
     if (merged.goals && merged.goals.length && (!merged.projects || !merged.projects.length)){
       merged.projects = merged.goals.map(g=>({
@@ -313,14 +435,6 @@ function loadState(){
       migrateCat(p);
       (p.tasks||[]).forEach(migrateCat);
     });
-    // Migrate old filter setting
-    if (merged.settings && merged.settings.filter === 'personlig') merged.settings.filter = 'privat';
-    // Migrate retired view names: 'strategy' (old) and 'fokus' (newer) both fall back to 'home'.
-    // The Fokus view was removed on 2026-05-26 (no longer needed).
-    // Data in state.yearFocus/quarterFocus/monthFocus/reviews is preserved but no longer rendered.
-    if (merged.settings && (merged.settings.view === 'strategy' || merged.settings.view === 'fokus')) {
-      merged.settings.view = 'home';
-    }
     // Migration: legacy themes (array per year) -> yearFocus (string per year)
     Object.entries(merged.themes||{}).forEach(([y, arr])=>{
       if (Array.isArray(arr) && arr.length && !merged.yearFocus[y]){
@@ -385,7 +499,7 @@ const SYNC_DEBOUNCE_MS = 2500;
 
 function scheduleRemoteSync(){
   if (_syncDebounceTimer) clearTimeout(_syncDebounceTimer);
-  if (!state.settings.syncUrl || !state.settings.syncToken) return;
+  if (!state.sync.syncUrl || !state.sync.syncToken) return;
   // Guard: don't auto-push if local is empty (prevents wiping cloud data on a fresh device).
   // Manual "Send til sky" button bypasses this.
   const hasContent = ((state.projects||[]).length + (state.tasks||[]).length + (state.events||[]).length + (state.outlookEvents||[]).length) > 0;
@@ -394,11 +508,11 @@ function scheduleRemoteSync(){
 }
 
 async function pushToRemote(){
-  if (!state.settings.syncUrl || !state.settings.syncToken) return;
+  if (!state.sync.syncUrl || !state.sync.syncToken) return;
   _syncStatus.state = 'pushing';
   updateSyncIndicator();
   try {
-    const url = state.settings.syncUrl + (state.settings.syncUrl.includes('?')?'&':'?') + 'token=' + encodeURIComponent(state.settings.syncToken);
+    const url = state.sync.syncUrl + (state.sync.syncUrl.includes('?')?'&':'?') + 'token=' + encodeURIComponent(state.sync.syncToken);
     const res = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type':'application/json' },
@@ -417,10 +531,10 @@ async function pushToRemote(){
 
 // Fetch list of weekly cloud backups from sync worker
 async function loadCloudBackups(){
-  if (!state.settings.syncUrl || !state.settings.syncToken) return [];
+  if (!state.sync.syncUrl || !state.sync.syncToken) return [];
   try {
-    const base = state.settings.syncUrl.replace(/\/+$/, '');
-    const url = base + '/backups?token=' + encodeURIComponent(state.settings.syncToken);
+    const base = state.sync.syncUrl.replace(/\/+$/, '');
+    const url = base + '/backups?token=' + encodeURIComponent(state.sync.syncToken);
     const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();
@@ -440,17 +554,17 @@ HANDLERS.restoreCloudBackup = async (key)=>{
   } catch(_){}
   // Fetch backup
   try {
-    const base = state.settings.syncUrl.replace(/\/+$/,'');
-    const url = base + '/backups/' + encodeURIComponent(key) + '?token=' + encodeURIComponent(state.settings.syncToken);
+    const base = state.sync.syncUrl.replace(/\/+$/,'');
+    const url = base + '/backups/' + encodeURIComponent(key) + '?token=' + encodeURIComponent(state.sync.syncToken);
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
     if (!data || !data.meta) throw new Error('Tom backup');
     // Preserve sync credentials
     const localSync = {
-      syncUrl: state.settings.syncUrl,
-      syncToken: state.settings.syncToken,
-      icsUrl: state.settings.icsUrl,
+      syncUrl: state.sync.syncUrl,
+      syncToken: state.sync.syncToken,
+      icsUrl: state.sync.icsUrl,
     };
     state = Object.assign(structuredClone(DEFAULT_STATE), data);
     state.settings = Object.assign({}, state.settings, localSync);
@@ -466,10 +580,10 @@ HANDLERS.restoreCloudBackup = async (key)=>{
 };
 
 async function pullFromRemote(silent, force){
-  if (!state.settings.syncUrl || !state.settings.syncToken) return { ok:false, reason:'not configured' };
+  if (!state.sync.syncUrl || !state.sync.syncToken) return { ok:false, reason:'not configured' };
   if (!silent){ _syncStatus.state = 'pulling'; updateSyncIndicator(); }
   try {
-    const url = state.settings.syncUrl + (state.settings.syncUrl.includes('?')?'&':'?') + 'token=' + encodeURIComponent(state.settings.syncToken);
+    const url = state.sync.syncUrl + (state.sync.syncUrl.includes('?')?'&':'?') + 'token=' + encodeURIComponent(state.sync.syncToken);
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP '+res.status);
     const remote = await res.json();
@@ -502,9 +616,9 @@ async function pullFromRemote(silent, force){
       }
       // Preserve local sync credentials (don't overwrite with possibly-stale remote)
       const localSync = {
-        syncUrl: state.settings.syncUrl,
-        syncToken: state.settings.syncToken,
-        icsUrl: state.settings.icsUrl,
+        syncUrl: state.sync.syncUrl,
+        syncToken: state.sync.syncToken,
+        icsUrl: state.sync.icsUrl,
       };
       state = Object.assign(structuredClone(DEFAULT_STATE), remote);
       state.settings = Object.assign({}, state.settings, localSync);
@@ -530,7 +644,7 @@ async function pullFromRemote(silent, force){
 function updateSyncIndicator(){
   const el = document.getElementById('sync-indicator');
   if (!el) return;
-  const cfg = state.settings.syncUrl && state.settings.syncToken;
+  const cfg = state.sync.syncUrl && state.sync.syncToken;
   if (!cfg){ el.style.display='none'; return; }
   el.style.display='inline-flex';
   const map = {
@@ -563,7 +677,7 @@ const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(3
 // QUERIES
 // ============================================================
 function passesFilter(item){
-  const f = state.settings.filter;
+  const f = state.ui.filter;
   if (f==='all') return true;
   if (f==='arbeid') return item.category==='arbeid';
   if (f==='privat') return item.category==='privat' || ['personlig','helse','reise'].includes(item.category);
@@ -746,7 +860,7 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 // ============================================================
 const viewEl = document.getElementById('view');
 function applyTheme(){
-  const theme = state.settings.theme || 'auto';
+  const theme = state.ui.theme || 'auto';
   let actual = theme;
   if (theme === 'auto'){
     actual = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -756,14 +870,14 @@ function applyTheme(){
 // Listen to OS theme changes for auto mode
 if (window.matchMedia){
   try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=>{
-    if (state.settings.theme === 'auto') applyTheme();
+    if (state.ui.theme === 'auto') applyTheme();
   }); } catch(_){}
 }
 
 function render(){
   applyTheme();
   renderTopbar();
-  const v = state.settings.view;
+  const v = state.ui.view;
   if (v==='home') renderHome();
   else if (v==='projects') renderProjects();
   else if (v==='todos') renderTodos();
@@ -801,28 +915,28 @@ function renderTopbar(){
   const secondary = ['day','week','month','overview'];
   if (isMobile){
     // Mobile: 3 big primary tabs + "Mer" for the rest
-    const secondaryActive = secondary.includes(state.settings.view);
-    const moreLabel = secondaryActive ? I18N.views[state.settings.view] : 'Mer';
+    const secondaryActive = secondary.includes(state.ui.view);
+    const moreLabel = secondaryActive ? I18N.views[state.ui.view] : 'Mer';
     nav.innerHTML = primary
-      .map(v=>`<button data-view="${v}" class="${state.settings.view===v?'active':''}">${I18N.views[v]}${badgeOf(v)}</button>`).join('')
+      .map(v=>`<button data-view="${v}" class="${state.ui.view===v?'active':''}">${I18N.views[v]}${badgeOf(v)}</button>`).join('')
       + `<button data-more="1" class="${secondaryActive?'active':''}">${moreLabel} ▾</button>`;
     nav.querySelectorAll('button').forEach(b=>{
       if (b.dataset.more){
         b.onclick = openMoreMenu;
       } else {
-        b.onclick = ()=>{ state.settings.view=b.dataset.view; render(); };
+        b.onclick = ()=>{ state.ui.view=b.dataset.view; render(); };
       }
     });
   } else {
     nav.innerHTML = ['home','projects','todos','day','week','month','overview']
-      .map(v=>`<button data-view="${v}" class="${state.settings.view===v?'active':''}">${I18N.views[v]}${badgeOf(v)}</button>`).join('');
-    nav.querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.settings.view=b.dataset.view; render(); });
+      .map(v=>`<button data-view="${v}" class="${state.ui.view===v?'active':''}">${I18N.views[v]}${badgeOf(v)}</button>`).join('');
+    nav.querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.ui.view=b.dataset.view; render(); });
   }
 
   const filter = document.getElementById('filter');
   filter.innerHTML = Object.entries(I18N.filters).map(([k,v])=>
-    `<button data-f="${k}" class="${state.settings.filter===k?'active':''}">${v}</button>`).join('');
-  filter.querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.settings.filter=b.dataset.f; render(); });
+    `<button data-f="${k}" class="${state.ui.filter===k?'active':''}">${v}</button>`).join('');
+  filter.querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.ui.filter=b.dataset.f; render(); });
 }
 
 document.getElementById('search-btn').onclick = openSearch;
@@ -883,7 +997,7 @@ function renderHome(){
             const overdue = t.due && t.due < todayK;
             return `<div class="home-item urgent-item ${t.done?'done':''}" draggable="true" data-task-id="${t.id}">
               <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
-              <input type="checkbox" ${t.done?'checked':''} onclick="event.stopPropagation()" onchange="toggleTask('${t.id}',event)">
+              <input type="checkbox" ${t.done?'checked':''} data-action="noop" data-stop="1" onchange="toggleTask('${t.id}',event)">
               <div class="hi-date${overdue?' overdue':''}">${due}</div>
               <div class="hi-title" data-action="openTaskForm" data-args='["${t.id}"]' style="cursor:pointer">${escapeHTML(t.title)}</div>
             </div>`;
@@ -901,14 +1015,14 @@ function renderHome(){
           ${todayTasks.map(t=>{
             const isProj = t._kind === 'projectTask';
             const isMilestone = t._kind === 'milestone';
-            const click = isProj ? `openProjectTaskForm('${t._projectId}','${t.id}')` : (isMilestone ? `state.settings.openProjectId='${t._projectId}';state.settings.view='projects';render()` : `openTaskForm('${t.id}')`);
+            const click = isProj ? act('openProjectTaskForm', t._projectId, t.id) : (isMilestone ? act('openProject', t._projectId) : act('openTaskForm', t.id));
             const toggleHandler = isProj ? `HANDLERS.toggleProjectTask('${t._projectId}','${t.id}',event)` : (isMilestone ? `HANDLERS.toggleProjectMilestone('${t._projectId}','${t.id}')` : `HANDLERS.toggleTask('${t.id}',event)`);
             const icon = isMilestone ? '◆' : '';
             const projTag = t._projectTitle ? `<span class="proj-tag">· ${escapeHTML(t._projectTitle)}</span>` : '';
             return `<div class="home-item ${t.done?'done':''}">
-              <input type="checkbox" ${t.done?'checked':''} onclick="event.stopPropagation()" onchange="${toggleHandler}">
+              <input type="checkbox" ${t.done?'checked':''} data-action="noop" data-stop="1" onchange="${toggleHandler}">
               <div class="hi-date">${icon||fmtDateShort(fromKey(t.due||todayK))}</div>
-              <div class="hi-title" onclick="${click}" style="cursor:pointer">${escapeHTML(t.title)}${projTag}</div>
+              <div class="hi-title" ${click} style="cursor:pointer">${escapeHTML(t.title)}${projTag}</div>
             </div>`;
           }).join('')}
         </div>`}
@@ -946,10 +1060,10 @@ function renderHome(){
             const hol = HOLIDAYS[k];
             const eventsHTML = events.length === 0 ? `<div class="wke-empty">—</div>` :
               events.slice(0, 8).map(e=>{
-                const click = e._ics?`HANDLERS.openOutlookEvent('${e.id}')`:(e._kind==='project'?`state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()`:`HANDLERS.editEvent('${e.id}')`);
+                const click = e._ics ? act('openOutlookEvent', e.id) : (e._kind==='project' ? act('openProject', e._projectId) : act('editEvent', e.id));
                 const cls = `wke cat-${e.category||'arbeid'}${e._ics?' ics':''}`;
                 const timePart = e.start ? `<strong>${e.start}</strong> ` : '';
-                return `<div class="${cls}" onclick="${click}" title="${escapeAttr(e.title)}">${timePart}${escapeHTML(e.title)}</div>`;
+                return `<div class="${cls}" ${click} title="${escapeAttr(e.title)}">${timePart}${escapeHTML(e.title)}</div>`;
               }).join('') + (events.length > 8 ? `<div class="wke-empty">+ ${events.length-8} til</div>` : '');
             return `<div class="hjem-week-col ${isToday?'today':''} ${isWeekend?'weekend':''}">
               <div class="hjem-week-col-h">
@@ -975,7 +1089,7 @@ function renderHome(){
           const featured = days <= 7 ? ' urgent' : '';
           const dayLabel = days === 0 ? 'i dag' : days === 1 ? 'i morgen' : `om ${days} dager`;
           const nextLabel = nd.label === 'måldato' ? '★ måldato' : nd.label;
-          return `<div class="countdown-card${featured}" onclick="state.settings.openProjectId='${p.id}';state.settings.view='projects';render()">
+          return `<div class="countdown-card${featured}" data-action="openProject" data-args='["${p.id}"]'>
             <div class="cd-label"><span class="pcat cat-${p.category}" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--${p.category==='arbeid'?'work':'privat'});margin-right:5px;vertical-align:middle"></span>${escapeHTML(CAT_BY_ID[p.category]?.label||'')}</div>
             <div class="cd-title">${escapeHTML(p.title)}</div>
             <div class="cd-days" style="font-size:28px">${days === 0 ? 'i dag' : days}${days !== 0 ? `<small>${dayLabel.replace(/^om|i dag|i morgen/,'').trim() || (days===1?'dag til neste':'dager til neste')}</small>` : `<small>neste: ${escapeHTML(nextLabel.slice(0,30))}</small>`}</div>
@@ -990,7 +1104,7 @@ function renderHome(){
   const quickHTML = `
     <div class="home-quick">
       <input id="home-quick-input" type="text" placeholder="Hva tenker du på? Trykk Enter for å legge i innboks…">
-      <div class="home-quick-hint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="home-quick-hint flex-row-gap">
         <span>Eller</span>
         <button data-action="openDumpModal" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer">📋 Dumpefelt</button>
         <span>for å lime inn et helt notat med flere oppgaver</span>
@@ -1168,8 +1282,8 @@ function reorderUrgent(draggedId, targetId, insertBefore){
 // VIEW: PROJECTS (list + detail page)
 // ============================================================
 function renderProjects(){
-  if (state.settings.openProjectId){
-    renderProjectPage(state.settings.openProjectId);
+  if (state.ui.openProjectId){
+    renderProjectPage(state.ui.openProjectId);
     return;
   }
   const today = new Date();
@@ -1193,12 +1307,12 @@ function renderProjects(){
 
   const pg = document.getElementById('pgrid');
   pg.innerHTML = active.map(projectCardHTML).join('') + `<div class="new-project-card" data-action="openProjectForm">+ Nytt prosjekt</div>`;
-  pg.querySelectorAll('.pcard').forEach(el=>el.onclick=()=>{ state.settings.openProjectId = el.dataset.id; render(); });
+  pg.querySelectorAll('.pcard').forEach(el=>el.onclick=()=>{ state.ui.openProjectId = el.dataset.id; render(); });
 
   if (archived.length){
     const pa = document.getElementById('pgrid-arch');
     pa.innerHTML = archived.map(projectCardHTML).join('');
-    pa.querySelectorAll('.pcard').forEach(el=>el.onclick=()=>{ state.settings.openProjectId = el.dataset.id; render(); });
+    pa.querySelectorAll('.pcard').forEach(el=>el.onclick=()=>{ state.ui.openProjectId = el.dataset.id; render(); });
   }
 }
 
@@ -1237,11 +1351,11 @@ function projectCardHTML(p){
 // Section helpers live below; each renders one self-contained part of the project detail page.
 function renderProjectPage(id){
   const p = state.projects.find(x=>x.id===id);
-  if (!p){ state.settings.openProjectId=null; renderProjects(); return; }
+  if (!p){ state.ui.openProjectId=null; renderProjects(); return; }
   const days = daysUntil(p.targetDate);
 
   viewEl.innerHTML = `
-    <button class="pback" onclick="state.settings.openProjectId=null;render()">← Tilbake til prosjekter</button>
+    <button class="pback" data-action="backToProjects">← Tilbake til prosjekter</button>
     <div class="pdetail">
       ${_projectHeaderHTML(p, days)}
       <div class="pbody">
@@ -1283,7 +1397,7 @@ function _projectHeaderHTML(p, days){
 }
 
 function _projectTasksSectionHTML(p){
-  const mode = state.settings.projectViewMode;
+  const mode = state.ui.projectViewMode;
   const body = mode === 'kanban' ? renderProjectKanban(p) : renderProjectTasks(p);
   return `
     <div class="psection">
@@ -1356,11 +1470,11 @@ function _projectBacklinksSectionHTML(p){
   if (!bl.length) return '';
   const items = bl.map(b=>{
     const onClick = b.type==='project'
-      ? `state.settings.openProjectId='${b.id}';state.settings.view='projects';render()`
-      : `state.settings.anchor='${b.date||''}';state.settings.view='day';render()`;
+      ? act('openProject', b.id)
+      : act('goToDate', b.date || '');
     const snippet = (b.snippet||'').slice(0,120);
     const ellipsis = (b.snippet||'').length>120 ? '…' : '';
-    return `<div class="bl" onclick="${onClick}">
+    return `<div class="bl" ${onClick}>
       <strong>${escapeHTML(b.title)}</strong>
       <div class="snippet">${escapeHTML(snippet)}${ellipsis}</div>
     </div>`;
@@ -1376,8 +1490,8 @@ function _projectActionsSectionHTML(p){
   return `
     <div class="psection" style="display:flex;gap:8px;justify-content:space-between;align-items:center">
       <div style="display:flex;gap:8px">
-        <button data-action="openProjectForm" data-args='["${p.id}"]' style="padding:7px 12px;border-radius:6px;border:1px solid var(--line);font-size:13px">Rediger detaljer</button>
-        <button data-action="archiveProject" data-args='["${p.id}"]' style="padding:7px 12px;border-radius:6px;border:1px solid var(--line);font-size:13px">${p.archived?'Gjenåpne':'Arkivér'}</button>
+        <button data-action="openProjectForm" data-args='["${p.id}"]' class="btn-action">Rediger detaljer</button>
+        <button data-action="archiveProject" data-args='["${p.id}"]' class="btn-action">${p.archived?'Gjenåpne':'Arkivér'}</button>
       </div>
       <button data-action="deleteProject" data-args='["${p.id}"]' style="padding:7px 12px;border-radius:6px;border:1px solid transparent;font-size:13px;color:var(--alert)">Slett prosjekt</button>
     </div>`;
@@ -1425,16 +1539,16 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
     <div class="body" style="gap:8px">
       <div class="note-edit-hint">💡 Klikk inni notatet for å redigere</div>
       <div class="note-toolbar">
-        <button type="button" class="tb-bold" onclick="document.execCommand('bold');document.getElementById('note-editor').focus()" title="Fet (Ctrl+B)">F</button>
-        <button type="button" class="tb-italic" onclick="document.execCommand('italic');document.getElementById('note-editor').focus()" title="Kursiv (Ctrl+I)">K</button>
-        <button type="button" onclick="document.execCommand('underline');document.getElementById('note-editor').focus()" title="Understreket"><u>U</u></button>
+        <button type="button" class="tb-bold" data-action="execCmd" data-args='["bold"]' title="Fet (Ctrl+B)">F</button>
+        <button type="button" class="tb-italic" data-action="execCmd" data-args='["italic"]' title="Kursiv (Ctrl+I)">K</button>
+        <button type="button" data-action="execCmd" data-args='["underline"]' title="Understreket"><u>U</u></button>
         <span class="tb-sep"></span>
-        <button type="button" onclick="document.execCommand('formatBlock',false,'<h2>');document.getElementById('note-editor').focus()" title="Stor overskrift">H1</button>
-        <button type="button" onclick="document.execCommand('formatBlock',false,'<h3>');document.getElementById('note-editor').focus()" title="Mindre overskrift">H2</button>
-        <button type="button" onclick="document.execCommand('formatBlock',false,'<p>');document.getElementById('note-editor').focus()" title="Vanlig tekst">¶</button>
+        <button type="button" data-action="execCmd" data-args='["formatBlock","<h2>"]' title="Stor overskrift">H1</button>
+        <button type="button" data-action="execCmd" data-args='["formatBlock","<h3>"]' title="Mindre overskrift">H2</button>
+        <button type="button" data-action="execCmd" data-args='["formatBlock","<p>"]' title="Vanlig tekst">¶</button>
         <span class="tb-sep"></span>
-        <button type="button" onclick="document.execCommand('insertUnorderedList');document.getElementById('note-editor').focus()" title="Punktliste">•</button>
-        <button type="button" onclick="document.execCommand('insertOrderedList');document.getElementById('note-editor').focus()" title="Nummerert liste">1.</button>
+        <button type="button" data-action="execCmd" data-args='["insertUnorderedList"]' title="Punktliste">•</button>
+        <button type="button" data-action="execCmd" data-args='["insertOrderedList"]' title="Nummerert liste">1.</button>
         <span class="tb-sep"></span>
         <select onchange="if(this.value){document.execCommand('foreColor',false,this.value);this.value='';document.getElementById('note-editor').focus()}" title="Tekstfarge">
           <option value="">Farge</option>
@@ -1454,8 +1568,8 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
           <option value="transparent">Ingen</option>
         </select>
         <span class="tb-sep"></span>
-        <button type="button" onclick="(()=>{const u=prompt('Lim inn URL');if(u)document.execCommand('createLink',false,u);document.getElementById('note-editor').focus()})()" title="Lenke">🔗</button>
-        <button type="button" onclick="document.execCommand('removeFormat');document.getElementById('note-editor').focus()" title="Fjern formatering">⌫</button>
+        <button type="button" data-action="insertLink" title="Lenke">🔗</button>
+        <button type="button" data-action="execCmd" data-args='["removeFormat"]' title="Fjern formatering">⌫</button>
       </div>
       <div id="note-editor" class="note-editor" contenteditable="true" data-placeholder="Begynn å skrive…">${n.content||''}</div>
     </div>
@@ -1622,7 +1736,7 @@ HANDLERS.kanbanDrop = (e, pid, status)=>{
 };
 
 HANDLERS.setProjectViewMode = (mode)=>{
-  state.settings.projectViewMode = mode;
+  state.ui.projectViewMode = mode;
   render();
 };
 
@@ -1744,7 +1858,7 @@ HANDLERS.addProjectLink = (pid)=>{
 };
 HANDLERS.deleteProjectLink = (pid,lid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.links=p.links.filter(l=>l.id!==lid); render();} };
 HANDLERS.archiveProject = (pid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.archived=!p.archived; render();} };
-HANDLERS.deleteProject = (pid)=>{ if(!confirm('Slett prosjektet og alt innhold?')) return; state.projects=state.projects.filter(p=>p.id!==pid); state.settings.openProjectId=null; render(); };
+HANDLERS.deleteProject = (pid)=>{ if(!confirm('Slett prosjektet og alt innhold?')) return; state.projects=state.projects.filter(p=>p.id!==pid); state.ui.openProjectId=null; render(); };
 
 // Project create/edit form (top-level fields only)
 function openProjectForm(id){
@@ -1755,15 +1869,15 @@ function openProjectForm(id){
   openModal(`
     <h3>${p?'Rediger prosjekt':'Nytt prosjekt'}</h3>
     <div class="body">
-      ${isNew ? `<div class="field"><label>Bruk mal <span style="font-weight:400;color:var(--ink-muted);text-transform:none;letter-spacing:0">— valgfritt, gir deg ferdig oppsett av oppgaver</span></label><select id="p-template">
+      ${isNew ? `<div class="field"><label>Bruk mal <span class="text-note">— valgfritt, gir deg ferdig oppsett av oppgaver</span></label><select id="p-template">
         <option value="">— ingen mal (start tomt) —</option>
         ${PROJECT_TEMPLATES.map(t=>`<option value="${t.id}">${t.label}</option>`).join('')}
       </select></div>` : ''}
       <div class="field"><label>Tittel</label><input id="p-title" type="text" value="${escapeAttr(data.title)}" placeholder="F.eks. Vårt bryllup"></div>
       <div class="field"><label>Kategori</label><select id="p-cat">${CATEGORIES.map(c=>`<option value="${c.id}" ${data.category===c.id?'selected':''}>${c.label}</option>`).join('')}</select></div>
       <div class="field"><label>Måldato — første dag av hendelsen</label><input id="p-target" type="date" value="${data.targetDate||''}"></div>
-      <div class="field"><label>Sluttdato på hendelsen <span style="font-weight:400;color:var(--ink-muted);text-transform:none;letter-spacing:0">— valgfritt, hvis flere dager (f.eks. bryllup over flere dager)</span></label><input id="p-targetEnd" type="date" value="${data.targetEndDate||''}"></div>
-      <div class="field"><label>Forberedelse starter <span style="font-weight:400;color:var(--ink-muted);text-transform:none;letter-spacing:0">— valgfritt</span></label><input id="p-start" type="date" value="${data.startDate||''}"></div>
+      <div class="field"><label>Sluttdato på hendelsen <span class="text-note">— valgfritt, hvis flere dager (f.eks. bryllup over flere dager)</span></label><input id="p-targetEnd" type="date" value="${data.targetEndDate||''}"></div>
+      <div class="field"><label>Forberedelse starter <span class="text-note">— valgfritt</span></label><input id="p-start" type="date" value="${data.startDate||''}"></div>
       <div class="field"><label>Kort beskrivelse</label><textarea id="p-desc" placeholder="Hva er dette i én setning?">${escapeHTML(data.description||'')}</textarea></div>
     </div>
     <div class="footer">
@@ -1827,10 +1941,10 @@ HANDLERS.saveProjectForm = id=>{
       _pendingTemplate = null;
     }
     state.projects.push(np);
-    state.settings.openProjectId = np.id;
+    state.ui.openProjectId = np.id;
   }
   closeModal();
-  state.settings.view='projects';
+  state.ui.view='projects';
   render();
 };
 
@@ -1848,7 +1962,7 @@ function openProjectTaskForm(pid, tid){
       <details ${hasAdvanced?'open':''} style="margin-top:4px">
         <summary style="cursor:pointer;font-size:12px;color:var(--ink-soft);padding:4px 0;list-style:none;-webkit-user-select:none">▸ Avansert (sluttdato, gjenta, påminnelse, notater)</summary>
         <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
-          <div class="field"><label>Sluttdato <span style="font-weight:400;color:var(--ink-muted);text-transform:none;letter-spacing:0">— hvis oppgaven varer flere dager</span></label><input id="pt-endDate" type="date" value="${data.endDate||''}"></div>
+          <div class="field"><label>Sluttdato <span class="text-note">— hvis oppgaven varer flere dager</span></label><input id="pt-endDate" type="date" value="${data.endDate||''}"></div>
           <div class="field"><label>Gjenta</label><select id="pt-recurring">
             <option value="" ${!data.recurring?'selected':''}>— én gang —</option>
             <option value="daily" ${data.recurring==='daily'?'selected':''}>Hver dag</option>
@@ -1868,7 +1982,7 @@ function openProjectTaskForm(pid, tid){
       </details>
     </div>
     <div class="footer">
-      ${t?`<button class="danger" onclick="(state.projects.find(x=>x.id==='${pid}').tasks=state.projects.find(x=>x.id==='${pid}').tasks.filter(x=>x.id!=='${tid}'));closeModal();render()">${I18N.delete}</button>`:''}
+      ${t?`<button class="danger" data-action="deleteProjectTaskAndClose" data-args='["${pid}","${tid}"]'>${I18N.delete}</button>`:''}
       <button data-action="closeModal">${I18N.cancel}</button>
       <button class="primary" data-action="saveProjectTaskForm" data-args='["${pid}","${t?t.id:''}"]'>${I18N.save}</button>
     </div>`);
@@ -1942,7 +2056,7 @@ function renderTodos(){
             <button data-action="inboxToTodo" data-args='["${i.id}","urgent"]' title="Til Urgent">⚠</button>
             <button data-action="inboxToTodo" data-args='["${i.id}","short"]' title="Til Short term">↗</button>
             <button data-action="inboxToTodo" data-args='["${i.id}","long"]' title="Til Long term">⤳</button>
-            <select onchange="if(this.value){inboxToProject('${i.id}',this.value);this.value=''}" style="padding:2px 4px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:#fff">
+            <select onchange="if(this.value){inboxToProject('${i.id}',this.value);this.value=''}" class="btn-sec-xs">
               <option value="">▸ Prosjekt</option>${projectsList}
             </select>
             <button class="ag" data-action="deleteInbox" data-args='["${i.id}"]'>×</button>
@@ -1958,9 +2072,9 @@ function renderTodos(){
 
     ${done.length ? `
       <div style="margin:18px 0 0;text-align:center">
-        <button onclick="state.settings.showCompletedTodos=!state.settings.showCompletedTodos;saveState();render()" style="padding:6px 14px;font-size:12.5px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">${state.settings.showCompletedTodos?'Skjul fullførte':'Vis fullførte ('+done.length+')'}</button>
+        <button data-action="toggleShowCompleted" style="padding:6px 14px;font-size:12.5px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">${state.ui.showCompletedTodos?'Skjul fullførte':'Vis fullførte ('+done.length+')'}</button>
       </div>
-      ${state.settings.showCompletedTodos ? `
+      ${state.ui.showCompletedTodos ? `
         <div class="todo-bucket" style="margin-top:14px">
           <div class="bh" style="background:var(--surface-2);color:var(--ink-muted)">Fullførte <small>${done.length}</small></div>
           ${done.slice(-20).reverse().map(t=>todoRowHTML(t, projectsList)).join('')}
@@ -2036,14 +2150,14 @@ function todoRowHTML(t, projectsList){
       <button data-action="setTaskPriority" data-args='["${t.id}","short"]' title="Short term">↗</button>
       <button data-action="setTaskPriority" data-args='["${t.id}","long"]' title="Long term">⤳</button>
       <button data-action="setTaskPriority" data-args='["${t.id}",""]' title="Fjern kategori">○</button>
-      <select onchange="if(this.value){postponeTask('${t.id}',this.value);this.value=''}" style="padding:2px 4px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:#fff" title="Utsett frist">
+      <select onchange="if(this.value){postponeTask('${t.id}',this.value);this.value=''}" class="btn-sec-xs" title="Utsett frist">
         <option value="">▸ Utsett</option>
         <option value="1d">+1 dag</option>
         <option value="3d">+3 dager</option>
         <option value="1w">+1 uke</option>
         <option value="1m">+1 måned</option>
       </select>
-      <select onchange="if(this.value){taskToProject('${t.id}',this.value);this.value=''}" style="padding:2px 4px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:#fff">
+      <select onchange="if(this.value){taskToProject('${t.id}',this.value);this.value=''}" class="btn-sec-xs">
         <option value="">▸ Prosjekt</option>${projectsList}
       </select>
       <button class="ag" data-action="openTaskForm" data-args='["${t.id}"]' title="Rediger detaljer">✎</button>
@@ -2213,7 +2327,7 @@ HANDLERS.inlineEditStart = (e, id, kind)=>{
 // ============================================================
 function renderOverview(){
   const today = new Date();
-  const aKey = state.settings.overviewAnchor || dKey(today);
+  const aKey = state.ui.overviewAnchor || dKey(today);
   const anchor = fromKey(aKey);
   const startY = anchor.getFullYear();
   const startM = anchor.getMonth() - 6;
@@ -2248,11 +2362,11 @@ function renderOverview(){
     const width = Math.max(right - left, 0.4);
     const isPoint = (endTs - startTs) <= 86400000 + 1000; // single-day
     return `<div class="gantt-row">
-      <div class="label" onclick="state.settings.openProjectId='${p.id}';state.settings.view='projects';render()">
+      <div class="label" data-action="openProject" data-args='["${p.id}"]'>
         <span class="pcat cat-${p.category}"></span>${escapeHTML(p.title)}
       </div>
       <div class="track">
-        <div class="bar cat-${p.category} ${isPoint?'point':''}" style="left:${left}%;width:${width}%" onclick="state.settings.openProjectId='${p.id}';state.settings.view='projects';render()" title="${escapeAttr(p.title + (p.startDate?' · start '+fmtDateShort(fromKey(p.startDate)):'') + (p.targetDate?' · '+fmtDateShort(fromKey(p.targetDate)):'') + (p.targetEndDate?'–'+fmtDateShort(fromKey(p.targetEndDate)):''))}">${isPoint?'':escapeHTML(p.title)}</div>
+        <div class="bar cat-${p.category} ${isPoint?'point':''}" style="left:${left}%;width:${width}%" data-action="openProject" data-args='["${p.id}"]' title="${escapeAttr(p.title + (p.startDate?' · start '+fmtDateShort(fromKey(p.startDate)):'') + (p.targetDate?' · '+fmtDateShort(fromKey(p.targetDate)):'') + (p.targetEndDate?'–'+fmtDateShort(fromKey(p.targetEndDate)):''))}">${isPoint?'':escapeHTML(p.title)}</div>
       </div>
     </div>`;
   }).filter(Boolean).join('');
@@ -2297,9 +2411,9 @@ function renderOverview(){
     const cd = days===0?'i dag':days===1?'i morgen':days+' dager';
     const urgent = days<=14 ? 'urgent' : '';
     const click = item.projectId
-      ? `state.settings.openProjectId='${item.projectId}';state.settings.view='projects';render()`
-      : item.eventId ? `HANDLERS.editEvent('${item.eventId}')` : '';
-    return `<div class="kd" onclick="${click}">
+      ? act('openProject', item.projectId)
+      : item.eventId ? act('editEvent', item.eventId) : '';
+    return `<div class="kd" ${click}>
       <div class="kdate">${I18N.monthsShort[d.getMonth()]} <strong>${d.getDate()}</strong></div>
       <div class="ktitle">${escapeHTML(item.title)}<span class="meta">${item.kind}</span></div>
       <div class="kcountdown ${urgent}">om ${cd}</div>
@@ -2336,10 +2450,10 @@ function renderOverview(){
       <div class="keydates">${keyDatesHTML}</div>
     </div>`;
 
-  document.getElementById('ov-prev').onclick = ()=>{ state.settings.overviewAnchor = dKey(addMonths(anchor,-12)); render(); };
-  document.getElementById('ov-next').onclick = ()=>{ state.settings.overviewAnchor = dKey(addMonths(anchor,12)); render(); };
+  document.getElementById('ov-prev').onclick = ()=>{ state.ui.overviewAnchor = dKey(addMonths(anchor,-12)); render(); };
+  document.getElementById('ov-next').onclick = ()=>{ state.ui.overviewAnchor = dKey(addMonths(anchor,12)); render(); };
 }
-HANDLERS.overviewToday = ()=>{ state.settings.overviewAnchor=''; render(); };
+HANDLERS.overviewToday = ()=>{ state.ui.overviewAnchor=''; render(); };
 
 function monthMiniHTML(y,m,today){
   const days = monthDays(y,m);
@@ -2388,7 +2502,7 @@ function monthMiniHTML(y,m,today){
 // VIEW: MONTH
 // ============================================================
 function renderMonth(){
-  const anchor = fromKey(state.settings.anchor||todayKey());
+  const anchor = fromKey(state.ui.anchor||todayKey());
   const y = anchor.getFullYear(), m = anchor.getMonth();
   const today = new Date();
 
@@ -2403,11 +2517,11 @@ function renderMonth(){
       <div id="mgrid"></div>
     </div>`;
 
-  document.getElementById('prev').onclick = ()=>{ state.settings.anchor = dKey(addMonths(anchor,-1)); render(); };
-  document.getElementById('next').onclick = ()=>{ state.settings.anchor = dKey(addMonths(anchor,1)); render(); };
+  document.getElementById('prev').onclick = ()=>{ state.ui.anchor = dKey(addMonths(anchor,-1)); render(); };
+  document.getElementById('next').onclick = ()=>{ state.ui.anchor = dKey(addMonths(anchor,1)); render(); };
   setupSwipeNavigation(document.querySelector('.month-grid'),
-    ()=>{ state.settings.anchor = dKey(addMonths(anchor, 1)); render(); },
-    ()=>{ state.settings.anchor = dKey(addMonths(anchor, -1)); render(); }
+    ()=>{ state.ui.anchor = dKey(addMonths(anchor, 1)); render(); },
+    ()=>{ state.ui.anchor = dKey(addMonths(anchor, -1)); render(); }
   );
 
   const grid = document.getElementById('mgrid');
@@ -2432,9 +2546,9 @@ function renderMonth(){
       const isProj = e._kind === 'project';
       const cls = `ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}${multi}${cont}${last}`;
       const click = e._ics
-        ? `onclick="event.stopPropagation();HANDLERS.openOutlookEvent('${e.id}')"`
+        ? act('openOutlookEvent', e.id) + ' data-stop="1"'
         : isProj
-          ? `onclick="event.stopPropagation();state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()"`
+          ? act('openProject', e._projectId) + ' data-stop="1"'
           : '';
       const prefix = (!e._isContinuation && isProj) ? '📍 ' : '';
       const timeP = (!e._isContinuation && e.start) ? `<strong>${e.start}</strong> ` : '';
@@ -2458,16 +2572,16 @@ function renderMonth(){
   }
   html += '</div>';
   grid.innerHTML = html;
-  grid.querySelectorAll('.cell').forEach(c=>c.onclick=()=>{ state.settings.anchor = c.dataset.key; state.settings.view='day'; render(); });
+  grid.querySelectorAll('.cell').forEach(c=>c.onclick=()=>{ state.ui.anchor = c.dataset.key; state.ui.view='day'; render(); });
 }
 
-function goToday(){ state.settings.anchor = todayKey(); render(); }
+function goToday(){ state.ui.anchor = todayKey(); render(); }
 
 // ============================================================
 // VIEW: WEEK
 // ============================================================
 function renderWeek(){
-  const anchor = fromKey(state.settings.anchor||todayKey());
+  const anchor = fromKey(state.ui.anchor||todayKey());
   const wk = startOfWeek(anchor);
   const days = [...Array(7)].map((_,i)=>addDays(wk,i));
   const today = new Date();
@@ -2481,11 +2595,11 @@ function renderWeek(){
     </div>
     <div class="week" id="weekgrid"></div>`;
 
-  document.getElementById('prev').onclick = ()=>{ state.settings.anchor = dKey(addDays(wk,-7)); render(); };
-  document.getElementById('next').onclick = ()=>{ state.settings.anchor = dKey(addDays(wk,7)); render(); };
+  document.getElementById('prev').onclick = ()=>{ state.ui.anchor = dKey(addDays(wk,-7)); render(); };
+  document.getElementById('next').onclick = ()=>{ state.ui.anchor = dKey(addDays(wk,7)); render(); };
   setupSwipeNavigation(document.getElementById('weekgrid'),
-    ()=>{ state.settings.anchor = dKey(addDays(wk, 7)); render(); },
-    ()=>{ state.settings.anchor = dKey(addDays(wk, -7)); render(); }
+    ()=>{ state.ui.anchor = dKey(addDays(wk, 7)); render(); },
+    ()=>{ state.ui.anchor = dKey(addDays(wk, -7)); render(); }
   );
 
   const wg = document.getElementById('weekgrid');
@@ -2515,12 +2629,12 @@ function renderWeek(){
         const click = e._ics
           ? `HANDLERS.openOutlookEvent('${e.id}')`
           : isProj
-            ? `state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()`
+            ? `state.ui.openProjectId='${e._projectId}';state.ui.view='projects';render()`
             : `HANDLERS.editEvent('${e.id}')`;
         const style = evDurationStyle(e, 42);
         const prefix = (!e._isContinuation && isProj) ? '📍 ' : '';
         const timeP = (!e._isContinuation && e.start) ? `<strong>${e.start}${e.end?'–'+e.end:''}</strong> ` : '';
-        return `<div class="${cls}" data-id="${e.id}" onclick="event.stopPropagation();${click}" style="${style}">${prefix}${timeP}${escapeHTML(e.title)}</div>`;
+        return `<div class="${cls}" data-id="${e.id}" ${click} data-stop="1" style="${style}">${prefix}${timeP}${escapeHTML(e.title)}</div>`;
       }).join('');
       html += `<div class="slot ${isWeekend?'weekend':''}" data-key="${key}" data-hour="${h}">${evHTML}</div>`;
     });
@@ -2530,7 +2644,7 @@ function renderWeek(){
     s.onclick = ()=> openEventForm(null, { date: s.dataset.key, start: pad(s.dataset.hour)+':00' });
   });
   wg.querySelectorAll('.wh').forEach((h,i)=>{
-    if(i>0) h.onclick = ()=>{ state.settings.anchor = dKey(days[i-1]); state.settings.view='day'; render(); };
+    if(i>0) h.onclick = ()=>{ state.ui.anchor = dKey(days[i-1]); state.ui.view='day'; render(); };
   });
 }
 
@@ -2550,18 +2664,18 @@ function buildDashboardHTML(){
     const k = dKey(d);
     eventsOnDay(k).forEach(e=>{
       if (!e._isContinuation){ // first day only
-        next7.push({ date:k, title:e.title, kind: e._ics?'📧 Outlook': e._kind==='project'?'★ ' + (e.title!==e.title?'':'måldato') :'📌 hendelse', clickHandler: e._ics?`HANDLERS.openOutlookEvent('${e.id}')` : (e._kind==='project'?`state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()`:`HANDLERS.editEvent('${e.id}')`) });
+        next7.push({ date:k, title:e.title, kind: e._ics?'📧 Outlook': e._kind==='project'?'★ ' + (e.title!==e.title?'':'måldato') :'📌 hendelse', clickHandler: e._ics ? act('openOutlookEvent', e.id) : (e._kind==='project' ? act('openProject', e._projectId) : act('editEvent', e.id)) });
       }
     });
     tasksOnDay(k).forEach(t=>{
       if (t.done) return;
       if (t._isContinuation) return;
       if (t._kind==='task'){
-        next7.push({ date:k, title:t.title, kind:'☐ oppgave' + (t.priority?' · '+t.priority:''), clickHandler:`openTaskForm('${t.id}')` });
+        next7.push({ date:k, title:t.title, kind:'☐ oppgave' + (t.priority?' · '+t.priority:''), clickHandler: act('openTaskForm', t.id) });
       } else if (t._kind==='projectTask'){
-        next7.push({ date:k, title:t.title, kind:`▸ ${t._projectTitle}`, clickHandler:`openProjectTaskForm('${t._projectId}','${t.id}')` });
+        next7.push({ date:k, title:t.title, kind:`▸ ${t._projectTitle}`, clickHandler: act('openProjectTaskForm', t._projectId, t.id) });
       } else if (t._kind==='milestone'){
-        next7.push({ date:k, title:t.title, kind:`◆ ${t._projectTitle}`, clickHandler:`state.settings.openProjectId='${t._projectId}';state.settings.view='projects';render()` });
+        next7.push({ date:k, title:t.title, kind:`◆ ${t._projectTitle}`, clickHandler: act('openProject', t._projectId) });
       }
     });
   }
@@ -2580,7 +2694,7 @@ function buildDashboardHTML(){
     const d = fromKey(it.date);
     const days = daysUntil(it.date);
     const label = days===1?'i morgen':`om ${days}d`;
-    return `<div class="dash-item" onclick="${it.clickHandler||''}">
+    return `<div class="dash-item" ${it.clickHandler||''}>
       <div class="ddate">${I18N.monthsShort[d.getMonth()]} ${d.getDate()}</div>
       <div class="dtitle">${escapeHTML(it.title)}<span class="dmeta">${label} · ${escapeHTML(it.kind)}</span></div>
     </div>`;
@@ -2599,7 +2713,7 @@ function buildDashboardHTML(){
 }
 
 function renderDay(){
-  const anchor = fromKey(state.settings.anchor||todayKey());
+  const anchor = fromKey(state.ui.anchor||todayKey());
   const key = dKey(anchor);
   const today = new Date();
   const evs = eventsOnDay(key);
@@ -2620,7 +2734,7 @@ function renderDay(){
       </div>
       <div class="day-side">
         <div class="panel tasks-block">
-          <h4>Oppgaver i dag <button class="add-link" onclick="HANDLERS.openTaskForm(null,{due:'${key}'})" style="float:right;font-size:12px;color:var(--ink-soft)">+ Ny</button></h4>
+          <h4>Oppgaver i dag <button class="add-link" data-action="openTaskFormWithDate" data-args='["${key}"]' style="float:right;font-size:12px;color:var(--ink-soft)">+ Ny</button></h4>
           ${tks.length?`<ul>${tks.map(t=>taskRowHTML(t)).join('')}</ul>`:`<div class="empty-state">${I18N.noTasks}</div>`}
         </div>
         <div class="panel">
@@ -2630,12 +2744,12 @@ function renderDay(){
       </div>
     </div>`;
 
-  document.getElementById('prev').onclick = ()=>{ state.settings.anchor = dKey(addDays(anchor,-1)); render(); };
-  document.getElementById('next').onclick = ()=>{ state.settings.anchor = dKey(addDays(anchor,1)); render(); };
+  document.getElementById('prev').onclick = ()=>{ state.ui.anchor = dKey(addDays(anchor,-1)); render(); };
+  document.getElementById('next').onclick = ()=>{ state.ui.anchor = dKey(addDays(anchor,1)); render(); };
   // Swipe to navigate between days on touch
   setupSwipeNavigation(document.querySelector('.day-layout'),
-    ()=>{ state.settings.anchor = dKey(addDays(anchor, 1)); render(); },
-    ()=>{ state.settings.anchor = dKey(addDays(anchor, -1)); render(); }
+    ()=>{ state.ui.anchor = dKey(addDays(anchor, 1)); render(); },
+    ()=>{ state.ui.anchor = dKey(addDays(anchor, -1)); render(); }
   );
 
   const dh = document.getElementById('dhours');
@@ -2649,25 +2763,25 @@ function renderDay(){
       const cont = e._isContinuation ? ' multi-cont' : '';
       const last = e._isMultiDay && e._isLastDay ? ' multi-last' : '';
       const cls = `ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${multi}${cont}${last}`;
-      const click = e._ics ? `HANDLERS.openOutlookEvent('${e.id}')` : `HANDLERS.editEvent('${e.id}')`;
-      const tail = e._ics ? (e.location?` <span style="color:var(--ink-muted);font-size:11px">${escapeHTML(e.location.slice(0,30))}</span>`:'') : (e.notes?` <span style="color:var(--ink-muted);font-size:11px">${escapeHTML(e.notes.slice(0,40))}</span>`:'');
+      const click = e._ics ? act('openOutlookEvent', e.id) : act('editEvent', e.id);
+      const tail = e._ics ? (e.location?` <span class="text-mute-small">${escapeHTML(e.location.slice(0,30))}</span>`:'') : (e.notes?` <span class="text-mute-small">${escapeHTML(e.notes.slice(0,40))}</span>`:'');
       const style = evDurationStyle(e, 48);
-      return `<div class="${cls}" onclick="event.stopPropagation();${click}" style="${style}"><strong>${e.start}${e.end?'–'+e.end:''}</strong> ${escapeHTML(e.title)}${tail}</div>`;
+      return `<div class="${cls}" ${click} data-stop="1" style="${style}"><strong>${e.start}${e.end?'–'+e.end:''}</strong> ${escapeHTML(e.title)}${tail}</div>`;
     }).join('');
     // Time-blocked tasks at this hour
     const tasksAtHour = tks.filter(t=>t.scheduledTime && parseInt(t.scheduledTime.split(':')[0])===h && (t._kind==='task' || t._kind==='projectTask') && !t.done);
     const taskHTML = tasksAtHour.map(t=>{
       const click = t._kind==='projectTask'
-        ? `openProjectTaskForm('${t._projectId}','${t.id}')`
-        : `openTaskForm('${t.id}')`;
-      const clearArgs = t._kind==='projectTask'
-        ? `'projectTask','${t._projectId}','${t.id}'`
-        : `'task','','${t.id}'`;
+        ? act('openProjectTaskForm', t._projectId, t.id)
+        : act('openTaskForm', t.id);
+      const clearAttrs = t._kind==='projectTask'
+        ? act('clearScheduledTime', 'projectTask', t._projectId, t.id)
+        : act('clearScheduledTime', 'task', '', t.id);
       const minOff = parseInt((t.scheduledTime||'0:0').split(':')[1])||0;
       const top = (minOff/60)*48;
-      return `<div class="ev cat-${t.category||'arbeid'} task-block" onclick="event.stopPropagation();${click}" style="top:${top}px;height:42px" title="Tidsblokk · ${escapeAttr(t.title)}">
+      return `<div class="ev cat-${t.category||'arbeid'} task-block" ${click} data-stop="1" style="top:${top}px;height:42px" title="Tidsblokk · ${escapeAttr(t.title)}">
         <strong>${t.scheduledTime}</strong> ${escapeHTML(t.title)}
-        <span style="float:right;cursor:pointer;color:var(--ink-muted);padding:0 4px" onclick="event.stopPropagation();HANDLERS.clearScheduledTime(${clearArgs})" title="Fjern tidsblokk">×</span>
+        <span style="float:right;cursor:pointer;color:var(--ink-muted);padding:0 4px" ${clearAttrs} data-stop="1" title="Fjern tidsblokk">×</span>
       </div>`;
     }).join('');
     html += `<div class="hslot" data-hour="${h}" ondragover="taskToTimeOver(event)" ondragleave="taskToTimeLeave(event)" ondrop="taskToTimeDrop(event,${h},'${key}')">${evHTML}${taskHTML}</div>`;
@@ -2682,12 +2796,12 @@ function renderDay(){
       const isProj = e._kind === 'project';
       const cls = `ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}${multi}${cont}${last}`;
       const click = e._ics
-        ? `HANDLERS.openOutlookEvent('${e.id}')`
+        ? act('openOutlookEvent', e.id)
         : isProj
-          ? `state.settings.openProjectId='${e._projectId}';state.settings.view='projects';render()`
-          : `HANDLERS.editEvent('${e.id}')`;
+          ? act('openProject', e._projectId)
+          : act('editEvent', e.id);
       const icon = e._isContinuation ? '' : (e._ics?'📧 ':(isProj?'📍 ':'📌 '));
-      return `<div class="${cls}" onclick="${click}">${icon}${escapeHTML(e.title)}</div>`;
+      return `<div class="${cls}" ${click}>${icon}${escapeHTML(e.title)}</div>`;
     }).join('');
     dh.innerHTML = `<div class="hl">hele</div><div class="hslot" style="min-height:auto;padding:6px">${ad}</div>` + html;
   } else dh.innerHTML = html;
@@ -2709,19 +2823,19 @@ function renderDay(){
 function taskRowHTML(t){
   // Time slot: scheduled = clickable to change, unscheduled = subtle "+ tid"-link
   const timeLink = (idStr, kind) => t.scheduledTime
-    ? `<span style="color:var(--accent);cursor:pointer;font-size:12px" onclick="event.stopPropagation();HANDLERS.setTaskScheduledTime('${idStr}','${kind}')" title="Klikk for å endre tid">🕒 ${t.scheduledTime}</span>`
-    : `<span style="color:var(--ink-muted);cursor:pointer;font-size:11px;font-style:italic" onclick="event.stopPropagation();HANDLERS.setTaskScheduledTime('${idStr}','${kind}')" title="Sett tidspunkt">+ tid</span>`;
+    ? `<span style="color:var(--accent);cursor:pointer;font-size:12px" data-action="setTaskScheduledTime" data-args='["${idStr}","${kind}"]' data-stop="1" title="Klikk for å endre tid">🕒 ${t.scheduledTime}</span>`
+    : `<span style="color:var(--ink-muted);cursor:pointer;font-size:11px;font-style:italic" data-action="setTaskScheduledTime" data-args='["${idStr}","${kind}"]' data-stop="1" title="Sett tidspunkt">+ tid</span>`;
   if (t._kind==='projectTask'){
     return `<li class="${t.done?'done':''}" draggable="true" ondragstart="taskToTimeStart(event,'${t._projectId}:${t.id}','projectTask')">
       <input type="checkbox" ${t.done?'checked':''} onchange="toggleProjectTask('${t._projectId}','${t.id}',event)">
-      <span class="tt" data-action="openProjectTaskForm" data-args='["${t._projectId}","${t.id}"]'>${escapeHTML(t.title)} <span style="color:var(--ink-muted);font-size:11px">· ${escapeHTML(t._projectTitle)}</span></span>
+      <span class="tt" data-action="openProjectTaskForm" data-args='["${t._projectId}","${t.id}"]'>${escapeHTML(t.title)} <span class="text-mute-small">· ${escapeHTML(t._projectTitle)}</span></span>
       ${timeLink(`${t._projectId}:${t.id}`, 'projectTask')}
     </li>`;
   }
   if (t._kind==='milestone'){
     return `<li class="${t.done?'done':''}">
       <input type="checkbox" ${t.done?'checked':''} onchange="toggleProjectMilestone('${t._projectId}','${t.id}')">
-      <span class="tt" onclick="state.settings.openProjectId='${t._projectId}';state.settings.view='projects';render()">◆ ${escapeHTML(t.title)} <span style="color:var(--ink-muted);font-size:11px">· ${escapeHTML(t._projectTitle)}</span></span>
+      <span class="tt" data-action="openProject" data-args='["${t._projectId}"]'>◆ ${escapeHTML(t.title)} <span class="text-mute-small">· ${escapeHTML(t._projectTitle)}</span></span>
       <span class="due">${t.category?CAT_BY_ID[t.category]?.label||'':''}</span>
     </li>`;
   }
@@ -2917,7 +3031,7 @@ function renderList(){
     else if (t==='outlook') openOutlookEvent(r.dataset.id);
     else if (t==='task') openTaskForm(r.dataset.id);
     else if (t==='projectTask') openProjectTaskForm(r.dataset.pid, r.dataset.id);
-    else if (t==='milestone' || t==='projectTarget'){ state.settings.openProjectId = r.dataset.pid; state.settings.view='projects'; render(); }
+    else if (t==='milestone' || t==='projectTarget'){ state.ui.openProjectId = r.dataset.pid; state.ui.view='projects'; render(); }
   });
 }
 
@@ -2938,7 +3052,7 @@ function openEventForm(id, defaults={}){
     <div class="body">
       <div class="field"><label>Tittel</label><input id="ev-title" type="text" value="${escapeAttr(data.title)}" placeholder="F.eks. styremøte"></div>
       <div class="field"><label>Dato (start)</label><input id="ev-date" type="date" value="${data.date}"></div>
-      <div class="field"><label>Sluttdato <span style="font-weight:400;color:var(--ink-muted);text-transform:none;letter-spacing:0">— valgfritt, hvis flere dager</span></label><input id="ev-endDate" type="date" value="${data.endDate||''}"></div>
+      <div class="field"><label>Sluttdato <span class="text-note">— valgfritt, hvis flere dager</span></label><input id="ev-endDate" type="date" value="${data.endDate||''}"></div>
       <div class="field"><label>Tid (valgfritt)</label><div class="row"><input id="ev-start" type="time" value="${data.start||''}"><input id="ev-end" type="time" value="${data.end||''}"></div></div>
       <div class="field"><label>Gjenta</label><select id="ev-recurring">
         <option value="" ${!data.recurring?'selected':''}>— én gang —</option>
@@ -2947,7 +3061,7 @@ function openEventForm(id, defaults={}){
         <option value="monthly" ${data.recurring==='monthly'?'selected':''}>Hver måned (samme dato)</option>
         <option value="yearly" ${data.recurring==='yearly'?'selected':''}>Hvert år (samme dato)</option>
       </select></div>
-      <div class="field"><label>Slutt på gjentakelse <span style="font-weight:400;color:var(--ink-muted);text-transform:none;letter-spacing:0">— valgfritt</span></label><input id="ev-recurringUntil" type="date" value="${data.recurringUntil||''}"></div>
+      <div class="field"><label>Slutt på gjentakelse <span class="text-note">— valgfritt</span></label><input id="ev-recurringUntil" type="date" value="${data.recurringUntil||''}"></div>
       <div class="field"><label>Kategori</label><select id="ev-cat">${CATEGORIES.map(c=>`<option value="${c.id}" ${data.category===c.id?'selected':''}>${c.label}</option>`).join('')}</select></div>
       <div class="field"><label>Notater</label><textarea id="ev-notes" placeholder="Detaljer, lenker, hva som må forberedes…">${escapeHTML(data.notes||'')}</textarea></div>
     </div>
@@ -3152,21 +3266,21 @@ function openQuickCapture(){
       <div class="field">
         <label>Velg destinasjon</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button data-action="qcSave" data-args='["inbox"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">→ Innboks</button>
+          <button data-action="qcSave" data-args='["inbox"]' class="btn-sec-lg">→ Innboks</button>
           <button data-action="qcSave" data-args='["urgent"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #e6b8b8;background:#fce8e8;color:#883333">⚠ Urgent</button>
           <button data-action="qcSave" data-args='["short"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #dfc99a;background:#fbf1e1;color:#7a5a30">↗ Short term</button>
           <button data-action="qcSave" data-args='["long"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #bcc7d8;background:#e8eef7;color:#3a4a66">⤳ Long term</button>
-          <button data-action="qcSave" data-args='["event"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">📅 Ny hendelse</button>
-          <button onclick="closeModal();HANDLERS.startVoiceCapture()" style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)" title="Snakk inn et notat">🎤 Tale</button>
+          <button data-action="qcSave" data-args='["event"]' class="btn-sec-lg">📅 Ny hendelse</button>
+          <button data-action="closeModalThenVoice" class="btn-sec-lg" title="Snakk inn et notat">🎤 Tale</button>
         </div>
         <select id="qc-project" onchange="if(this.value){qcSave('project',this.value);this.value=''}" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;color:var(--ink-soft)">
           <option value="">▸ Eller legg som oppgave i prosjekt…</option>${projectsList}
         </select>
       </div>
-      <div style="font-size:11.5px;color:var(--ink-muted)">Trykk Enter for innboks (default) · klikk knapp eller velg prosjekt</div>
+      <div class="text-muted-sm">Trykk Enter for innboks (default) · klikk knapp eller velg prosjekt</div>
     </div>
     <div class="footer">
-      <button onclick="state.settings.view='todos';closeModal();render()">Se alle To Do's →</button>
+      <button data-action="switchView" data-args='["todos"]'>Se alle To Do's →</button>
       <button data-action="closeModal">${I18N.cancel}</button>
     </div>`);
   setTimeout(()=>document.getElementById('qc-text').focus(),50);
@@ -3201,7 +3315,7 @@ function openMoreMenu(){
     {v:'overview', label:I18N.views.overview, icon:'🧭'}
   ];
   const buttons = items.map(it=>
-    `<button onclick="state.settings.view='${it.v}';closeModal();render()" style="display:flex;align-items:center;gap:14px;padding:16px 18px;font-size:16px;background:${state.settings.view===it.v?'var(--surface-2)':'transparent'};border:none;border-radius:12px;color:var(--ink);width:100%;text-align:left;${state.settings.view===it.v?'font-weight:600;':''}">
+    `<button data-action="switchView" data-args='["${it.v}"]' style="display:flex;align-items:center;gap:14px;padding:16px 18px;font-size:16px;background:${state.ui.view===it.v?'var(--surface-2)':'transparent'};border:none;border-radius:12px;color:var(--ink);width:100%;text-align:left;${state.ui.view===it.v?'font-weight:600;':''}">
       <span style="font-size:20px">${it.icon}</span>
       <span>${it.label}</span>
     </button>`
@@ -3368,10 +3482,10 @@ function doSearch(filt){
     if (h.type==='event'){ editEvent(h.ref.id); }
     else if (h.type==='outlook'){ openOutlookEvent(h.ref.id); }
     else if (h.type==='task'){ openTaskForm(h.ref.id); }
-    else if (h.type==='project'){ state.settings.openProjectId=h.ref.id; state.settings.view='projects'; render(); }
+    else if (h.type==='project'){ state.ui.openProjectId=h.ref.id; state.ui.view='projects'; render(); }
     else if (h.type==='projectTask'){ openProjectTaskForm(h.project.id, h.ref.id); }
-    else if (h.type==='milestone' || h.type==='person'){ state.settings.openProjectId=h.project.id; state.settings.view='projects'; render(); }
-    else if (h.type==='note'){ state.settings.anchor = h.date; state.settings.view='day'; render(); }
+    else if (h.type==='milestone' || h.type==='person'){ state.ui.openProjectId=h.project.id; state.ui.view='projects'; render(); }
+    else if (h.type==='note'){ state.ui.anchor = h.date; state.ui.view='day'; render(); }
   });
 }
 
@@ -3379,78 +3493,78 @@ function doSearch(filt){
 // SETTINGS / EXPORT / IMPORT / NOTIFICATIONS
 // ============================================================
 function openSettings(){
-  const stat = state.settings.notifications?'På':'Av';
-  const icsUrl = state.settings.icsUrl||'';
+  const stat = state.ui.notifications?'På':'Av';
+  const icsUrl = state.sync.icsUrl||'';
   const outlookCount = (state.outlookEvents||[]).length;
-  const syncUrl = state.settings.syncUrl||'';
-  const syncToken = state.settings.syncToken||'';
+  const syncUrl = state.sync.syncUrl||'';
+  const syncToken = state.sync.syncToken||'';
   const syncConfigured = !!(syncUrl && syncToken);
   openModal(`
     <h3>Innstillinger</h3>
     <div class="body settings-list">
-      <div style="padding:10px 0;border-bottom:1px solid var(--line-soft);margin-bottom:6px">
-        <div style="font-family:var(--serif);font-size:15px;margin-bottom:8px">Synk PC ↔ iPhone</div>
-        <div style="font-size:11.5px;color:var(--ink-muted);margin-bottom:8px">Cloudflare KV-basert. URL og token lagres kun lokalt på denne enheten.</div>
+      <div class="section-break">
+        <div class="section-title">Synk PC ↔ iPhone</div>
+        <div class="text-muted-sm" style="margin-bottom:8px">Cloudflare KV-basert. URL og token lagres kun lokalt på denne enheten.</div>
         <input id="sync-url" type="text" value="${escapeAttr(syncUrl)}" placeholder="https://your-sync.example.workers.dev" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-family:monospace;margin-bottom:6px">
-        <input id="sync-token" type="text" value="${escapeAttr(syncToken)}" placeholder="hemmelig token (lik på alle enhetene dine)" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-family:monospace;margin-bottom:8px">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button id="sync-save" style="padding:6px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Lagre</button>
-          <button id="sync-pull-now" style="padding:6px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)" ${syncConfigured?'':'disabled'}>↓ Hent fra sky</button>
-          <button id="sync-push-now" style="padding:6px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)" ${syncConfigured?'':'disabled'}>↑ Send til sky</button>
+        <input id="sync-token" type="text" value="${escapeAttr(syncToken)}" placeholder="hemmelig token (lik på alle enhetene dine)" class="input-mono">
+        <div class="flex-row-gap">
+          <button id="sync-save" class="btn-sec">Lagre</button>
+          <button id="sync-pull-now" class="btn-sec" ${syncConfigured?'':'disabled'}>↓ Hent fra sky</button>
+          <button id="sync-push-now" class="btn-sec" ${syncConfigured?'':'disabled'}>↑ Send til sky</button>
           <span class="sync-status" id="sync-cv-status">${syncConfigured?('●  '+(_syncStatus.state==='error'?'feil: '+(_syncStatus.error||''):lastSyncRemoteLabel())):'ikke konfigurert'}</span>
         </div>
       </div>
-      <div style="padding:10px 0;border-bottom:1px solid var(--line-soft);margin-bottom:6px">
-        <div style="font-family:var(--serif);font-size:15px;margin-bottom:8px">Outlook-synk</div>
-        <div style="font-size:11.5px;color:var(--ink-muted);margin-bottom:8px">Lim inn ICS-lenken din. Den lagres kun lokalt i nettleseren din.</div>
-        <input id="ics-url" type="text" value="${escapeAttr(icsUrl)}" placeholder="https://outlook.office365.com/owa/calendar/.../calendar.ics" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-family:monospace;margin-bottom:8px">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button id="sync-now" style="padding:6px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Oppdater nå</button>
-          <div style="position:relative;display:inline-block">
+      <div class="section-break">
+        <div class="section-title">Outlook-synk</div>
+        <div class="text-muted-sm" style="margin-bottom:8px">Lim inn ICS-lenken din. Den lagres kun lokalt i nettleseren din.</div>
+        <input id="ics-url" type="text" value="${escapeAttr(icsUrl)}" placeholder="https://outlook.office365.com/owa/calendar/.../calendar.ics" class="input-mono">
+        <div class="flex-row-gap">
+          <button id="sync-now" class="btn-sec">Oppdater nå</button>
+          <div class="pos-rel-ib">
             <button type="button" style="padding:6px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);pointer-events:none">Importer .ics-fil</button>
-            <input id="ics-file" type="file" accept=".ics,text/calendar" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+            <input id="ics-file" type="file" accept=".ics,text/calendar" class="input-overlay">
           </div>
           <span class="sync-status" id="sync-status">${outlookCount} hendelser · ${lastSyncLabel()}</span>
         </div>
       </div>
       <div class="sl"><span>Tema</span>
         <select onchange="setTheme(this.value)" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">
-          <option value="auto" ${(state.settings.theme||'auto')==='auto'?'selected':''}>Auto (følg system)</option>
-          <option value="light" ${state.settings.theme==='light'?'selected':''}>Lys</option>
-          <option value="dark" ${state.settings.theme==='dark'?'selected':''}>Mørk</option>
+          <option value="auto" ${(state.ui.theme||'auto')==='auto'?'selected':''}>Auto (følg system)</option>
+          <option value="light" ${state.ui.theme==='light'?'selected':''}>Lys</option>
+          <option value="dark" ${state.ui.theme==='dark'?'selected':''}>Mørk</option>
         </select>
       </div>
       <div class="sl"><span>Påminnelser i nettleseren</span><button data-action="toggleNotifications">${stat}</button></div>
       <div class="sl"><span>Eksporter til JSON</span><button data-action="exportData">Last ned</button></div>
-      <div class="sl"><span>Importer fra JSON</span><div style="position:relative;display:inline-block"><button type="button" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);color:var(--ink-soft);background:#fff;pointer-events:none">Velg fil</button><input id="imp" type="file" accept=".json,application/json" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%"></div></div>
-      <div class="sl" style="flex-direction:column;align-items:stretch;gap:6px">
+      <div class="sl"><span>Importer fra JSON</span><div class="pos-rel-ib"><button type="button" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);color:var(--ink-soft);background:#fff;pointer-events:none">Velg fil</button><input id="imp" type="file" accept=".json,application/json" class="input-overlay"></div></div>
+      <div class="sl flex-col-stretch">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <span>Ukentlig backup-mappe (lokal fil)</span>
-          <span style="font-size:11.5px;color:var(--ink-muted)" id="backup-dir-status">Henter…</span>
+          <span class="text-muted-sm" id="backup-dir-status">Henter…</span>
         </div>
-        <div style="font-size:11.5px;color:var(--ink-muted);font-style:italic">Lagrer en JSON-fil hver 7. dag. Velg en mappe (f.eks. OneDrive\Claude\Planner\backups) for å lagre direkte der — ellers lander filen i Nedlastinger. Bare på PC (Edge/Chrome).</div>
+        <div class="text-muted-italic">Lagrer en JSON-fil hver 7. dag. Velg en mappe (f.eks. OneDrive\Claude\Planner\backups) for å lagre direkte der — ellers lander filen i Nedlastinger. Bare på PC (Edge/Chrome).</div>
         <div style="display:flex;gap:6px">
           <button data-action="chooseBackupFolder" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Velg mappe</button>
           <button data-action="clearBackupFolder" id="clear-backup-dir-btn" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);display:none">Fjern</button>
         </div>
       </div>
-      <div class="sl" style="flex-direction:column;align-items:stretch;gap:6px"><span>Sky-backups (automatisk hver uke, siste 12 uker)</span>
-        <div id="cloud-backups-list" style="font-size:11.5px;color:var(--ink-muted);font-style:italic">Henter…</div>
+      <div class="sl flex-col-stretch"><span>Sky-backups (automatisk hver uke, siste 12 uker)</span>
+        <div id="cloud-backups-list" class="text-muted-italic">Henter…</div>
       </div>
-      <div class="sl" style="flex-direction:column;align-items:stretch;gap:6px"><span>Lokale backups (daglige + før-synk-øyeblikksbilder)</span>
+      <div class="sl flex-col-stretch"><span>Lokale backups (daglige + før-synk-øyeblikksbilder)</span>
         ${listBackups().length ? listBackups().map(k=>{
           const isPre = k.startsWith('planlegger.preSync.');
           const dateStr = k.replace('planlegger.backup.','').replace('planlegger.preSync.','');
           const label = isPre ? '↓ Før synk: '+dateStr.replace('T',' ').slice(0,16) : dateStr;
           return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:var(--ink-soft)"><span>${label}</span><button data-action="restoreBackup" data-args='["${k}"]' style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Gjenopprett</button></div>`;
-        }).join('') : '<span style="font-size:11.5px;color:var(--ink-muted);font-style:italic">Ingen backups ennå (lages automatisk daglig + før hver sync overskriver lokal)</span>'}
+        }).join('') : '<span class="text-muted-italic">Ingen backups ennå (lages automatisk daglig + før hver sync overskriver lokal)</span>'}
       </div>
-      <div class="sl"><span>Slett alt</span><button data-action="resetAll" style="color:var(--alert)">Tilbakestill</button></div>
+      <div class="sl"><span>Slett alt</span><button data-action="resetAll" class="text-alert">Tilbakestill</button></div>
       <div class="sl"><span>Versjon</span><span style="color:var(--ink-muted)">v3.1</span></div>
     </div>
     <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
   document.getElementById('imp').addEventListener('change', HANDLERS.importData);
-  document.getElementById('ics-url').addEventListener('blur', e=>{ state.settings.icsUrl = e.target.value.trim(); saveState(); });
+  document.getElementById('ics-url').addEventListener('blur', e=>{ state.sync.icsUrl = e.target.value.trim(); saveState(); });
   // Populate backup folder status (async — handle is in IndexedDB)
   getBackupDirHandle().then(async h => {
     const status = document.getElementById('backup-dir-status');
@@ -3474,7 +3588,7 @@ function openSettings(){
   loadCloudBackups().then(keys=>{
     const list = document.getElementById('cloud-backups-list');
     if (!list) return;
-    if (!state.settings.syncUrl || !state.settings.syncToken){
+    if (!state.sync.syncUrl || !state.sync.syncToken){
       list.innerHTML = '<span style="font-style:italic">Konfigurér synk over for å aktivere sky-backups</span>';
       return;
     }
@@ -3490,8 +3604,8 @@ function openSettings(){
     }).join('');
   });
   document.getElementById('sync-save').onclick = ()=>{
-    state.settings.syncUrl = document.getElementById('sync-url').value.trim();
-    state.settings.syncToken = document.getElementById('sync-token').value.trim();
+    state.sync.syncUrl = document.getElementById('sync-url').value.trim();
+    state.sync.syncToken = document.getElementById('sync-token').value.trim();
     saveState();
     closeModal(); render(); openSettings();
   };
@@ -3505,10 +3619,10 @@ function openSettings(){
         status.innerHTML = `<span style="color:#588a58">✓ Hentet data fra skyen</span>`;
         setTimeout(()=>{ closeModal(); render(); }, 1200);
       } else {
-        status.innerHTML = `<span style="color:var(--alert)">Skyen er tom — gå til enheten med dataene og klikk "↑ Send til sky" først</span>`;
+        status.innerHTML = `<span class="text-alert">Skyen er tom — gå til enheten med dataene og klikk "↑ Send til sky" først</span>`;
       }
     } else {
-      status.innerHTML = `<span style="color:var(--alert)">Feil: ${escapeHTML(r.error||r.reason||'ukjent')}</span>`;
+      status.innerHTML = `<span class="text-alert">Feil: ${escapeHTML(r.error||r.reason||'ukjent')}</span>`;
     }
   };
   document.getElementById('sync-push-now').onclick = async ()=>{
@@ -3518,13 +3632,13 @@ function openSettings(){
     if (_syncStatus.state==='synced'){
       status.innerHTML = `<span style="color:#588a58">✓ Sendt til skyen</span>`;
     } else {
-      status.innerHTML = `<span style="color:var(--alert)">Feil: ${escapeHTML(_syncStatus.error||'ukjent')}</span>`;
+      status.innerHTML = `<span class="text-alert">Feil: ${escapeHTML(_syncStatus.error||'ukjent')}</span>`;
     }
   };
   document.getElementById('sync-now').onclick = async ()=>{
     const status = document.getElementById('sync-status');
     const url = document.getElementById('ics-url').value.trim();
-    if (url !== state.settings.icsUrl){ state.settings.icsUrl = url; saveState(); }
+    if (url !== state.sync.icsUrl){ state.sync.icsUrl = url; saveState(); }
     status.textContent = 'Henter…'; status.className = 'sync-status';
     const r = await syncOutlook(true);
     if (r.ok){
@@ -3533,7 +3647,7 @@ function openSettings(){
       setTimeout(()=>render(),300);
     } else {
       const isCors = /cors|fetch|network|failed|cross-origin/i.test(r.error||'');
-      status.innerHTML = `<span style="color:var(--alert)">${escapeHTML(r.error||'Feil')}</span>${isCors?` <span style="color:var(--ink-muted)">— prøv "Importer .ics-fil" som backup, eller spør Claude om Cloudflare Worker-oppsett</span>`:''}`;
+      status.innerHTML = `<span class="text-alert">${escapeHTML(r.error||'Feil')}</span>${isCors?` <span style="color:var(--ink-muted)">— prøv "Importer .ics-fil" som backup, eller spør Claude om Cloudflare Worker-oppsett</span>`:''}`;
       status.className = 'sync-status error';
     }
   };
@@ -3552,14 +3666,14 @@ function openSettings(){
   });
 }
 HANDLERS.setTheme = (theme)=>{
-  state.settings.theme = theme;
+  state.ui.theme = theme;
   saveState();
   applyTheme();
 };
 
 HANDLERS.toggleNotifications = async ()=>{
-  state.settings.notifications = !state.settings.notifications;
-  if (state.settings.notifications && 'Notification' in window){
+  state.ui.notifications = !state.ui.notifications;
+  if (state.ui.notifications && 'Notification' in window){
     try { await Notification.requestPermission(); } catch(e){}
   }
   saveState(); openSettings();
@@ -3595,7 +3709,7 @@ HANDLERS.resetAll = ()=>{
 const REMIND_OFFSETS = { sameday:0, '1day':-1, '3days':-3, '1week':-7 };
 
 function setupNotifications(){
-  if (!state.settings.notifications) return;
+  if (!state.ui.notifications) return;
   if (!('Notification' in window)) return;
   if (Notification.permission==='default'){
     Notification.requestPermission();
@@ -3761,7 +3875,7 @@ function parseICS(text){
 }
 
 async function syncOutlook(silent){
-  const url = (state.settings.icsUrl||'').trim();
+  const url = (state.sync.icsUrl||'').trim();
   if (!url) return { error:'Ingen URL satt' };
   try {
     const res = await fetch(url);
@@ -3770,7 +3884,7 @@ async function syncOutlook(silent){
     if (!text.includes('BEGIN:VCALENDAR')) throw new Error('Svaret ser ikke ut som ICS');
     const events = parseICS(text);
     state.outlookEvents = events;
-    state.settings.lastSync = new Date().toISOString();
+    state.sync.lastSync = new Date().toISOString();
     saveState();
     if (!silent) render();
     return { ok:true, count: events.length };
@@ -3788,7 +3902,7 @@ function importICSFile(file){
         if (!text.includes('BEGIN:VCALENDAR')) { resolve({error:'Ikke en gyldig ICS-fil'}); return; }
         const events = parseICS(text);
         state.outlookEvents = events;
-        state.settings.lastSync = new Date().toISOString();
+        state.sync.lastSync = new Date().toISOString();
         saveState(); render();
         resolve({ ok:true, count: events.length });
       } catch(e){ resolve({error: e.message}); }
@@ -3798,7 +3912,7 @@ function importICSFile(file){
 }
 
 function lastSyncLabel(){
-  const t = state.settings.lastSync;
+  const t = state.sync.lastSync;
   if (!t) return 'aldri synkronisert';
   const diff = (Date.now() - new Date(t).getTime())/60000;
   if (diff<1) return 'sist: nå nettopp';
@@ -3821,7 +3935,7 @@ HANDLERS.openOutlookEvent = id => {
       <div class="field"><label>${multiDay?'Periode':'Tid'}</label><div>${dateLine}</div></div>
       ${e.location?`<div class="field"><label>Sted</label><div>${escapeHTML(e.location)}</div></div>`:''}
       ${e.description?`<div class="field"><label>Beskrivelse</label><div style="white-space:pre-wrap;font-size:13px">${escapeHTML(e.description)}</div></div>`:''}
-      <div style="font-size:11.5px;color:var(--ink-muted);font-style:italic">Kommer fra Outlook — kan kun redigeres der.</div>
+      <div class="text-muted-italic">Kommer fra Outlook — kan kun redigeres der.</div>
     </div>
     <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
 };
@@ -3855,7 +3969,7 @@ function renderMarkdown(text){
     const safe = name.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     const proj = state.projects.find(p=>p.title.toLowerCase() === name.toLowerCase());
     const cls = proj ? 'wikilink' : 'wikilink wikilink-broken';
-    return `<a class="${cls}" data-target="${safe}" onclick="event.preventDefault();HANDLERS.resolveWikilink(this.dataset.target)" href="#">${name}</a>`;
+    return `<a class="${cls}" data-target="${safe}" data-action="openWikilink" data-preventDefault="1" href="#">${name}</a>`;
   });
   // Images & links (images first to avoid link conflict)
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_,alt,url)=>`<img src="${url}" alt="${alt}">`);
@@ -4159,7 +4273,7 @@ HANDLERS.openDumpModal = ()=>{
     });
     closeModal();
     showToast(`✓ ${toSave.length} oppgaver lagt til`);
-    state.settings.view = 'todos';
+    state.ui.view = 'todos';
     render();
   };
 };
@@ -4170,8 +4284,8 @@ HANDLERS.resolveWikilink = (target)=>{
   if (!targetLower) return;
   const proj = state.projects.find(p=>p.title.toLowerCase() === targetLower);
   if (proj){
-    state.settings.openProjectId = proj.id;
-    state.settings.view = 'projects';
+    state.ui.openProjectId = proj.id;
+    state.ui.view = 'projects';
     render();
     return;
   }
@@ -4179,8 +4293,8 @@ HANDLERS.resolveWikilink = (target)=>{
   const partial = state.projects.find(p=>p.title.toLowerCase().includes(targetLower));
   if (partial){
     if (confirm(`Fant ikke nøyaktig "${target}". Mente du "${partial.title}"?`)){
-      state.settings.openProjectId = partial.id;
-      state.settings.view = 'projects';
+      state.ui.openProjectId = partial.id;
+      state.ui.view = 'projects';
       render();
       return;
     }
@@ -4390,7 +4504,7 @@ HANDLERS.clearBackupFolder = async () => {
 // Main auto-export: tries chosen folder first, falls back to Downloads. Runs on boot.
 async function autoWeeklyExport(){
   try {
-    const last = state.settings.lastWeeklyExport;
+    const last = state.sync.lastWeeklyExport;
     const hasData = (state.projects||[]).length
       + (state.tasks||[]).length
       + (state.events||[]).length > 0;
@@ -4415,7 +4529,7 @@ async function autoWeeklyExport(){
           const writable = await fileHandle.createWritable();
           await writable.write(jsonData);
           await writable.close();
-          state.settings.lastWeeklyExport = today.toISOString();
+          state.sync.lastWeeklyExport = today.toISOString();
           saveState();
           if (typeof showToast === 'function') setTimeout(() => showToast(`💾 Ukentlig sikkerhetskopi lagret i ${dirHandle.name}`, 5000), 800);
           return;
@@ -4427,7 +4541,7 @@ async function autoWeeklyExport(){
           const writable = await fileHandle.createWritable();
           await writable.write(jsonData);
           await writable.close();
-          state.settings.lastWeeklyExport = today.toISOString();
+          state.sync.lastWeeklyExport = today.toISOString();
           saveState();
           if (typeof showToast === 'function') setTimeout(() => showToast(`💾 Ukentlig sikkerhetskopi lagret i ${dirHandle.name}`, 5000), 800);
           return;
@@ -4447,7 +4561,7 @@ async function autoWeeklyExport(){
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 
-    state.settings.lastWeeklyExport = today.toISOString();
+    state.sync.lastWeeklyExport = today.toISOString();
     saveState();
     if (typeof showToast === 'function') setTimeout(() => showToast('💾 Ukentlig sikkerhetskopi lagret til Nedlastinger-mappen', 5000), 800);
   } catch (err) { console.error('autoWeeklyExport failed', err); }
@@ -4536,15 +4650,15 @@ updateSyncIndicator();
 
 // Sync on load + poll every 60s
 (function bootSync(){
-  if (!state.settings.syncUrl || !state.settings.syncToken) return;
+  if (!state.sync.syncUrl || !state.sync.syncToken) return;
   pullFromRemote();
   setInterval(()=>pullFromRemote(true), 60*1000);
 })();
 
 // Auto-sync Outlook on load if URL is set and last sync > 1 hour ago (or never)
 (function autoSyncOutlook(){
-  if (!state.settings.icsUrl) return;
-  const last = state.settings.lastSync ? new Date(state.settings.lastSync).getTime() : 0;
+  if (!state.sync.icsUrl) return;
+  const last = state.sync.lastSync ? new Date(state.sync.lastSync).getTime() : 0;
   const ageMin = (Date.now() - last) / 60000;
   if (ageMin > 60){
     syncOutlook(true).then(r=>{ if (r.ok) render(); });
