@@ -109,7 +109,7 @@
   .subnav .arrows button:hover{background:var(--surface-2)}
   .subnav .today-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:12.5px}
 
-  /* Strategy strip */
+  /* Fokus strip */
   .strip{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
   .strip .group{display:flex;flex-direction:column;gap:2px;min-width:140px}
   .strip .label{font-size:11px;font-weight:600;letter-spacing:1px;color:var(--ink-muted);text-transform:uppercase}
@@ -1078,7 +1078,7 @@
 // ============================================================
 const I18N = {
   appName: 'Planlegger',
-  views: { home:'Hjem', projects:'Prosjekter', todos:"To Do's", day:'Dag', week:'Uke', month:'Måned', overview:'Årsoversikt', strategy:'Fokus' },
+  views: { home:'Hjem', projects:'Prosjekter', todos:"To Do's", day:'Dag', week:'Uke', month:'Måned', overview:'Årsoversikt', fokus:'Fokus' },
   filters: { all:'Alle', arbeid:'Jobb', privat:'Privat' },
   weekdaysShort: ['Man','Tir','Ons','Tor','Fre','Lør','Søn'],
   weekdaysLong: ['Mandag','Tirsdag','Onsdag','Torsdag','Fredag','Lørdag','Søndag'],
@@ -1246,37 +1246,9 @@ const HOLIDAYS = new Proxy({}, {
   has(_target, key){ return getHoliday(String(key)) !== undefined; },
 });
 
-// Hardcoded fallback table (kept for reference, no longer used directly)
-const _LEGACY_HOLIDAYS = {
-  '2026-01-01':'Nyttårsdag',
-  '2026-03-29':'Palmesøndag',
-  '2026-04-02':'Skjærtorsdag',
-  '2026-04-03':'Langfredag',
-  '2026-04-05':'1. påskedag',
-  '2026-04-06':'2. påskedag',
-  '2026-05-01':'Arbeidernes dag',
-  '2026-05-14':'Kristi himmelfartsdag',
-  '2026-05-17':'Grunnlovsdag',
-  '2026-05-24':'1. pinsedag',
-  '2026-05-25':'2. pinsedag',
-  '2026-12-24':'Julaften',
-  '2026-12-25':'1. juledag',
-  '2026-12-26':'2. juledag',
-  '2026-12-31':'Nyttårsaften',
-  '2027-01-01':'Nyttårsdag',
-  '2027-03-21':'Palmesøndag',
-  '2027-03-25':'Skjærtorsdag',
-  '2027-03-26':'Langfredag',
-  '2027-03-28':'1. påskedag',
-  '2027-03-29':'2. påskedag',
-  '2027-05-01':'Arbeidernes dag',
-  '2027-05-06':'Kristi himmelfartsdag',
-  '2027-05-16':'1. pinsedag',
-  '2027-05-17':'2. pinsedag / Grunnlovsdag',
-};
-
-// Window: 18 months, May 2026 → October 2027
-const WINDOW = { start:{y:2026,m:4}, end:{y:2027,m:9} }; // m is 0-indexed
+// Holidays are computed dynamically per year via generateNorwegianHolidays() above.
+// The Årsoversikt window is also computed dynamically in renderOverview() (rolling 24 months
+// around the anchor date). No hardcoded year limits anywhere.
 
 // ============================================================
 // DATE UTILS — Monday-first
@@ -1383,6 +1355,10 @@ function loadState(){
     });
     // Migrate old filter setting
     if (merged.settings && merged.settings.filter === 'personlig') merged.settings.filter = 'privat';
+    // Migrate legacy view name: 'strategy' was renamed to 'fokus' to match the UI label.
+    // NOTE: if you ever do another mass rename, the literal below should stay 'strategy' — it's
+    // checking what's in OLD saved state, not what the current code uses.
+    if (merged.settings && merged.settings.view === 'strategy') merged.settings.view = 'fokus';
     // Migration: legacy themes (array per year) -> yearFocus (string per year)
     Object.entries(merged.themes||{}).forEach(([y, arr])=>{
       if (Array.isArray(arr) && arr.length && !merged.yearFocus[y]){
@@ -1834,7 +1810,7 @@ function render(){
   else if (v==='week') renderWeek();
   else if (v==='day') renderDay();
   else if (v==='list') renderList();
-  else if (v==='strategy') renderStrategy();
+  else if (v==='fokus') renderFokus();
   else renderHome(); // fallback
   saveState();
 }
@@ -1895,7 +1871,7 @@ document.getElementById('fab').onclick = openQuickCapture;
 // ============================================================
 // FOCUS STRIP (visible above other views — only when content exists)
 // ============================================================
-function strategyStripHTML(year, quarter, month){
+function fokusStripHTML(year, quarter, month){
   const yf = (state.yearFocus[year]||'').trim();
   const qkey = `${year}-Q${quarter}`;
   const qf = (state.quarterFocus[qkey]||'').trim();
@@ -1906,7 +1882,7 @@ function strategyStripHTML(year, quarter, month){
   if (mf) groups.push(`<div class="group"><div class="label">${I18N.monthsShort[month]} ${year}</div><div class="value">${escapeHTML(mf)}</div></div>`);
   if (qf) groups.push(`<div class="group"><div class="label">Q${quarter} ${year}</div><div class="value">${escapeHTML(qf)}</div></div>`);
   if (yf) groups.push(`<div class="group"><div class="label">${year}</div><div class="value">${escapeHTML(yf)}</div></div>`);
-  return `<div class="strip">${groups.join('')}<div class="edit"><button class="today-btn" onclick="state.settings.view='strategy';render()">Rediger</button></div></div>`;
+  return `<div class="strip">${groups.join('')}<div class="edit"><button class="today-btn" onclick="state.settings.view='fokus';render()">Rediger</button></div></div>`;
 }
 
 // ============================================================
@@ -1959,7 +1935,7 @@ function renderHome(){
     <div class="home-focus">
       ${mf ? `<div><span class="label">${I18N.monthsShort[today.getMonth()]} ${y}</span><span class="value">${escapeHTML(mf)}</span></div>` : ''}
       ${yf ? `<div><span class="label">${y}</span><span class="value">${escapeHTML(yf)}</span></div>` : ''}
-      <button onclick="state.settings.view='strategy';render()" style="margin-left:auto;padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Rediger</button>
+      <button onclick="state.settings.view='fokus';render()" style="margin-left:auto;padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Rediger</button>
     </div>
   ` : '';
 
@@ -2279,7 +2255,7 @@ function renderProjects(){
       <h2>Prosjekter <span class="yr">${active.length} aktive</span></h2>
       <button class="today-btn" onclick="openProjectForm()">+ Nytt prosjekt</button>
     </div>
-    ${strategyStripHTML(today.getFullYear(), quarterOf(today.getMonth()), today.getMonth())}
+    ${fokusStripHTML(today.getFullYear(), quarterOf(today.getMonth()), today.getMonth())}
     <div class="projects-grid" id="pgrid"></div>
     ${archived.length?`<div style="margin-top:24px"><h3 style="font-family:var(--serif);font-weight:500;font-size:16px;color:var(--ink-muted);margin:0 0 10px">Arkiverte</h3><div class="projects-grid" id="pgrid-arch"></div></div>`:''}
   `;
@@ -3408,7 +3384,7 @@ function renderOverview(){
         <button id="ov-next" title="12 måneder fremover">›</button>
       </div>
     </div>
-    ${strategyStripHTML(today.getFullYear(), quarterOf(today.getMonth()), today.getMonth())}
+    ${fokusStripHTML(today.getFullYear(), quarterOf(today.getMonth()), today.getMonth())}
 
     <div class="ov-section">
       <h3>Prosjekttidslinje</h3>
@@ -3492,7 +3468,7 @@ function renderMonth(){
       <h2>${fmtMonth(y,m)}</h2>
       <div class="arrows"><button id="prev">‹</button><button id="next">›</button></div>
     </div>
-    ${strategyStripHTML(y, quarterOf(m), m)}
+    ${fokusStripHTML(y, quarterOf(m), m)}
     <div class="month-grid">
       <div class="row head">${I18N.weekdaysShort.map(w=>`<div class="cell">${w}</div>`).join('')}</div>
       <div id="mgrid"></div>
@@ -3574,7 +3550,7 @@ function renderWeek(){
       <h2>Uke ${wn} <span class="yr">${fmtDateShort(wk)} – ${fmtDateShort(addDays(wk,6))} ${wk.getFullYear()}</span></h2>
       <div class="arrows"><button id="prev">‹</button><button id="next">›</button></div>
     </div>
-    ${strategyStripHTML(wk.getFullYear(), quarterOf(wk.getMonth()), wk.getMonth())}
+    ${fokusStripHTML(wk.getFullYear(), quarterOf(wk.getMonth()), wk.getMonth())}
     <div class="week" id="weekgrid"></div>`;
 
   document.getElementById('prev').onclick = ()=>{ state.settings.anchor = dKey(addDays(wk,-7)); render(); };
@@ -3710,7 +3686,7 @@ function renderDay(){
       <h2>${I18N.weekdaysLong[monIdx(anchor)]} ${anchor.getDate()}. ${I18N.months[anchor.getMonth()]} <span class="yr">${anchor.getFullYear()}${hol?' · '+hol:''}</span></h2>
       <div class="arrows"><button id="prev">‹</button><button id="next">›</button></div>
     </div>
-    ${strategyStripHTML(anchor.getFullYear(), quarterOf(anchor.getMonth()), anchor.getMonth())}
+    ${fokusStripHTML(anchor.getFullYear(), quarterOf(anchor.getMonth()), anchor.getMonth())}
     <div class="day-layout">
       <div class="day-main">
         <div class="day-hours" id="dhours"></div>
@@ -3963,7 +3939,7 @@ function renderList(){
     <div class="subnav">
       <h2>Agenda <span class="yr">neste 12 måneder</span></h2>
     </div>
-    ${strategyStripHTML(today.getFullYear(), quarterOf(today.getMonth()), today.getMonth())}
+    ${fokusStripHTML(today.getFullYear(), quarterOf(today.getMonth()), today.getMonth())}
     <div class="list-view" id="lv"></div>`;
 
   const lv = document.getElementById('lv');
@@ -4020,9 +3996,9 @@ function renderList(){
 }
 
 // ============================================================
-// VIEW: STRATEGY (themes, focuses, goals, habits)
+// VIEW: FOKUS (themes, focuses, goals, habits)
 // ============================================================
-function renderStrategy(){
+function renderFokus(){
   const today = new Date();
   const curY = today.getFullYear();
   const curM = today.getMonth();
@@ -4440,7 +4416,7 @@ function openMoreMenu(){
     {v:'week', label:I18N.views.week, icon:'🗓'},
     {v:'month', label:I18N.views.month, icon:'📆'},
     {v:'overview', label:I18N.views.overview, icon:'🧭'},
-    {v:'strategy', label:I18N.views.strategy, icon:'✨'}
+    {v:'fokus', label:I18N.views.fokus, icon:'✨'}
   ];
   const buttons = items.map(it=>
     `<button onclick="state.settings.view='${it.v}';closeModal();render()" style="display:flex;align-items:center;gap:14px;padding:16px 18px;font-size:16px;background:${state.settings.view===it.v?'var(--surface-2)':'transparent'};border:none;border-radius:12px;color:var(--ink);width:100%;text-align:left;${state.settings.view===it.v?'font-weight:600;':''}">
@@ -5622,7 +5598,7 @@ updateSyncIndicator();
       sessionStorage.setItem('nudged','1');
       setTimeout(()=>{
         if (confirm('Søndag · vil du gjøre ukentlig refleksjon nå?')){
-          state.settings.view='strategy'; render();
+          state.settings.view='fokus'; render();
           setTimeout(()=>document.getElementById('rv-wins')?.focus(),200);
         }
       }, 800);
@@ -5637,7 +5613,7 @@ updateSyncIndicator();
       sessionStorage.setItem('nudged','1');
       setTimeout(()=>{
         if (confirm('Søndag · vil du gjøre ukentlig refleksjon nå?')){
-          state.settings.view='strategy'; render();
+          state.settings.view='fokus'; render();
           setTimeout(()=>document.getElementById('rv-wins')?.focus(),200);
         }
       }, 800);

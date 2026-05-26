@@ -2,7 +2,7 @@
 
 A personal planner PWA. Single HTML file, runs in the browser, data stored locally.
 
-**Live app:** _(will be filled in once GitHub Pages is enabled)_
+**Live app:** <https://mariabenedictef.github.io/Planner/>
 
 ## What it does
 
