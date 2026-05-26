@@ -4517,7 +4517,7 @@ function openSettings(){
       <div class="sl"><span>Versjon</span><span style="color:var(--ink-muted)">v3.1</span></div>
     </div>
     <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
-  document.getElementById('imp').addEventListener('change', importData);
+  document.getElementById('imp').addEventListener('change', HANDLERS.importData);
   document.getElementById('ics-url').addEventListener('blur', e=>{ state.settings.icsUrl = e.target.value.trim(); saveState(); });
   // Populate backup folder status (async — handle is in IndexedDB)
   getBackupDirHandle().then(async h => {
@@ -5622,4 +5622,4 @@ updateSyncIndicator();
 </script>
 </body>
 </html>
-                                                                                                                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                                                                                                     
