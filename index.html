@@ -4491,6 +4491,17 @@ function openSettings(){
       <div class="sl"><span>Påminnelser i nettleseren</span><button data-action="toggleNotifications">${stat}</button></div>
       <div class="sl"><span>Eksporter til JSON</span><button data-action="exportData">Last ned</button></div>
       <div class="sl"><span>Importer fra JSON</span><div style="position:relative;display:inline-block"><button type="button" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);color:var(--ink-soft);background:#fff;pointer-events:none">Velg fil</button><input id="imp" type="file" accept=".json,application/json" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%"></div></div>
+      <div class="sl" style="flex-direction:column;align-items:stretch;gap:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span>Ukentlig backup-mappe (lokal fil)</span>
+          <span style="font-size:11.5px;color:var(--ink-muted)" id="backup-dir-status">Henter…</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--ink-muted);font-style:italic">Lagrer en JSON-fil hver 7. dag. Velg en mappe (f.eks. OneDrive\Claude\Planner\backups) for å lagre direkte der — ellers lander filen i Nedlastinger. Bare på PC (Edge/Chrome).</div>
+        <div style="display:flex;gap:6px">
+          <button data-action="chooseBackupFolder" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Velg mappe</button>
+          <button data-action="clearBackupFolder" id="clear-backup-dir-btn" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);display:none">Fjern</button>
+        </div>
+      </div>
       <div class="sl" style="flex-direction:column;align-items:stretch;gap:6px"><span>Sky-backups (automatisk hver uke, siste 12 uker)</span>
         <div id="cloud-backups-list" style="font-size:11.5px;color:var(--ink-muted);font-style:italic">Henter…</div>
       </div>
@@ -4508,6 +4519,25 @@ function openSettings(){
     <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
   document.getElementById('imp').addEventListener('change', importData);
   document.getElementById('ics-url').addEventListener('blur', e=>{ state.settings.icsUrl = e.target.value.trim(); saveState(); });
+  // Populate backup folder status (async — handle is in IndexedDB)
+  getBackupDirHandle().then(async h => {
+    const status = document.getElementById('backup-dir-status');
+    const clear = document.getElementById('clear-backup-dir-btn');
+    if (!status) return;
+    if (h){
+      let permLabel = '';
+      try {
+        const p = await h.queryPermission({ mode: 'readwrite' });
+        permLabel = p === 'granted' ? '✓ ' : '⚠ ';
+      } catch { permLabel = ''; }
+      status.textContent = permLabel + h.name;
+      status.style.color = permLabel.startsWith('✓') ? '#588a58' : 'var(--alert)';
+      if (clear) clear.style.display = 'inline-block';
+    } else {
+      status.textContent = '— bruker Nedlastinger';
+      status.style.color = 'var(--ink-muted)';
+    }
+  });
   // Populate cloud backups list (async)
   loadCloudBackups().then(keys=>{
     const list = document.getElementById('cloud-backups-list');
@@ -5341,6 +5371,156 @@ if (!state.meta.seeded){
   saveState();
 }
 
+// ============================================================
+// AUTO WEEKLY EXPORT — backup to a user-chosen folder (Edge/Chrome PC)
+// or fall back to the browser's Downloads folder (iPhone, no folder set).
+// File System Access API lets us write directly into e.g. OneDrive\Claude\Planner\backups
+// after the user picks the folder ONCE. The handle is stored in IndexedDB and
+// permission persists across sessions when the user clicks "Allow on every visit".
+// ============================================================
+
+// IndexedDB helpers — directory handles must be stored in IDB (not localStorage)
+const BACKUP_IDB_NAME = 'planlegger-backup';
+const BACKUP_IDB_STORE = 'handles';
+const BACKUP_IDB_KEY = 'backupDir';
+
+function _openBackupIDB(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(BACKUP_IDB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(BACKUP_IDB_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function getBackupDirHandle(){
+  try {
+    const db = await _openBackupIDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(BACKUP_IDB_STORE, 'readonly');
+      const req = tx.objectStore(BACKUP_IDB_STORE).get(BACKUP_IDB_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch { return null; }
+}
+async function setBackupDirHandle(handle){
+  try {
+    const db = await _openBackupIDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(BACKUP_IDB_STORE, 'readwrite');
+      tx.objectStore(BACKUP_IDB_STORE).put(handle, BACKUP_IDB_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { console.error('Could not save backup dir handle', e); }
+}
+async function clearBackupDirHandle(){
+  try {
+    const db = await _openBackupIDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(BACKUP_IDB_STORE, 'readwrite');
+      tx.objectStore(BACKUP_IDB_STORE).delete(BACKUP_IDB_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {}
+}
+
+// User clicks "Velg backup-mappe" in Settings — must be inside a user gesture
+HANDLERS.chooseBackupFolder = async () => {
+  if (!window.showDirectoryPicker){
+    alert('Din nettleser støtter ikke å velge mappe (denne funksjonen fungerer best i Edge/Chrome på PC). Backup-filer lagres til Nedlastinger som vanlig.');
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    // Request explicit write permission (often persistent if user picks "Allow on every visit")
+    const perm = await handle.requestPermission({ mode: 'readwrite' });
+    if (perm !== 'granted'){
+      alert('Skrivetillatelse ble ikke gitt. Velg mappen på nytt og klikk Tillat.');
+      return;
+    }
+    await setBackupDirHandle(handle);
+    if (typeof showToast === 'function') showToast(`✓ Backup-mappe satt: ${handle.name}`, 4000);
+    // Refresh Settings UI if open
+    if (document.querySelector('.modal-bg.open')){ closeModal(); openSettings(); }
+  } catch (e){
+    if (e.name !== 'AbortError') console.error('chooseBackupFolder failed', e);
+  }
+};
+HANDLERS.clearBackupFolder = async () => {
+  if (!confirm('Fjern den valgte backup-mappen? Etter dette går backups til Nedlastinger igjen til du velger en ny mappe.')) return;
+  await clearBackupDirHandle();
+  if (typeof showToast === 'function') showToast('Backup-mappe fjernet', 3000);
+  if (document.querySelector('.modal-bg.open')){ closeModal(); openSettings(); }
+};
+
+// Main auto-export: tries chosen folder first, falls back to Downloads. Runs on boot.
+async function autoWeeklyExport(){
+  try {
+    const last = state.settings.lastWeeklyExport;
+    const hasData = (state.projects||[]).length
+      + (state.tasks||[]).length
+      + (state.events||[]).length > 0;
+    if (!hasData) return;
+
+    const today = new Date();
+    const lastDate = last ? new Date(last) : null;
+    const daysSince = lastDate ? Math.floor((today.getTime() - lastDate.getTime()) / 86400000) : Infinity;
+    if (daysSince < 7) return;
+
+    const dateStr = todayKey();
+    const filename = `planlegger-backup-${dateStr}.json`;
+    const jsonData = JSON.stringify(state, null, 2);
+
+    // 1. Try chosen folder via File System Access API
+    const dirHandle = await getBackupDirHandle();
+    if (dirHandle && dirHandle.queryPermission){
+      try {
+        const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+        if (perm === 'granted'){
+          const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(jsonData);
+          await writable.close();
+          state.settings.lastWeeklyExport = today.toISOString();
+          saveState();
+          if (typeof showToast === 'function') setTimeout(() => showToast(`💾 Ukentlig sikkerhetskopi lagret i ${dirHandle.name}`, 5000), 800);
+          return;
+        }
+        // Permission lapsed — try silent re-request (often works if user picked "always")
+        const newPerm = await dirHandle.requestPermission({ mode: 'readwrite' });
+        if (newPerm === 'granted'){
+          const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(jsonData);
+          await writable.close();
+          state.settings.lastWeeklyExport = today.toISOString();
+          saveState();
+          if (typeof showToast === 'function') setTimeout(() => showToast(`💾 Ukentlig sikkerhetskopi lagret i ${dirHandle.name}`, 5000), 800);
+          return;
+        }
+        // Otherwise fall through to download
+      } catch (e){ console.error('Could not write to backup folder, falling back to Downloads', e); }
+    }
+
+    // 2. Fallback: trigger download to default Downloads folder
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+
+    state.settings.lastWeeklyExport = today.toISOString();
+    saveState();
+    if (typeof showToast === 'function') setTimeout(() => showToast('💾 Ukentlig sikkerhetskopi lagret til Nedlastinger-mappen', 5000), 800);
+  } catch (err) { console.error('autoWeeklyExport failed', err); }
+}
+
 // Auto-backup: once per day, save current state to localStorage. Keep last 7 days.
 function autoBackup(){
   const todayK = todayKey();
@@ -5400,6 +5580,7 @@ function autoArchivePastProjects(){
 
 // Boot
 autoBackup();
+autoWeeklyExport();
 autoArchivePastProjects();
 applyTheme();
 render();
@@ -5441,4 +5622,4 @@ updateSyncIndicator();
 </script>
 </body>
 </html>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+                                                                                                                                                                                                                                                                                                                              
