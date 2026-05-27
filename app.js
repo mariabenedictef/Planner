@@ -2181,6 +2181,9 @@ function todoBucketHTML(label, prio, items, projectsList, hint){
 
 function todoRowHTML(t, projectsList){
   const due = t.due ? `<span class="due">· ${fmtDateShort(fromKey(t.due))}</span>` : '';
+  const isPrivat = t.category === 'privat';
+  const catColor = isPrivat ? 'var(--privat)' : 'var(--work)';
+  const catTitle = isPrivat ? 'Kategori: Privat — klikk for Jobb' : 'Kategori: Jobb — klikk for Privat';
   return `<div class="todo-row ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="freetask" draggable="true" ondragstart="HANDLERS.todoDragStart(event,'${t.id}','task')" ondragend="HANDLERS.todoDragEnd(event)">
     <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
@@ -2189,7 +2192,8 @@ function todoRowHTML(t, projectsList){
       <button data-action="setTaskPriority" data-args='["${t.id}","urgent"]' title="Urgent">⚠</button>
       <button data-action="setTaskPriority" data-args='["${t.id}","short"]' title="Short term">↗</button>
       <button data-action="setTaskPriority" data-args='["${t.id}","long"]' title="Long term">⤳</button>
-      <button data-action="setTaskPriority" data-args='["${t.id}",""]' title="Fjern kategori">○</button>
+      <button data-action="setTaskPriority" data-args='["${t.id}",""]' title="Fjern prioritet">○</button>
+      <button data-action="toggleTaskCategory" data-args='["${t.id}"]' title="${catTitle}" style="color:${catColor};font-size:14px;line-height:1">●</button>
       <select onchange="if(this.value){HANDLERS.postponeTask('${t.id}',this.value);this.value=''}" class="btn-sec-xs" title="Utsett frist">
         <option value="">▸ Utsett</option>
         <option value="1d">+1 dag</option>
@@ -2258,6 +2262,16 @@ HANDLERS.quickAddTodo = (kind, projectId)=>{
 HANDLERS.setTaskPriority = (id, prio)=>{
   const t = state.tasks.find(x=>x.id===id);
   if (t){ t.priority = prio; render(); }
+};
+
+// Toggle a free-task between Jobb (arbeid) and Privat. Default for new tasks is
+// 'arbeid' — this button lets Maria flip individual to-dos to Privat (and back)
+// without opening the edit form. Added 2026-05-27 (reported by Maria).
+HANDLERS.toggleTaskCategory = (id)=>{
+  const t = state.tasks.find(x=>x.id===id);
+  if (!t) return;
+  t.category = (t.category === 'privat') ? 'arbeid' : 'privat';
+  render();
 };
 
 HANDLERS.taskToProject = (taskId, projectId)=>{

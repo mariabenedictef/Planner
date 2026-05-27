@@ -6,6 +6,12 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-05-27 — Kategori-toggle på To Do-rad + tooltip-fiks
+
+- **Ny `●`-knapp på hver To Do-rad** — vippe mellom Jobb ↔ Privat uten å åpne redigeringsskjemaet. Vises mellom prioritet-knappene og «Utsett»-dropdownen. Fargen følger kategorien: slate-blå for Jobb, støvrosa for Privat. Tooltip viser nåværende verdi og hva klikk gjør. `HANDLERS.toggleTaskCategory` lagt til (defensiv mot manglende id). Standard-kategori for nye To Do-er er fortsatt 'arbeid' (Jobb).
+- **Tooltip-fiks** — `○`-knappen for å fjerne prioritet hadde tooltip «Fjern kategori», som var misvisende (den nullstiller prioritet, ikke kategori). Rettet til «Fjern prioritet».
+- Verifisert med 25-tests jsdom-suite — to nye seksjoner: handler-flipper kategori begge veier + er defensiv mot manglende id; rendering bruker riktig farge per kategori og fikset `○`-tooltip; selve To Do-visningen rendres med den nye knappen i DOM. Alle 8 visninger fortsatt grønne.
+
 ## 2026-05-27 — Lukk-knappen i Settings (og 10 andre modaler) fungerer igjen
 
 - **`HANDLERS.closeModal` lagt til** — `data-action="closeModal"` brukes 11 steder (Settings-modal, prosjekt-form-cancel, oppgave-form-cancel, hendelse-form-cancel, m.fl.), men `closeModal()` eksisterte bare som modul-lokal funksjon, ikke på HANDLERS. Den sentrale klikk-lytteren slo opp `HANDLERS[action]`, fant ingenting, og returnerte stille. Resultat: ingen av Lukk-knappene fungerte — bruker måtte trykke Esc eller klikke bakgrunnen for å lukke modaler. Rapportert av Maria 2026-05-27 (Settings → Lukk).
