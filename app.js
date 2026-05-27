@@ -567,7 +567,7 @@ HANDLERS.restoreCloudBackup = async (key)=>{
       icsUrl: state.sync.icsUrl,
     };
     state = Object.assign(structuredClone(DEFAULT_STATE), data);
-    state.settings = Object.assign({}, state.settings, localSync);
+    state.sync = Object.assign({}, state.sync, localSync);
     state.meta.lastModified = Date.now();
     _lastSavedBody = _computeStateBody();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -621,7 +621,7 @@ async function pullFromRemote(silent, force){
         icsUrl: state.sync.icsUrl,
       };
       state = Object.assign(structuredClone(DEFAULT_STATE), remote);
-      state.settings = Object.assign({}, state.settings, localSync);
+      state.sync = Object.assign({}, state.sync, localSync);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       // Update baseline so subsequent render's saveState doesn't trigger an unnecessary push
       _lastSavedBody = _computeStateBody();
@@ -1584,7 +1584,7 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
         <button type="button" data-action="insertLink" title="Lenke">🔗</button>
         <button type="button" data-action="execCmd" data-args='["removeFormat"]' title="Fjern formatering">⌫</button>
       </div>
-      <div id="note-editor" class="note-editor" contenteditable="true" data-placeholder="Begynn å skrive…">${n.content||''}</div>
+      <div id="note-editor" class="note-editor" contenteditable="true" data-placeholder="Begynn å skrive…">${sanitizeNoteHTML(n.content||'')}</div>
     </div>
     <div class="footer">
       <button class="btn btn-danger" data-action="deleteProjectNote" data-args='["${pid}","${nid}"]'>Slett notat</button>
@@ -1840,6 +1840,7 @@ HANDLERS.addProjectMilestone = (pid)=>{
   const d = document.getElementById('pms-date').value;
   if (!t) return;
   const p = state.projects.find(x=>x.id===pid);
+  if (!p) return;
   p.milestones.push({id:uid(),title:t,date:d,done:false});
   render();
 };
@@ -1848,6 +1849,7 @@ HANDLERS.quickAddMilestone = (pid)=>{
   if (!t || !t.trim()) return;
   const d = prompt('Eventuell dato (YYYY-MM-DD, valgfritt — la stå tom hvis ingen)', '');
   const p = state.projects.find(x=>x.id===pid);
+  if (!p) return;
   p.milestones.push({id:uid(), title:t.trim(), date:(d&&/^\d{4}-\d{2}-\d{2}$/.test(d))?d:'', done:false});
   render();
 };
@@ -1856,6 +1858,7 @@ HANDLERS.addProjectPerson = (pid)=>{
   const r = document.getElementById('pp-role').value.trim();
   if (!n) return;
   const p = state.projects.find(x=>x.id===pid);
+  if (!p) return;
   p.people.push({id:uid(),name:n,role:r,contact:'',status:''});
   render();
 };
@@ -1866,6 +1869,7 @@ HANDLERS.addProjectLink = (pid)=>{
   const u = document.getElementById('pl-url').value.trim();
   if (!u) return;
   const p = state.projects.find(x=>x.id===pid);
+  if (!p) return;
   p.links.push({id:uid(),title:t||u,url:u});
   render();
 };
@@ -1926,8 +1930,11 @@ HANDLERS.saveProjectForm = id=>{
     description: document.getElementById('p-desc').value.trim(),
   };
   if (!data.title) return;
-  if (id){ Object.assign(state.projects.find(x=>x.id===id), data); }
-  else {
+  if (id){
+    const ex = state.projects.find(x=>x.id===id);
+    if (!ex){ closeModal(); render(); return; }
+    Object.assign(ex, data);
+  } else {
     const np = Object.assign({id:uid(),tasks:[],milestones:[],people:[],links:[],notes:'',status:'active',archived:false}, data);
     // Apply pending template (if any)
     if (_pendingTemplate){
@@ -1964,6 +1971,7 @@ HANDLERS.saveProjectForm = id=>{
 // Project sub-task form
 function openProjectTaskForm(pid, tid){
   const p = state.projects.find(x=>x.id===pid);
+  if (!p) return;
   const t = tid ? p.tasks.find(x=>x.id===tid) : null;
   const data = t || { title:'', due:'', endDate:'', notes:'', done:false };
   const hasAdvanced = !!(data.endDate || data.recurring || data.remindBefore || (data.notes||'').trim());
@@ -2015,8 +2023,12 @@ HANDLERS.saveProjectTaskForm = (pid, tid)=>{
     notes: document.getElementById('pt-notes').value.trim(),
   };
   if (!data.title) return;
-  if (tid){ Object.assign(p.tasks.find(x=>x.id===tid), data); }
-  else { p.tasks.push(Object.assign({id:uid(),done:false}, data)); }
+  if (!p) { closeModal(); render(); return; }
+  if (tid){
+    const ex = p.tasks.find(x=>x.id===tid);
+    if (!ex){ closeModal(); render(); return; }
+    Object.assign(ex, data);
+  } else { p.tasks.push(Object.assign({id:uid(),done:false}, data)); }
   closeModal(); render();
 };
 
@@ -3094,7 +3106,11 @@ HANDLERS.saveEventForm = id=>{
     notes: document.getElementById('ev-notes').value.trim(),
   };
   if (!data.title || !data.date) return;
-  if (id){ Object.assign(state.events.find(x=>x.id===id), data); }
+  if (id){
+    const ex = state.events.find(x=>x.id===id);
+    if (!ex){ closeModal(); render(); return; }
+    Object.assign(ex, data);
+  }
   else { state.events.push(Object.assign({id:uid()}, data)); }
   closeModal(); render();
 };
@@ -3171,8 +3187,11 @@ HANDLERS.saveTaskForm = id=>{
     notes: document.getElementById('tk-notes').value.trim(),
   };
   if (!data.title) return;
-  if (id){ Object.assign(state.tasks.find(x=>x.id===id), data); }
-  else { state.tasks.push(Object.assign({id:uid(),done:false}, data)); }
+  if (id){
+    const ex = state.tasks.find(x=>x.id===id);
+    if (!ex){ closeModal(); render(); return; }
+    Object.assign(ex, data);
+  } else { state.tasks.push(Object.assign({id:uid(),done:false}, data)); }
   closeModal(); render();
 };
 HANDLERS.deleteTask = id => { state.tasks = state.tasks.filter(x=>x.id!==id); closeModal(); render(); };
@@ -3876,45 +3895,27 @@ HANDLERS.openOutlookEvent = id => {
 function escapeHTML(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function escapeAttr(s){ return escapeHTML(s).replace(/'/g,"&#39;"); }
 
-// Minimal markdown renderer (escape-first, then block + inline)
-function renderMarkdown(text){
-  if (!text) return '';
-  let html = String(text).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  // Headers
-  html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
-  html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
-  html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
-  // Horizontal rule
-  html = html.replace(/^---+$/gm, '<hr>');
-  // Lists (simple)
-  html = html.replace(/^[\-*] (.+)$/gm, 'LI$1/LI');
-  html = html.replace(/(LI(?:[\s\S](?!\/LI\n(?!LI)))*?\/LI)+/g, m=>{
-    const items = m.split('LI').filter(Boolean).map(s=>s.replace('/LI','').trim());
-    return 'UL'+items.map(i=>`<li>${i}</li>`).join('')+'/UL';
-  });
-  html = html.replace(/LI/g, '<li>').replace(/\/LI/g, '</li>');
-  html = html.replace(/UL/g, '<ul>').replace(/\/UL/g, '</ul>');
-  // Wikilinks [[Project Name]] — must process before regular [text](url) links
-  html = html.replace(/\[\[([^\]]+)\]\]/g, (_, name)=>{
-    const safe = name.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    const proj = state.projects.find(p=>p.title.toLowerCase() === name.toLowerCase());
-    const cls = proj ? 'wikilink' : 'wikilink wikilink-broken';
-    return `<a class="${cls}" data-target="${safe}" data-action="openWikilink" data-preventDefault="1" href="#">${name}</a>`;
-  });
-  // Images & links (images first to avoid link conflict)
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_,alt,url)=>`<img src="${url}" alt="${alt}">`);
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_,t,url)=>`<a href="${url}" target="_blank" rel="noopener">${t}</a>`);
-  // Bold + italic + code
-  html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
-  html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-  // Wrap in paragraphs (split on double newlines, ignore lines inside block tags)
-  const blocks = html.split(/\n\n+/);
-  return blocks.map(b=>{
-    if (/^<(h[2-6]|ul|hr)/.test(b.trim())) return b;
-    return '<p>' + b.replace(/\n/g,'<br>') + '</p>';
-  }).join('');
+// Strip inline event handlers + javascript:/data: URLs from rich-text note content.
+// Notes are stored as HTML (from contenteditable editor) and rendered into innerHTML.
+// Anything pasted in from external sources is sanitized here before re-render.
+function sanitizeNoteHTML(html){
+  if (!html) return '';
+  let out = String(html);
+  // Strip dangerous elements (including their contents)
+  out = out.replace(/<(script|iframe|object|embed)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
+  // Also strip self-closing or unmatched opening tags of those
+  out = out.replace(/<\/?(?:script|iframe|object|embed)\b[^>]*>/gi, '');
+  // Remove inline event handlers (quoted, single-quoted, or unquoted)
+  out = out.replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '');
+  out = out.replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '');
+  out = out.replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, '');
+  // Neutralise javascript:/data: URLs in href/src
+  out = out.replace(/(href|src)\s*=\s*"\s*(?:javascript|data):[^"]*"/gi, '$1="#"');
+  out = out.replace(/(href|src)\s*=\s*'\s*(?:javascript|data):[^']*'/gi, "$1='#'");
+  out = out.replace(/(href|src)\s*=\s*(?:javascript|data):[^\s>]+/gi, '$1="#"');
+  return out;
 }
+
 
 // Generic list-reorder via drag-and-drop. Items must be draggable="true" with data-task-id.
 // onReorder(draggedId, targetId, insertBefore) is called when a row is dropped onto another.
