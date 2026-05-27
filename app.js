@@ -837,7 +837,6 @@ function projectsOverlapping(year, month){
     return e >= monStart && s <= monEnd;
   });
 }
-function habitsActive(){ return state.habits.filter(passesFilter); }
 function daysUntil(key){
   if (!key) return null;
   const now = new Date(); now.setHours(0,0,0,0);
@@ -997,7 +996,7 @@ function renderHome(){
             const overdue = t.due && t.due < todayK;
             return `<div class="home-item urgent-item ${t.done?'done':''}" draggable="true" data-task-id="${t.id}">
               <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
-              <input type="checkbox" ${t.done?'checked':''} data-action="noop" data-stop="1" onchange="toggleTask('${t.id}',event)">
+              <input type="checkbox" ${t.done?'checked':''} data-action="noop" data-stop="1" onchange="HANDLERS.toggleTask('${t.id}',event)">
               <div class="hi-date${overdue?' overdue':''}">${due}</div>
               <div class="hi-title" data-action="openTaskForm" data-args='["${t.id}"]' style="cursor:pointer">${escapeHTML(t.title)}</div>
             </div>`;
@@ -1363,6 +1362,7 @@ function renderProjectPage(id){
         ${_projectMilestonesSectionHTML(p)}
         ${_projectNotesSectionHTML(p)}
         ${_projectLinksSectionHTML(p)}
+        ${_projectPeopleSectionHTML(p)}
         ${_projectBacklinksSectionHTML(p)}
         ${_projectActionsSectionHTML(p)}
       </div>
@@ -1461,6 +1461,19 @@ function _projectLinksSectionHTML(p){
         <input id="pl-title" class="small" type="text" placeholder="Tittel">
         <input id="pl-url" type="url" placeholder="https://…">
         <button data-action="addProjectLink" data-args='["${p.id}"]'>+ Legg til</button>
+      </div>
+    </div>`;
+}
+
+function _projectPeopleSectionHTML(p){
+  return `
+    <div class="psection">
+      <h4>Personer</h4>
+      <div id="ppeople">${renderProjectPeople(p)}</div>
+      <div class="pinline-add">
+        <input id="pp-name" type="text" placeholder="Navn">
+        <input id="pp-role" class="small" type="text" placeholder="Rolle (valgfritt)">
+        <button data-action="addProjectPerson" data-args='["${p.id}"]'>+ Legg til</button>
       </div>
     </div>`;
 }
@@ -1693,12 +1706,12 @@ function renderProjectKanban(p){
       ? '<div style="padding:10px 4px;font-size:11.5px;color:var(--ink-muted);font-style:italic;text-align:center">ren boks</div>'
       : items.slice().sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>{
           const overdue = t.due && t.due < today && !t.done ? ' overdue' : '';
-          return `<div class="kcard ${t.done?'done':''}" draggable="true" data-id="${t.id}" ondragstart="kanbanDragStart(event,'${t.id}')" ondragend="kanbanDragEnd(event)" data-action="openProjectTaskForm" data-args='["${p.id}","${t.id}"]'>
+          return `<div class="kcard ${t.done?'done':''}" draggable="true" data-id="${t.id}" ondragstart="HANDLERS.kanbanDragStart(event,'${t.id}')" ondragend="HANDLERS.kanbanDragEnd(event)" data-action="openProjectTaskForm" data-args='["${p.id}","${t.id}"]'>
             <div class="kcard-title">${escapeHTML(t.title)}</div>
             ${t.due ? `<div class="kcard-meta${overdue}">${fmtDateShort(fromKey(t.due))}${t.endDate&&t.endDate>t.due?'–'+fmtDateShort(fromKey(t.endDate)):''}${t.recurring?' · ↻':''}</div>` : ''}
           </div>`;
         }).join('');
-    return `<div class="kcol" data-status="${key}" ondragover="kanbanOver(event)" ondragleave="kanbanLeave(event)" ondrop="kanbanDrop(event,'${p.id}','${key}')">
+    return `<div class="kcol" data-status="${key}" ondragover="HANDLERS.kanbanOver(event)" ondragleave="HANDLERS.kanbanLeave(event)" ondrop="HANDLERS.kanbanDrop(event,'${p.id}','${key}')">
       <div class="kcol-h">${label} <small>${items.length}</small></div>
       ${cards}
     </div>`;
@@ -1749,7 +1762,7 @@ function renderProjectTasks(p){
     const range = (t.endDate && t.endDate>t.due) ? '–'+fmtDateShort(fromKey(t.endDate)) : '';
     return `<div class="ptask ${t.done?'done':''}" data-task-id="${t.id}" draggable="true">
       <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
-      <input type="checkbox" ${t.done?'checked':''} onchange="toggleProjectTask('${p.id}','${t.id}',event)">
+      <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleProjectTask('${p.id}','${t.id}',event)">
       <span class="pttitle" data-action="openProjectTaskForm" data-args='["${p.id}","${t.id}"]'>${escapeHTML(t.title)}</span>
       ${t.due?`<span class="ptdate">${fmtDateShort(fromKey(t.due))}${range}</span>`:''}
       <button class="ptdel" data-action="deleteProjectTask" data-args='["${p.id}","${t.id}"]'>×</button>
@@ -1764,7 +1777,7 @@ function renderProjectMilestones(p){
     return (a.order||0) - (b.order||0);
   }).map(m=>`<div class="ptask ${m.done?'done':''}" data-task-id="${m.id}" draggable="true">
     <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
-    <input type="checkbox" ${m.done?'checked':''} onchange="toggleProjectMilestone('${p.id}','${m.id}')">
+    <input type="checkbox" ${m.done?'checked':''} onchange="HANDLERS.toggleProjectMilestone('${p.id}','${m.id}')">
     <span class="pttitle">${escapeHTML(m.title)}</span>
     ${m.date?`<span class="ptdate">${fmtDateShort(fromKey(m.date))}</span>`:''}
     <button class="ptdel" data-action="deleteProjectMilestone" data-args='["${p.id}","${m.id}"]'>×</button>
@@ -1775,7 +1788,7 @@ function renderProjectPeople(p){
   return p.people.map(pp=>`<div class="pperson">
     <span class="ppname">${escapeHTML(pp.name)}</span>
     ${pp.role?`<span class="pprole">${escapeHTML(pp.role)}</span>`:''}
-    <select onchange="setPersonStatus('${p.id}','${pp.id}',this.value)" style="font-size:11px;padding:2px 6px;border:1px solid var(--line);border-radius:6px;background:#fff">
+    <select onchange="HANDLERS.setPersonStatus('${p.id}','${pp.id}',this.value)" style="font-size:11px;padding:2px 6px;border:1px solid var(--line);border-radius:6px;background:#fff">
       <option value="">– status –</option>
       <option value="pending" ${pp.status==='pending'?'selected':''}>Avventer</option>
       <option value="confirmed" ${pp.status==='confirmed'?'selected':''}>Bekreftet</option>
@@ -2039,7 +2052,7 @@ function renderTodos(){
         <button class="urgent" data-action="quickAddTodo" data-args='["urgent"]'>⚠ Urgent</button>
         <button class="short" data-action="quickAddTodo" data-args='["short"]'>↗ Short term</button>
         <button class="long" data-action="quickAddTodo" data-args='["long"]'>⤳ Long term</button>
-        <select id="qt-project" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;background:#fff;color:var(--ink-soft)" onchange="if(this.value)quickAddTodo('project',this.value);this.value=''">
+        <select id="qt-project" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;background:#fff;color:var(--ink-soft)" onchange="if(this.value)HANDLERS.quickAddTodo('project',this.value);this.value=''">
           <option value="">▸ Til prosjekt…</option>${projectsList}
         </select>
         <button data-action="startVoiceCapture" title="Snakk inn et notat (lagres i innboks)" style="margin-left:auto">🎤 Tale</button>
@@ -2049,14 +2062,14 @@ function renderTodos(){
     ${inbox.length ? `
       <div class="todo-bucket">
         <div class="bh">Innboks <small>${inbox.length} ufordelte — dra til en boks under, eller bruk knappene</small></div>
-        ${inbox.slice().reverse().map(i=>`<div class="todo-row" data-task-id="${i.id}" data-task-kind="inbox" draggable="true" ondragstart="todoDragStart(event,'${i.id}','inbox')" ondragend="todoDragEnd(event)">
+        ${inbox.slice().reverse().map(i=>`<div class="todo-row" data-task-id="${i.id}" data-task-kind="inbox" draggable="true" ondragstart="HANDLERS.todoDragStart(event,'${i.id}','inbox')" ondragend="HANDLERS.todoDragEnd(event)">
           <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
-          <span class="ttitle" ondblclick="inlineEditStart(event,'${i.id}','inbox')">${escapeHTML(i.text)}</span>
+          <span class="ttitle" ondblclick="HANDLERS.inlineEditStart(event,'${i.id}','inbox')">${escapeHTML(i.text)}</span>
           <div class="actions" style="opacity:1">
             <button data-action="inboxToTodo" data-args='["${i.id}","urgent"]' title="Til Urgent">⚠</button>
             <button data-action="inboxToTodo" data-args='["${i.id}","short"]' title="Til Short term">↗</button>
             <button data-action="inboxToTodo" data-args='["${i.id}","long"]' title="Til Long term">⤳</button>
-            <select onchange="if(this.value){inboxToProject('${i.id}',this.value);this.value=''}" class="btn-sec-xs">
+            <select onchange="if(this.value){HANDLERS.inboxToProject('${i.id}',this.value);this.value=''}" class="btn-sec-xs">
               <option value="">▸ Prosjekt</option>${projectsList}
             </select>
             <button class="ag" data-action="deleteInbox" data-args='["${i.id}"]'>×</button>
@@ -2087,7 +2100,7 @@ function renderTodos(){
   inp.addEventListener('keydown', e=>{
     if (e.key==='Enter' && inp.value.trim()){
       e.preventDefault();
-      quickAddTodo('inbox');
+      HANDLERS.quickAddTodo('inbox');
     }
   });
   // Wire up drag-to-reorder within each bucket (date trumps manual order in sort)
@@ -2133,7 +2146,7 @@ function renderTodos(){
 
 function todoBucketHTML(label, prio, items, projectsList, hint){
   const cls = prio || '';
-  return `<div class="todo-bucket" data-prio="${prio}" ondragover="todoOver(event)" ondragleave="todoLeave(event)" ondrop="todoDrop(event,'${prio}')">
+  return `<div class="todo-bucket" data-prio="${prio}" ondragover="HANDLERS.todoOver(event)" ondragleave="HANDLERS.todoLeave(event)" ondrop="HANDLERS.todoDrop(event,'${prio}')">
     <div class="bh ${cls}">${label} <small>${items.length}${hint?' · '+hint:''}</small></div>
     ${items.length ? items.map(t=>todoRowHTML(t, projectsList)).join('') : `<div class="todo-empty">ren boks</div>`}
   </div>`;
@@ -2141,23 +2154,23 @@ function todoBucketHTML(label, prio, items, projectsList, hint){
 
 function todoRowHTML(t, projectsList){
   const due = t.due ? `<span class="due">· ${fmtDateShort(fromKey(t.due))}</span>` : '';
-  return `<div class="todo-row ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="freetask" draggable="true" ondragstart="todoDragStart(event,'${t.id}','task')" ondragend="todoDragEnd(event)">
+  return `<div class="todo-row ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="freetask" draggable="true" ondragstart="HANDLERS.todoDragStart(event,'${t.id}','task')" ondragend="HANDLERS.todoDragEnd(event)">
     <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
-    <input type="checkbox" ${t.done?'checked':''} onchange="toggleTask('${t.id}',event)">
-    <span class="ttitle" data-edit-id="${t.id}" data-edit-kind="task" ondblclick="inlineEditStart(event,'${t.id}','task')">${escapeHTML(t.title)} ${due}</span>
+    <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
+    <span class="ttitle" data-edit-id="${t.id}" data-edit-kind="task" ondblclick="HANDLERS.inlineEditStart(event,'${t.id}','task')">${escapeHTML(t.title)} ${due}</span>
     <div class="actions">
       <button data-action="setTaskPriority" data-args='["${t.id}","urgent"]' title="Urgent">⚠</button>
       <button data-action="setTaskPriority" data-args='["${t.id}","short"]' title="Short term">↗</button>
       <button data-action="setTaskPriority" data-args='["${t.id}","long"]' title="Long term">⤳</button>
       <button data-action="setTaskPriority" data-args='["${t.id}",""]' title="Fjern kategori">○</button>
-      <select onchange="if(this.value){postponeTask('${t.id}',this.value);this.value=''}" class="btn-sec-xs" title="Utsett frist">
+      <select onchange="if(this.value){HANDLERS.postponeTask('${t.id}',this.value);this.value=''}" class="btn-sec-xs" title="Utsett frist">
         <option value="">▸ Utsett</option>
         <option value="1d">+1 dag</option>
         <option value="3d">+3 dager</option>
         <option value="1w">+1 uke</option>
         <option value="1m">+1 måned</option>
       </select>
-      <select onchange="if(this.value){taskToProject('${t.id}',this.value);this.value=''}" class="btn-sec-xs">
+      <select onchange="if(this.value){HANDLERS.taskToProject('${t.id}',this.value);this.value=''}" class="btn-sec-xs">
         <option value="">▸ Prosjekt</option>${projectsList}
       </select>
       <button class="ag" data-action="openTaskForm" data-args='["${t.id}"]' title="Rediger detaljer">✎</button>
@@ -2784,7 +2797,7 @@ function renderDay(){
         <span style="float:right;cursor:pointer;color:var(--ink-muted);padding:0 4px" ${clearAttrs} data-stop="1" title="Fjern tidsblokk">×</span>
       </div>`;
     }).join('');
-    html += `<div class="hslot" data-hour="${h}" ondragover="taskToTimeOver(event)" ondragleave="taskToTimeLeave(event)" ondrop="taskToTimeDrop(event,${h},'${key}')">${evHTML}${taskHTML}</div>`;
+    html += `<div class="hslot" data-hour="${h}" ondragover="HANDLERS.taskToTimeOver(event)" ondragleave="HANDLERS.taskToTimeLeave(event)" ondrop="HANDLERS.taskToTimeDrop(event,${h},'${key}')">${evHTML}${taskHTML}</div>`;
   }
   // events without time at top
   const allDay = evs.filter(e=>!e.start);
@@ -2826,22 +2839,22 @@ function taskRowHTML(t){
     ? `<span style="color:var(--accent);cursor:pointer;font-size:12px" data-action="setTaskScheduledTime" data-args='["${idStr}","${kind}"]' data-stop="1" title="Klikk for å endre tid">🕒 ${t.scheduledTime}</span>`
     : `<span style="color:var(--ink-muted);cursor:pointer;font-size:11px;font-style:italic" data-action="setTaskScheduledTime" data-args='["${idStr}","${kind}"]' data-stop="1" title="Sett tidspunkt">+ tid</span>`;
   if (t._kind==='projectTask'){
-    return `<li class="${t.done?'done':''}" draggable="true" ondragstart="taskToTimeStart(event,'${t._projectId}:${t.id}','projectTask')">
-      <input type="checkbox" ${t.done?'checked':''} onchange="toggleProjectTask('${t._projectId}','${t.id}',event)">
+    return `<li class="${t.done?'done':''}" draggable="true" ondragstart="HANDLERS.taskToTimeStart(event,'${t._projectId}:${t.id}','projectTask')">
+      <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleProjectTask('${t._projectId}','${t.id}',event)">
       <span class="tt" data-action="openProjectTaskForm" data-args='["${t._projectId}","${t.id}"]'>${escapeHTML(t.title)} <span class="text-mute-small">· ${escapeHTML(t._projectTitle)}</span></span>
       ${timeLink(`${t._projectId}:${t.id}`, 'projectTask')}
     </li>`;
   }
   if (t._kind==='milestone'){
     return `<li class="${t.done?'done':''}">
-      <input type="checkbox" ${t.done?'checked':''} onchange="toggleProjectMilestone('${t._projectId}','${t.id}')">
+      <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleProjectMilestone('${t._projectId}','${t.id}')">
       <span class="tt" data-action="openProject" data-args='["${t._projectId}"]'>◆ ${escapeHTML(t.title)} <span class="text-mute-small">· ${escapeHTML(t._projectTitle)}</span></span>
       <span class="due">${t.category?CAT_BY_ID[t.category]?.label||'':''}</span>
     </li>`;
   }
   const prioPill = t.priority ? `<span class="pill prio-${t.priority}" style="margin-right:4px">${PRIO_BY_ID[t.priority]?.short||t.priority}</span>` : '';
-  return `<li class="${t.done?'done':''}" draggable="true" ondragstart="taskToTimeStart(event,'${t.id}','task')">
-    <input type="checkbox" ${t.done?'checked':''} onchange="toggleTask('${t.id}',event)">
+  return `<li class="${t.done?'done':''}" draggable="true" ondragstart="HANDLERS.taskToTimeStart(event,'${t.id}','task')">
+    <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
     <span class="tt" data-action="openTaskForm" data-args='["${t.id}"]'>${prioPill}${escapeHTML(t.title)}</span>
     ${timeLink(t.id, 'task')}
   </li>`;
@@ -3027,19 +3040,13 @@ function renderList(){
   lv.innerHTML = html;
   lv.querySelectorAll('.lrow').forEach(r=>r.onclick=()=>{
     const t = r.dataset.type;
-    if (t==='event') editEvent(r.dataset.id);
-    else if (t==='outlook') openOutlookEvent(r.dataset.id);
+    if (t==='event') HANDLERS.editEvent(r.dataset.id);
+    else if (t==='outlook') HANDLERS.openOutlookEvent(r.dataset.id);
     else if (t==='task') openTaskForm(r.dataset.id);
     else if (t==='projectTask') openProjectTaskForm(r.dataset.pid, r.dataset.id);
     else if (t==='milestone' || t==='projectTarget'){ state.ui.openProjectId = r.dataset.pid; state.ui.view='projects'; render(); }
   });
 }
-
-HANDLERS.toggleMilestone = (gid,mid)=>{
-  const g = state.goals.find(x=>x.id===gid); if(!g) return;
-  const m = g.milestones.find(x=>x.id===mid); if(!m) return;
-  m.done = !m.done; render();
-};
 
 // ============================================================
 // EVENT FORM
@@ -3170,89 +3177,7 @@ HANDLERS.saveTaskForm = id=>{
 };
 HANDLERS.deleteTask = id => { state.tasks = state.tasks.filter(x=>x.id!==id); closeModal(); render(); };
 
-// ============================================================
-// GOAL FORM
-// ============================================================
-function openGoalForm(id){
-  const g = id ? state.goals.find(x=>x.id===id) : null;
-  const data = g || { title:'', target:'', category:'arbeid', notes:'', milestones:[] };
-  let ms = [...(data.milestones||[])];
-  function renderMS(){
-    const list = document.getElementById('ms-list');
-    if (!list) return;
-    list.innerHTML = ms.map((m,i)=>`<li>
-      <input type="checkbox" ${m.done?'checked':''} data-i="${i}" class="ms-done">
-      <input type="text" value="${escapeAttr(m.title)}" placeholder="Delmål" data-i="${i}" class="ms-title">
-      <input type="date" value="${m.date||''}" data-i="${i}" class="ms-date">
-      <button class="rm" data-i="${i}">×</button>
-    </li>`).join('');
-    list.querySelectorAll('.ms-done').forEach(el=>el.onchange=e=>{ms[e.target.dataset.i].done=e.target.checked});
-    list.querySelectorAll('.ms-title').forEach(el=>el.onchange=e=>{ms[e.target.dataset.i].title=e.target.value});
-    list.querySelectorAll('.ms-date').forEach(el=>el.onchange=e=>{ms[e.target.dataset.i].date=e.target.value});
-    list.querySelectorAll('.rm').forEach(el=>el.onclick=()=>{ms.splice(el.dataset.i,1); renderMS();});
-  }
-  openModal(`
-    <h3>${g?'Rediger mål':'Nytt mål'}</h3>
-    <div class="body">
-      <div class="field"><label>Mål</label><input id="g-title" type="text" value="${escapeAttr(data.title)}" placeholder="F.eks. Løpe halvmaraton"></div>
-      <div class="field"><label>Måldato</label><input id="g-target" type="date" value="${data.target||''}"></div>
-      <div class="field"><label>Kategori</label><select id="g-cat">${CATEGORIES.map(c=>`<option value="${c.id}" ${data.category===c.id?'selected':''}>${c.label}</option>`).join('')}</select></div>
-      <div class="field"><label>Delmål</label><ul class="ms-list" id="ms-list"></ul><button class="add-link" id="ms-add">+ Legg til delmål</button></div>
-      <div class="field"><label>Notater</label><textarea id="g-notes">${escapeHTML(data.notes||'')}</textarea></div>
-    </div>
-    <div class="footer">
-      ${g?`<button class="danger" data-action="deleteGoal" data-args='["${g.id}"]'>${I18N.delete}</button>`:''}
-      <button data-action="closeModal">${I18N.cancel}</button>
-      <button class="primary" id="g-save">${I18N.save}</button>
-    </div>`);
-  renderMS();
-  document.getElementById('ms-add').onclick=()=>{ms.push({id:uid(),title:'',date:'',done:false});renderMS();};
-  document.getElementById('g-save').onclick=()=>{
-    const newData = {
-      title: document.getElementById('g-title').value.trim(),
-      target: document.getElementById('g-target').value||'',
-      category: document.getElementById('g-cat').value,
-      notes: document.getElementById('g-notes').value.trim(),
-      milestones: ms.filter(m=>m.title.trim()).map(m=>({id:m.id||uid(),title:m.title.trim(),date:m.date,done:!!m.done})),
-    };
-    if (!newData.title) return;
-    if (g){ Object.assign(g, newData); } else { state.goals.push(Object.assign({id:uid()}, newData)); }
-    closeModal(); render();
-  };
-}
-HANDLERS.openGoalForm = openGoalForm;
-HANDLERS.deleteGoal = id => { state.goals = state.goals.filter(x=>x.id!==id); closeModal(); render(); };
 
-// ============================================================
-// HABIT FORM
-// ============================================================
-function openHabitForm(id){
-  const h = id ? state.habits.find(x=>x.id===id) : null;
-  const data = h || { title:'', category:'helse', log:{} };
-  openModal(`
-    <h3>${h?'Rediger vane':'Ny vane'}</h3>
-    <div class="body">
-      <div class="field"><label>Vane</label><input id="h-title" type="text" value="${escapeAttr(data.title)}" placeholder="F.eks. 10 000 skritt"></div>
-      <div class="field"><label>Kategori</label><select id="h-cat">${CATEGORIES.map(c=>`<option value="${c.id}" ${data.category===c.id?'selected':''}>${c.label}</option>`).join('')}</select></div>
-    </div>
-    <div class="footer">
-      ${h?`<button class="danger" data-action="deleteHabit" data-args='["${h.id}"]'>${I18N.delete}</button>`:''}
-      <button data-action="closeModal">${I18N.cancel}</button>
-      <button class="primary" data-action="saveHabitForm" data-args='["${h?h.id:''}"]'>${I18N.save}</button>
-    </div>`);
-}
-HANDLERS.openHabitForm = openHabitForm;
-HANDLERS.saveHabitForm = id=>{
-  const data = {
-    title: document.getElementById('h-title').value.trim(),
-    category: document.getElementById('h-cat').value,
-  };
-  if (!data.title) return;
-  if (id){ Object.assign(state.habits.find(x=>x.id===id), data); }
-  else { state.habits.push(Object.assign({id:uid(),log:{}}, data)); }
-  closeModal(); render();
-};
-HANDLERS.deleteHabit = id => { state.habits = state.habits.filter(x=>x.id!==id); closeModal(); render(); };
 
 // ============================================================
 // QUICK CAPTURE
@@ -3273,7 +3198,7 @@ function openQuickCapture(){
           <button data-action="qcSave" data-args='["event"]' class="btn-sec-lg">📅 Ny hendelse</button>
           <button data-action="closeModalThenVoice" class="btn-sec-lg" title="Snakk inn et notat">🎤 Tale</button>
         </div>
-        <select id="qc-project" onchange="if(this.value){qcSave('project',this.value);this.value=''}" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;color:var(--ink-soft)">
+        <select id="qc-project" onchange="if(this.value){HANDLERS.qcSave('project',this.value);this.value=''}" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;color:var(--ink-soft)">
           <option value="">▸ Eller legg som oppgave i prosjekt…</option>${projectsList}
         </select>
       </div>
@@ -3285,7 +3210,7 @@ function openQuickCapture(){
     </div>`);
   setTimeout(()=>document.getElementById('qc-text').focus(),50);
   document.getElementById('qc-text').addEventListener('keydown', e=>{
-    if(e.key==='Enter'){ e.preventDefault(); qcSave('inbox'); }
+    if(e.key==='Enter'){ e.preventDefault(); HANDLERS.qcSave('inbox'); }
   });
 }
 HANDLERS.qcSave = (kind, projectId)=>{
@@ -3479,8 +3404,8 @@ function doSearch(filt){
   res.querySelectorAll('.sr').forEach((el,i)=>el.onclick=()=>{
     const h = hits[i];
     closeModal();
-    if (h.type==='event'){ editEvent(h.ref.id); }
-    else if (h.type==='outlook'){ openOutlookEvent(h.ref.id); }
+    if (h.type==='event'){ HANDLERS.editEvent(h.ref.id); }
+    else if (h.type==='outlook'){ HANDLERS.openOutlookEvent(h.ref.id); }
     else if (h.type==='task'){ openTaskForm(h.ref.id); }
     else if (h.type==='project'){ state.ui.openProjectId=h.ref.id; state.ui.view='projects'; render(); }
     else if (h.type==='projectTask'){ openProjectTaskForm(h.project.id, h.ref.id); }
@@ -3528,7 +3453,7 @@ function openSettings(){
         </div>
       </div>
       <div class="sl"><span>Tema</span>
-        <select onchange="setTheme(this.value)" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">
+        <select onchange="HANDLERS.setTheme(this.value)" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">
           <option value="auto" ${(state.ui.theme||'auto')==='auto'?'selected':''}>Auto (følg system)</option>
           <option value="light" ${state.ui.theme==='light'?'selected':''}>Lys</option>
           <option value="dark" ${state.ui.theme==='dark'?'selected':''}>Mørk</option>
@@ -3690,10 +3615,15 @@ HANDLERS.importData = e=>{
   const r = new FileReader();
   r.onload = ev=>{
     try{
-      const data = JSON.parse(ev.target.result);
+      // Parse first to validate JSON before destroying current state
+      JSON.parse(ev.target.result);
       if (!confirm('Dette overskriver dataen din. Er du sikker?')) return;
-      state = Object.assign(structuredClone(DEFAULT_STATE), data);
-      saveState(); closeModal(); render();
+      // Write raw blob to localStorage and re-run loadState so all migrations
+      // (state.settings → ui/sync, legacy categories, etc.) execute on imported data.
+      localStorage.setItem(STORAGE_KEY, ev.target.result);
+      state = loadState();
+      _lastSavedBody = null;  // force next saveState() to compute fresh hash
+      closeModal(); render();
     }catch(err){ alert('Ugyldig fil: '+err.message); }
   };
   r.readAsText(file);
