@@ -423,11 +423,32 @@
   .ev.ics{background:#f0f4f9;border-left-color:#5b8db8 !important;font-style:italic;opacity:.95}
   .ev.ics::before{content:'📧 ';font-style:normal}
 
-  /* Multi-day event styling */
+  /* Multi-day event styling — continuous bar across day-cells within the same week-row.
+     Negative margins bleed the bar past the cell's 8px horizontal padding so adjacent
+     cells visually connect. Title text only on the first day; continuation cells get
+     a transparent placeholder (&nbsp;) so the bar keeps height and aligns vertically. */
   .ev.multi{font-weight:500}
-  .ev.multi.multi-cont{opacity:.65;font-weight:400}
-  .ev.multi.multi-cont::before{content:'↳ ';color:var(--ink-muted)}
-  .ev.multi:not(.multi-cont):not(.multi-last)::after{content:' →';color:var(--ink-muted)}
+  /* First day in a run: square the right edge, extend right margin into the gap */
+  .ev.multi:not(.multi-cont):not(.multi-last){
+    margin-right:-9px;
+    border-top-right-radius:0;
+    border-bottom-right-radius:0;
+  }
+  /* Continuation day (any day after the first): drop left border, extend left margin */
+  .ev.multi.multi-cont{
+    margin-left:-9px;
+    border-top-left-radius:0;
+    border-bottom-left-radius:0;
+    border-left:none;
+    padding-left:9px;
+    color:var(--ink-muted);
+  }
+  /* Middle of a run (continuation + not last): square right edge too, extend both sides */
+  .ev.multi.multi-cont:not(.multi-last){
+    margin-right:-9px;
+    border-top-right-radius:0;
+    border-bottom-right-radius:0;
+  }
 
   /* Project event (project's own day on the calendar) */
   .ev.projevt{background:var(--surface-2);font-weight:500}

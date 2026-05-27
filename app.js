@@ -396,19 +396,25 @@ function loadState(){
     // Migration (2026-05-26): flat state.settings → state.ui + state.sync.
     // Also folds in two older legacy fixups: filter 'personlig' → 'privat',
     // and view 'strategy'/'fokus' → 'home'.
-    if (parsed.settings && (!parsed.ui || !parsed.sync)) {
-      const s = parsed.settings;
-      const legacyFilter = (s.filter === 'personlig') ? 'privat' : s.filter;
-      const legacyView = (s.view === 'strategy' || s.view === 'fokus') ? 'home' : s.view;
-      merged.ui = Object.assign({}, DEFAULT_STATE.ui, {
-        view: legacyView, filter: legacyFilter, anchor: s.anchor, overviewAnchor: s.overviewAnchor,
-        theme: s.theme, projectViewMode: s.projectViewMode, showCompletedTodos: s.showCompletedTodos,
-        openProjectId: s.openProjectId, notifications: s.notifications,
-      }, parsed.ui || {});
-      merged.sync = Object.assign({}, DEFAULT_STATE.sync, {
-        icsUrl: s.icsUrl, lastSync: s.lastSync, syncUrl: s.syncUrl, syncToken: s.syncToken,
-        lastWeeklyExport: s.lastWeeklyExport,
-      }, parsed.sync || {});
+    // Always strip merged.settings regardless of whether ui/sync also exist —
+    // settings is dead schema, never read anywhere. If parsed lacks ui/sync entirely
+    // (a pre-2026-05-26 blob), fold the legacy fields in first; parsed.ui/parsed.sync
+    // still win where present.
+    if (parsed.settings) {
+      if (!parsed.ui || !parsed.sync) {
+        const s = parsed.settings;
+        const legacyFilter = (s.filter === 'personlig') ? 'privat' : s.filter;
+        const legacyView = (s.view === 'strategy' || s.view === 'fokus') ? 'home' : s.view;
+        merged.ui = Object.assign({}, DEFAULT_STATE.ui, {
+          view: legacyView, filter: legacyFilter, anchor: s.anchor, overviewAnchor: s.overviewAnchor,
+          theme: s.theme, projectViewMode: s.projectViewMode, showCompletedTodos: s.showCompletedTodos,
+          openProjectId: s.openProjectId, notifications: s.notifications,
+        }, parsed.ui || {});
+        merged.sync = Object.assign({}, DEFAULT_STATE.sync, {
+          icsUrl: s.icsUrl, lastSync: s.lastSync, syncUrl: s.syncUrl, syncToken: s.syncToken,
+          lastWeeklyExport: s.lastWeeklyExport,
+        }, parsed.sync || {});
+      }
       delete merged.settings;
     }
     // Migration: legacy goals -> projects
@@ -765,7 +771,12 @@ function eventsOnDay(key){
         _isMultiDay: end > start,
       };
     });
-  return [...own, ...outlook, ...projects].sort((a,b)=>(a.start||'').localeCompare(b.start||''));
+  // Multi-day events sort first so the continuous bar sits at the top of every
+  // cell along the run. Within each group (multi vs single), sort by start time.
+  return [...own, ...outlook, ...projects].sort((a,b)=>{
+    if (a._isMultiDay !== b._isMultiDay) return a._isMultiDay ? -1 : 1;
+    return (a.start||'').localeCompare(b.start||'');
+  });
 }
 function tasksOnDay(key){
   // Free-floating tasks
@@ -2575,9 +2586,12 @@ function renderMonth(){
         : isProj
           ? act('openProject', e._projectId) + ' data-stop="1"'
           : '';
-      const prefix = (!e._isContinuation && isProj) ? '📍 ' : '';
-      const timeP = (!e._isContinuation && e.start) ? `<strong>${e.start}</strong> ` : '';
-      return `<div class="${cls}" title="${escapeAttr(e.title)}" ${click}>${prefix}${timeP}${escapeHTML(e.title)}</div>`;
+      // Continuation cells get a non-breaking-space placeholder so the visual bar
+      // keeps height; the title attribute still shows the full name on hover.
+      const inner = e._isContinuation
+        ? '&nbsp;'
+        : `${isProj ? '📍 ' : ''}${e.start ? `<strong>${e.start}</strong> ` : ''}${escapeHTML(e.title)}`;
+      return `<div class="${cls}" title="${escapeAttr(e.title)}" ${click}>${inner}</div>`;
     }).join('');
     const taskHTML = tks.slice(0,Math.max(0,4-dayEvents.length)).map(t=>{
       const isProj = t._kind==='projectTask' || t._kind==='milestone';
@@ -2586,7 +2600,8 @@ function renderMonth(){
       const last = t._isMultiDay && t._isLastDay ? ' multi-last' : '';
       const cls = `ev cat-${t.category}${isProj?' proj':''}${multi}${cont}${last}`;
       const label = isProj ? `${escapeHTML(t._projectTitle)}: ${escapeHTML(t.title)}` : `☐ ${escapeHTML(t.title)}`;
-      return `<div class="${cls}" title="${escapeAttr(label)}">${label}</div>`;
+      const inner = t._isContinuation ? '&nbsp;' : label;
+      return `<div class="${cls}" title="${escapeAttr(label)}">${inner}</div>`;
     }).join('');
     const more = (dayEvents.length+tks.length)-4;
     html += `<div class="cell ${inMonth?'':'other'} ${isToday?'today':''}" data-key="${key}">
