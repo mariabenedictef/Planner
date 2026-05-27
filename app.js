@@ -863,6 +863,10 @@ const modalEl = document.getElementById('modal');
 modalBg.addEventListener('click', e=>{ if(e.target===modalBg) closeModal(); });
 function openModal(html){ modalEl.innerHTML = html; modalBg.classList.add('open'); }
 function closeModal(){ modalBg.classList.remove('open'); modalEl.innerHTML=''; }
+// Expose on HANDLERS so the 11 `data-action="closeModal"` buttons in modal footers
+// actually fire — without this they were silently no-ops, leaving Esc and backdrop-click
+// as the only ways to dismiss a modal. Reported by Maria 2026-05-27 (Settings → Lukk).
+HANDLERS.closeModal = closeModal;
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
 // ============================================================

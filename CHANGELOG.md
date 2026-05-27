@@ -6,6 +6,12 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-05-27 — Lukk-knappen i Settings (og 10 andre modaler) fungerer igjen
+
+- **`HANDLERS.closeModal` lagt til** — `data-action="closeModal"` brukes 11 steder (Settings-modal, prosjekt-form-cancel, oppgave-form-cancel, hendelse-form-cancel, m.fl.), men `closeModal()` eksisterte bare som modul-lokal funksjon, ikke på HANDLERS. Den sentrale klikk-lytteren slo opp `HANDLERS[action]`, fant ingenting, og returnerte stille. Resultat: ingen av Lukk-knappene fungerte — bruker måtte trykke Esc eller klikke bakgrunnen for å lukke modaler. Rapportert av Maria 2026-05-27 (Settings → Lukk).
+- **Root cause-analyse:** Samme klasse bug som de 39 inline-handler-bugsa fra runde 1 tidligere i dag, men inversen: der var `HANDLERS.X` referert uten prefiks i inline-attributter; her var `data-action="closeModal"` referert til en funksjon som fantes i modul-scope men ikke på HANDLERS. Audit-skriptet som fanget runde 1 sjekket bare inline-attributter — ikke data-action-bindinger mot HANDLERS. Krysset av alle 52 unike data-action-verdier i app.js: bare `closeModal` manglet. Bekrefter at det er en isolert bug.
+- **Smoke-testen utvidet** — to nye assertions: `typeof HANDLERS.closeModal === 'function'`, og en faktisk klikk-test som åpner Settings, finner Lukk-knappen, klikker, og verifiserer at modalen lukkes. Tidligere smoke-test sjekket bare at Settings-modalen åpner — ikke at den lukker via knappen. 19/19 tester grønne.
+
 ## 2026-05-27 — Flerdagsbar + state.settings-opprydding
 
 - **Flerdagshendelser tegnes som sammenhengende bar i månedsvisning** — multi-day events vises nå som én visuelt sammenhengende bar over alle dagene de spenner (innenfor samme ukerad). Tidligere fikk hver dag en separat boks med «↳» / «→»-piler. Endringene: negative horisontalmarginer i `.ev.multi`-CSS bløder boksene over cellegrensene, første-dag beholder tittel og avrundet venstrekant, mellomdager og siste dag dropper venstrekant og tittel (`&nbsp;`-plassholder), siste dag avrunder høyrekanten. `eventsOnDay` sorterer flerdags-hendelser først per celle slik at baren ligger på samme vertikale slot fra dag til dag.
