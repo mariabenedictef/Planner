@@ -1793,8 +1793,8 @@ function renderProjectMilestones(p){
   }).map(m=>`<div class="ptask ${m.done?'done':''}" data-task-id="${m.id}" draggable="true">
     <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
     <input type="checkbox" ${m.done?'checked':''} onchange="HANDLERS.toggleProjectMilestone('${p.id}','${m.id}')">
-    <span class="pttitle">${escapeHTML(m.title)}</span>
-    ${m.date?`<span class="ptdate">${fmtDateShort(fromKey(m.date))}</span>`:''}
+    <span class="pttitle" data-action="openProjectMilestoneForm" data-args='["${p.id}","${m.id}"]' style="cursor:pointer">${escapeHTML(m.title)}</span>
+    ${m.date?`<span class="ptdate" data-action="openProjectMilestoneForm" data-args='["${p.id}","${m.id}"]' style="cursor:pointer">${fmtDateShort(fromKey(m.date))}</span>`:''}
     <button class="ptdel" data-action="deleteProjectMilestone" data-args='["${p.id}","${m.id}"]'>×</button>
   </div>`).join('');
 }
@@ -1850,6 +1850,48 @@ HANDLERS.toggleProjectTask = (pid,tid,ev)=>{
 HANDLERS.deleteProjectTask = (pid,tid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.tasks=p.tasks.filter(t=>t.id!==tid); render();} };
 HANDLERS.toggleProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); const m=p?.milestones.find(x=>x.id===mid); if(m){m.done=!m.done; render();} };
 HANDLERS.deleteProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.milestones=p.milestones.filter(m=>m.id!==mid); render();} };
+
+// Edit an existing milestone. Opens a modal with title + date + done checkbox,
+// modelled after openProjectTaskForm. Added 2026-05-27 — milestones were missing
+// a way to edit title/date after creation (reported by Maria).
+function openProjectMilestoneForm(pid, mid){
+  const p = state.projects.find(x=>x.id===pid);
+  if (!p) return;
+  const m = (p.milestones||[]).find(x=>x.id===mid);
+  if (!m) return;
+  openModal(`
+    <h3>Rediger delmål — ${escapeHTML(p.title)}</h3>
+    <div class="body">
+      <div class="field"><label>Hva er delmålet?</label><input id="pme-title" type="text" value="${escapeAttr(m.title)}" placeholder="F.eks. Save the Date sendt"></div>
+      <div class="field"><label>Dato (valgfritt)</label><input id="pme-date" type="date" value="${m.date||''}"></div>
+      <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input id="pme-done" type="checkbox" ${m.done?'checked':''}> Ferdig</label></div>
+    </div>
+    <div class="footer">
+      <button class="danger" data-action="deleteProjectMilestoneAndClose" data-args='["${pid}","${mid}"]'>${I18N.delete}</button>
+      <button data-action="closeModal">${I18N.cancel}</button>
+      <button class="primary" data-action="saveProjectMilestoneForm" data-args='["${pid}","${mid}"]'>${I18N.save}</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('pme-title')?.focus(),50);
+}
+HANDLERS.openProjectMilestoneForm = openProjectMilestoneForm;
+HANDLERS.saveProjectMilestoneForm = (pid, mid)=>{
+  const p = state.projects.find(x=>x.id===pid);
+  if (!p) { closeModal(); render(); return; }
+  const m = p.milestones.find(x=>x.id===mid);
+  if (!m) { closeModal(); render(); return; }
+  const title = document.getElementById('pme-title').value.trim();
+  if (!title) return;
+  m.title = title;
+  m.date = document.getElementById('pme-date').value || '';
+  m.done = !!document.getElementById('pme-done').checked;
+  closeModal(); render();
+};
+HANDLERS.deleteProjectMilestoneAndClose = (pid, mid)=>{
+  if (!confirm('Slette dette delmålet?')) return;
+  const p = state.projects.find(x=>x.id===pid);
+  if (p) p.milestones = p.milestones.filter(x=>x.id!==mid);
+  closeModal(); render();
+};
 HANDLERS.addProjectMilestone = (pid)=>{
   const t = document.getElementById('pms-title').value.trim();
   const d = document.getElementById('pms-date').value;

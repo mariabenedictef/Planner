@@ -6,6 +6,13 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-06-08 — Delmål kan nå redigeres etter opprettelse
+
+- **`openProjectMilestoneForm` modal lagt til** — klikk på et delmåls tittel eller dato på prosjektsiden åpner en modal med Tittel, Dato (valgfritt) og Ferdig-avkrysning, samt Lagre/Avbryt/Slett-knapper. Tre nye HANDLERS: `openProjectMilestoneForm`, `saveProjectMilestoneForm`, `deleteProjectMilestoneAndClose`. Mønstret følger `openProjectTaskForm`.
+- **Bug-klasse:** Delmål-raden hadde tittel som passiv `<span>` uten klikk-handler eller dobbeltklikk-redigering — det fantes ingen vei å endre verken tittel eller dato etter at delmålet var opprettet. Bare avkrysning, dra-for-sortering og sletting fungerte. Rapportert av Maria (skjermbilde fra Porto-bryllup-prosjektet).
+- **Defensiv:** Handlers er beskyttet mot manglende `pid`/`mid` (ingen kast på ukjent id), tom tittel blir avvist (modal forblir åpen, ingen render). Konsistent med round-2 race-condition-rettelsene.
+- Verifisert med 32-tests jsdom-suite: form pre-fyller verdier riktig, lagring oppdaterer tittel + dato + done, tom-tittel-avvisning, defensiv mot manglende id, sletting fungerer, modal lukkes. Alle 8 visninger og tidligere HANDLERS (closeModal, toggleTaskCategory) fortsatt grønne.
+
 ## 2026-05-27 — Kategori-toggle på To Do-rad + tooltip-fiks
 
 - **Ny `●`-knapp på hver To Do-rad** — vippe mellom Jobb ↔ Privat uten å åpne redigeringsskjemaet. Vises mellom prioritet-knappene og «Utsett»-dropdownen. Fargen følger kategorien: slate-blå for Jobb, støvrosa for Privat. Tooltip viser nåværende verdi og hva klikk gjør. `HANDLERS.toggleTaskCategory` lagt til (defensiv mot manglende id). Standard-kategori for nye To Do-er er fortsatt 'arbeid' (Jobb).
