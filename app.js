@@ -788,8 +788,13 @@ function eventsOnDay(key){
   });
 }
 function tasksOnDay(key){
-  // Free-floating tasks
-  const free = state.tasks.filter(t=>t.due===key && passesFilter(t)).map(t=>({...t,_kind:'task'}));
+  // Free-floating tasks. If a task is tagged to a project (via t.projectId), set
+  // _projectTitle so downstream renderers (calendar, Forfaller-i-dag, list-view)
+  // show the "· project-title" tag the same way they already do for project subtasks.
+  const free = state.tasks.filter(t=>t.due===key && passesFilter(t)).map(t=>{
+    const p = t.projectId ? state.projects.find(x=>x.id===t.projectId) : null;
+    return { ...t, _kind:'task', _projectTitle: p ? p.title : '' };
+  });
   // Project sub-tasks (with multi-day support)
   const proj = [];
   state.projects.filter(p=>!p.archived && passesFilter(p)).forEach(p=>{
@@ -1018,11 +1023,13 @@ function renderHome(){
           ${urgent.map(t=>{
             const due = t.due ? fmtDateShort(fromKey(t.due)) : '—';
             const overdue = t.due && t.due < todayK;
+            const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
+            const projTag = proj ? `<span class="proj-tag">· ${escapeHTML(proj.title)}</span>` : '';
             return `<div class="home-item urgent-item ${t.done?'done':''}" draggable="true" data-task-id="${t.id}">
               <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
               <input type="checkbox" ${t.done?'checked':''} data-action="noop" data-stop="1" onchange="HANDLERS.toggleTask('${t.id}',event)">
               <div class="hi-date${overdue?' overdue':''}">${due}</div>
-              <div class="hi-title" data-action="openTaskForm" data-args='["${t.id}"]' style="cursor:pointer">${escapeHTML(t.title)}</div>
+              <div class="hi-title" data-action="openTaskForm" data-args='["${t.id}"]' style="cursor:pointer">${escapeHTML(t.title)}${projTag}</div>
             </div>`;
           }).join('')}
         </div>`}
@@ -2839,9 +2846,11 @@ function buildDashboardHTML(){
 
   const urgentHTML = urgent.length ? urgent.slice(0,5).map(t=>{
     const due = t.due ? fmtDateShort(fromKey(t.due)) : '—';
+    const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
+    const projTag = proj ? `<span class="proj-tag">· ${escapeHTML(proj.title)}</span>` : '';
     return `<div class="dash-item" data-action="openTaskForm" data-args='["${t.id}"]'>
       <div class="ddate">${due}</div>
-      <div class="dtitle">${escapeHTML(t.title)}</div>
+      <div class="dtitle">${escapeHTML(t.title)}${projTag}</div>
     </div>`;
   }).join('') : `<div class="dash-empty">Ingen urgent-saker — godt jobbet</div>`;
 
@@ -2995,9 +3004,11 @@ function taskRowHTML(t){
     </li>`;
   }
   const prioPill = t.priority ? `<span class="pill prio-${t.priority}" style="margin-right:4px">${PRIO_BY_ID[t.priority]?.short||t.priority}</span>` : '';
+  const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
+  const projTag = proj ? `<span class="proj-tag">· ${escapeHTML(proj.title)}</span>` : '';
   return `<li class="${t.done?'done':''}" draggable="true" ondragstart="HANDLERS.taskToTimeStart(event,'${t.id}','task')">
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
-    <span class="tt" data-action="openTaskForm" data-args='["${t.id}"]'>${prioPill}${escapeHTML(t.title)}</span>
+    <span class="tt" data-action="openTaskForm" data-args='["${t.id}"]'>${prioPill}${escapeHTML(t.title)}${projTag}</span>
     ${timeLink(t.id, 'task')}
   </li>`;
 }
