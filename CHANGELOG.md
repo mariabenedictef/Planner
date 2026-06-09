@@ -6,6 +6,16 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-06-08 — Inbox-rediger + kalender-anker-reset + plassholder-rydding + tag-til-prosjekt-uten-å-flytte
+
+Fire forbedringer fra dagens runde, alle pushet i samme commit.
+
+- **Pennknapp (✎) på inbox-rader** — innboks-elementer kunne kun redigeres ved dobbeltklikk på tittelen, noe som ikke var oppdagbart. Ny synlig pennknapp matcher den på vanlige To Do's. `HANDLERS.inboxEditStart` finner tittel-span via DOM-query og kaller eksisterende `inlineEditStart` med kind `'inbox'` — ingen ny modal eller dupliserende logikk. Defensiv mot ukjent id.
+- **Kalender-visninger åpner alltid på i dag** — klikk på `Dag`/`Uke`/`Måned`/`Årsoversikt` resetter `state.ui.anchor` (og `state.ui.overviewAnchor` for årsoversikten) til dagens dato før render. `HANDLERS.switchView` sjekker mot ny `CALENDAR_VIEWS`-konstant. Ikke-kalender-visninger (Hjem/Prosjekter/To Do's) påvirkes ikke. Browsing innen visningen via `‹ ›`-pilene fungerer som før — kun selve view-bytte-knappen resetter.
+- **Plassholdertekst «dump alt som dukker opp» fjernet** — undertittel under «To Do's»-overskriften (utviklerstandard fra tidligere). Headingen er nå bare «To Do's».
+- **«Til prosjekt» tagger nå, flytter ikke** — `HANDLERS.taskToProject` har endret oppførsel. Tidligere ble taska splicet ut av `state.tasks` og pushet inn i `project.tasks` med ny id og uten prioritet/kategori — så den forsvant fra To Do's-listen og mistet prioritet. Nå settes bare `t.projectId = projectId`; tasken blir stående i sin prioritetsbøtte med sine egne felter intakt. Render-laget viser «· prosjekt-tittel» (kursiv, dempet) etter tittelen. Klikk på tag-en fjerner den (`HANDLERS.untagTaskProject`). Eksisterende oppgaver som tidligere ble flyttet inn i `project.tasks` blir liggende der — de er ikke berørt av denne endringen. Etter design-diskusjon med Maria: opprinnelig forslag B (data-modell uendret) ble forlatt fordi `project.tasks` mangler `priority`-felt — gikk for alternativ A (tag uten flytt) som faktisk gir den symmetrien hun ba om.
+- Verifisert med 38-tests jsdom-suite: pennknapp åpner inline-input med riktig pre-fyll, alle fire kalender-views resetter anker, ikke-kalender-views lar anker stå, ingen «dump alt»-rester i rendret HTML, `taskToProject` muterer ikke `state.tasks.length`, prioritet/kategori bevares, prosjekt-tag rendres med riktige attributter, ingen kast på orphan/ukjent id, alle 8 visninger fortsatt grønne, tidligere HANDLERS (closeModal, openProjectMilestoneForm, toggleTaskCategory) intakte.
+
 ## 2026-06-08 — Delmål kan nå redigeres etter opprettelse
 
 - **`openProjectMilestoneForm` modal lagt til** — klikk på et delmåls tittel eller dato på prosjektsiden åpner en modal med Tittel, Dato (valgfritt) og Ferdig-avkrysning, samt Lagre/Avbryt/Slett-knapper. Tre nye HANDLERS: `openProjectMilestoneForm`, `saveProjectMilestoneForm`, `deleteProjectMilestoneAndClose`. Mønstret følger `openProjectTaskForm`.

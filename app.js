@@ -66,8 +66,17 @@ HANDLERS.backToProjects = () => {
   render();
 };
 
-// Switch to a view, closing any open modal
+// Switch to a view, closing any open modal. For calendar views (day/week/
+// month/overview), reset the anchor to today so clicking the nav-button
+// always opens at "now" rather than wherever the user last scrolled.
+// Browsing within the view via the ‹ › arrows still works as before.
+// Requested by Maria 2026-06-08.
+const CALENDAR_VIEWS = ['day', 'week', 'month', 'overview'];
 HANDLERS.switchView = (view) => {
+  if (CALENDAR_VIEWS.includes(view)) {
+    state.ui.anchor = todayKey();
+    if (view === 'overview') state.ui.overviewAnchor = todayKey();
+  }
   state.ui.view = view;
   if (document.querySelector('.modal-bg.open')) closeModal();
   render();
@@ -2112,7 +2121,7 @@ function renderTodos(){
 
   viewEl.innerHTML = `
     <div class="subnav">
-      <h2>To Do's <span class="yr">dump alt som dukker opp</span></h2>
+      <h2>To Do's</h2>
     </div>
     <div class="todo-quick">
       <input class="qtxt" id="qt-input" type="text" placeholder="Skriv en To Do og trykk Enter, eller bruk knappene under…" autofocus>
@@ -2141,6 +2150,7 @@ function renderTodos(){
             <select onchange="if(this.value){HANDLERS.inboxToProject('${i.id}',this.value);this.value=''}" class="btn-sec-xs">
               <option value="">▸ Prosjekt</option>${projectsList}
             </select>
+            <button class="ag" data-action="inboxEditStart" data-args='["${i.id}"]' title="Rediger">✎</button>
             <button class="ag" data-action="deleteInbox" data-args='["${i.id}"]'>×</button>
           </div>
         </div>`).join('')}
@@ -2223,13 +2233,17 @@ function todoBucketHTML(label, prio, items, projectsList, hint){
 
 function todoRowHTML(t, projectsList){
   const due = t.due ? `<span class="due">· ${fmtDateShort(fromKey(t.due))}</span>` : '';
+  // Project-tag — clicking removes the tag (returns the task to an untagged state).
+  // Title attribute documents the click behaviour.
+  const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
+  const projTag = proj ? `<span class="proj-tag" data-action="untagTaskProject" data-args='["${t.id}"]' title="Klikk for å fjerne prosjekt-tag" style="color:var(--ink-muted);font-size:11.5px;margin-left:6px;font-style:italic;cursor:pointer">· ${escapeHTML(proj.title)}</span>` : '';
   const isPrivat = t.category === 'privat';
   const catColor = isPrivat ? 'var(--privat)' : 'var(--work)';
   const catTitle = isPrivat ? 'Kategori: Privat — klikk for Jobb' : 'Kategori: Jobb — klikk for Privat';
   return `<div class="todo-row ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="freetask" draggable="true" ondragstart="HANDLERS.todoDragStart(event,'${t.id}','task')" ondragend="HANDLERS.todoDragEnd(event)">
     <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
-    <span class="ttitle" data-edit-id="${t.id}" data-edit-kind="task" ondblclick="HANDLERS.inlineEditStart(event,'${t.id}','task')">${escapeHTML(t.title)} ${due}</span>
+    <span class="ttitle" data-edit-id="${t.id}" data-edit-kind="task" ondblclick="HANDLERS.inlineEditStart(event,'${t.id}','task')">${escapeHTML(t.title)} ${due} ${projTag}</span>
     <div class="actions">
       <button data-action="setTaskPriority" data-args='["${t.id}","urgent"]' title="Urgent">⚠</button>
       <button data-action="setTaskPriority" data-args='["${t.id}","short"]' title="Short term">↗</button>
@@ -2301,6 +2315,18 @@ HANDLERS.quickAddTodo = (kind, projectId)=>{
   render();
 };
 
+// Trigger inline edit on an inbox item from a click (matches the ondblclick path
+// that already exists on the title). Added 2026-06-08 — the pencil button on
+// each inbox row calls this, so the inline-edit affordance is discoverable
+// without users having to know about double-click.
+HANDLERS.inboxEditStart = (id) => {
+  const row = document.querySelector(`.todo-row[data-task-id="${id}"][data-task-kind="inbox"]`);
+  if (!row) return;
+  const span = row.querySelector('.ttitle');
+  if (!span) return;
+  HANDLERS.inlineEditStart({ stopPropagation: ()=>{}, currentTarget: span }, id, 'inbox');
+};
+
 HANDLERS.setTaskPriority = (id, prio)=>{
   const t = state.tasks.find(x=>x.id===id);
   if (t){ t.priority = prio; render(); }
@@ -2316,14 +2342,25 @@ HANDLERS.toggleTaskCategory = (id)=>{
   render();
 };
 
+// Tag a free task with a project (does NOT move it). The task keeps its priority,
+// category, due-date, and identity — it just gains a projectId that renders as a
+// muted "· prosjekt-tittel" tag in the To Do's list. Maria reported that moving
+// the task into the project made it disappear from her central To Do's list, and
+// she wanted a total overview with project-tags. Behaviour pre-2026-06-08 was to
+// splice + push, losing priority and identity; that's gone now.
 HANDLERS.taskToProject = (taskId, projectId)=>{
-  const idx = state.tasks.findIndex(x=>x.id===taskId);
-  if (idx===-1) return;
-  const t = state.tasks[idx];
-  const p = state.projects.find(x=>x.id===projectId);
-  if (!p) return;
-  p.tasks.push({id:uid(), title:t.title, due:t.due||'', endDate:'', notes:t.notes||'', done:!!t.done});
-  state.tasks.splice(idx, 1);
+  const t = state.tasks.find(x=>x.id===taskId);
+  if (!t) return;
+  if (!state.projects.find(x=>x.id===projectId)) return;
+  t.projectId = projectId;
+  render();
+};
+
+// Remove the project-tag from a free task (returns it to "uncategorized project").
+HANDLERS.untagTaskProject = (taskId)=>{
+  const t = state.tasks.find(x=>x.id===taskId);
+  if (!t) return;
+  delete t.projectId;
   render();
 };
 
