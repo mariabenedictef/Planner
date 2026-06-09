@@ -947,13 +947,13 @@ function renderTopbar(){
       if (b.dataset.more){
         b.onclick = openMoreMenu;
       } else {
-        b.onclick = ()=>{ state.ui.view=b.dataset.view; render(); };
+        b.onclick = ()=>{ HANDLERS.switchView(b.dataset.view); };
       }
     });
   } else {
     nav.innerHTML = ['home','projects','todos','day','week','month','overview']
       .map(v=>`<button data-view="${v}" class="${state.ui.view===v?'active':''}">${I18N.views[v]}${badgeOf(v)}</button>`).join('');
-    nav.querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.ui.view=b.dataset.view; render(); });
+    nav.querySelectorAll('button').forEach(b=>b.onclick=()=>{ HANDLERS.switchView(b.dataset.view); });
   }
 
   const filter = document.getElementById('filter');
@@ -2140,20 +2140,26 @@ function renderTodos(){
     ${inbox.length ? `
       <div class="todo-bucket">
         <div class="bh">Innboks <small>${inbox.length} ufordelte — dra til en boks under, eller bruk knappene</small></div>
-        ${inbox.slice().reverse().map(i=>`<div class="todo-row" data-task-id="${i.id}" data-task-kind="inbox" draggable="true" ondragstart="HANDLERS.todoDragStart(event,'${i.id}','inbox')" ondragend="HANDLERS.todoDragEnd(event)">
+        ${inbox.slice().reverse().map(i=>{
+          const isPrivat = i.category === 'privat';
+          const catColor = isPrivat ? 'var(--privat)' : 'var(--work)';
+          const catTitle = isPrivat ? 'Kategori: Privat — klikk for Jobb' : 'Kategori: Jobb — klikk for Privat';
+          return `<div class="todo-row" data-task-id="${i.id}" data-task-kind="inbox" draggable="true" ondragstart="HANDLERS.todoDragStart(event,'${i.id}','inbox')" ondragend="HANDLERS.todoDragEnd(event)">
           <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
           <span class="ttitle" ondblclick="HANDLERS.inlineEditStart(event,'${i.id}','inbox')">${escapeHTML(i.text)}</span>
           <div class="actions" style="opacity:1">
             <button data-action="inboxToTodo" data-args='["${i.id}","urgent"]' title="Til Urgent">⚠</button>
             <button data-action="inboxToTodo" data-args='["${i.id}","short"]' title="Til Short term">↗</button>
             <button data-action="inboxToTodo" data-args='["${i.id}","long"]' title="Til Long term">⤳</button>
+            <button data-action="toggleInboxCategory" data-args='["${i.id}"]' title="${catTitle}" style="color:${catColor};font-size:14px;line-height:1">●</button>
             <select onchange="if(this.value){HANDLERS.inboxToProject('${i.id}',this.value);this.value=''}" class="btn-sec-xs">
               <option value="">▸ Prosjekt</option>${projectsList}
             </select>
             <button class="ag" data-action="inboxEditStart" data-args='["${i.id}"]' title="Rediger">✎</button>
             <button class="ag" data-action="deleteInbox" data-args='["${i.id}"]'>×</button>
           </div>
-        </div>`).join('')}
+        </div>`;
+        }).join('')}
       </div>
     ` : ''}
 
@@ -2327,6 +2333,17 @@ HANDLERS.inboxEditStart = (id) => {
   HANDLERS.inlineEditStart({ stopPropagation: ()=>{}, currentTarget: span }, id, 'inbox');
 };
 
+// Toggle category on an inbox item. Default is 'arbeid' (Jobb) — first click sets
+// 'privat' (Privat), second click returns to 'arbeid'. Mirrors HANDLERS.toggleTaskCategory
+// from free-task rows. Category is preserved when the inbox item is promoted to a
+// free task via inboxToTodo. Added 2026-06-08 (reported by Maria).
+HANDLERS.toggleInboxCategory = (id) => {
+  const i = state.inbox.find(x => x.id === id);
+  if (!i) return;
+  i.category = (i.category === 'privat') ? 'arbeid' : 'privat';
+  render();
+};
+
 HANDLERS.setTaskPriority = (id, prio)=>{
   const t = state.tasks.find(x=>x.id===id);
   if (t){ t.priority = prio; render(); }
@@ -2368,7 +2385,8 @@ HANDLERS.inboxToTodo = (inboxId, prio)=>{
   const idx = state.inbox.findIndex(x=>x.id===inboxId);
   if (idx===-1) return;
   const i = state.inbox[idx];
-  state.tasks.push({id:uid(), title:i.text, due:'', category:'arbeid', priority:prio, done:false});
+  // Preserve category from the inbox item (set by toggleInboxCategory); default to arbeid
+  state.tasks.push({id:uid(), title:i.text, due:'', category:(i.category==='privat'?'privat':'arbeid'), priority:prio, done:false});
   state.inbox.splice(idx, 1);
   render();
 };

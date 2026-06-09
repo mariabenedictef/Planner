@@ -6,94 +6,97 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-06-08 — Bugfix: topbar nav resetter nå faktisk anker + kategori-toggle på inbox
+
+- **Bugfix:** Topbar-knappene `Dag`/`Uke`/`Måned`/`Årsoversikt` bypasset `HANDLERS.switchView` og satte `state.ui.view` direkte i sin egen `onclick`. Reset-til-i-dag-logikken fra forrige commit ble derfor aldri kjørt for de faktiske UI-klikkene. Maria rapporterte at hun fortsatt så Uke 22 (mai) selv etter å ha klikket Uke. Topbar-nav (linje 950 + 956) kaller nå `HANDLERS.switchView(b.dataset.view)` istedenfor inline-mutering. Smoke-testen er utvidet til å gjøre faktiske `button.click()`-kall istedenfor å invokere handleren direkte — så denne typen omgåelse vil bli fanget i framtiden.
+- **Kategori-toggle (●) på inbox-rader** — samme knapp som på vanlige To Do's. `HANDLERS.toggleInboxCategory` flipper mellom 'arbeid' og 'privat'. `inboxToTodo` bevarer nå kategorien når en innboks-oppføring promoteres til fri oppgave (tidligere ble alle promoteringer hardkodet til 'arbeid'). Defensiv mot ukjent id. Rapportert av Maria.
+- Verifisert med 30-tests jsdom-suite: faktiske button-klikk for alle fire kalender-views resetter anker, To Do's-klikk lar anker stå, toggle flipper begge veier, knapp rendres med riktig farge per kategori, promotering til fri oppgave bevarer privat-status, alle 8 visninger fortsatt grønne, tidligere HANDLERS (inboxEditStart, taskToProject, toggleTaskCategory, closeModal) intakte.
+
 ## 2026-06-08 — Inbox-rediger + kalender-anker-reset + plassholder-rydding + tag-til-prosjekt-uten-å-flytte
 
 Fire forbedringer fra dagens runde, alle pushet i samme commit.
 
 - **Pennknapp (✎) på inbox-rader** — innboks-elementer kunne kun redigeres ved dobbeltklikk på tittelen, noe som ikke var oppdagbart. Ny synlig pennknapp matcher den på vanlige To Do's. `HANDLERS.inboxEditStart` finner tittel-span via DOM-query og kaller eksisterende `inlineEditStart` med kind `'inbox'` — ingen ny modal eller dupliserende logikk. Defensiv mot ukjent id.
-- **Kalender-visninger åpner alltid på i dag** — klikk på `Dag`/`Uke`/`Måned`/`Årsoversikt` resetter `state.ui.anchor` (og `state.ui.overviewAnchor` for årsoversikten) til dagens dato før render. `HANDLERS.switchView` sjekker mot ny `CALENDAR_VIEWS`-konstant. Ikke-kalender-visninger (Hjem/Prosjekter/To Do's) påvirkes ikke. Browsing innen visningen via `‹ ›`-pilene fungerer som før — kun selve view-bytte-knappen resetter.
+- **Kalender-visninger åpner alltid på i dag** — klikk på `Dag`/`Uke`/`Måned`/`Årsoversikt` resetter `state.ui.anchor` (og `state.ui.overviewAnchor` for årsoversikten) til dagens dato før render. `HANDLERS.switchView` sjekker mot ny `CALENDAR_VIEWS`-konstant. Ikke-kalender-visninger (Hjem/Prosjekter/To Do's) påvirkes ikke. Browsing innen visningen via `‹ ›`-pilene fungerer som før — kun selve view-bytte-knappen resetter. **NB: denne fixen var ikke koblet inn på topbar-knappene — se neste entry.**
 - **Plassholdertekst «dump alt som dukker opp» fjernet** — undertittel under «To Do's»-overskriften (utviklerstandard fra tidligere). Headingen er nå bare «To Do's».
-- **«Til prosjekt» tagger nå, flytter ikke** — `HANDLERS.taskToProject` har endret oppførsel. Tidligere ble taska splicet ut av `state.tasks` og pushet inn i `project.tasks` med ny id og uten prioritet/kategori — så den forsvant fra To Do's-listen og mistet prioritet. Nå settes bare `t.projectId = projectId`; tasken blir stående i sin prioritetsbøtte med sine egne felter intakt. Render-laget viser «· prosjekt-tittel» (kursiv, dempet) etter tittelen. Klikk på tag-en fjerner den (`HANDLERS.untagTaskProject`). Eksisterende oppgaver som tidligere ble flyttet inn i `project.tasks` blir liggende der — de er ikke berørt av denne endringen. Etter design-diskusjon med Maria: opprinnelig forslag B (data-modell uendret) ble forlatt fordi `project.tasks` mangler `priority`-felt — gikk for alternativ A (tag uten flytt) som faktisk gir den symmetrien hun ba om.
-- Verifisert med 38-tests jsdom-suite: pennknapp åpner inline-input med riktig pre-fyll, alle fire kalender-views resetter anker, ikke-kalender-views lar anker stå, ingen «dump alt»-rester i rendret HTML, `taskToProject` muterer ikke `state.tasks.length`, prioritet/kategori bevares, prosjekt-tag rendres med riktige attributter, ingen kast på orphan/ukjent id, alle 8 visninger fortsatt grønne, tidligere HANDLERS (closeModal, openProjectMilestoneForm, toggleTaskCategory) intakte.
+- **«Til prosjekt» tagger nå, flytter ikke** — `HANDLERS.taskToProject` har endret oppførsel. Tidligere ble taska splicet ut av `state.tasks` og pushet inn i `project.tasks` med ny id og uten prioritet/kategori — så den forsvant fra To Do's-listen og mistet prioritet. Nå settes bare `t.projectId = projectId`; tasken blir stående i sin prioritetsbøtte med sine egne felter intakt. Render-laget viser «· prosjekt-tittel» (kursiv, dempet) etter tittelen. Klikk på tag-en fjerner den (`HANDLERS.untagTaskProject`).
+- Verifisert med 38-tests jsdom-suite.
 
 ## 2026-06-08 — Delmål kan nå redigeres etter opprettelse
 
 - **`openProjectMilestoneForm` modal lagt til** — klikk på et delmåls tittel eller dato på prosjektsiden åpner en modal med Tittel, Dato (valgfritt) og Ferdig-avkrysning, samt Lagre/Avbryt/Slett-knapper. Tre nye HANDLERS: `openProjectMilestoneForm`, `saveProjectMilestoneForm`, `deleteProjectMilestoneAndClose`. Mønstret følger `openProjectTaskForm`.
 - **Bug-klasse:** Delmål-raden hadde tittel som passiv `<span>` uten klikk-handler eller dobbeltklikk-redigering — det fantes ingen vei å endre verken tittel eller dato etter at delmålet var opprettet. Bare avkrysning, dra-for-sortering og sletting fungerte. Rapportert av Maria (skjermbilde fra Porto-bryllup-prosjektet).
-- **Defensiv:** Handlers er beskyttet mot manglende `pid`/`mid` (ingen kast på ukjent id), tom tittel blir avvist (modal forblir åpen, ingen render). Konsistent med round-2 race-condition-rettelsene.
-- Verifisert med 32-tests jsdom-suite: form pre-fyller verdier riktig, lagring oppdaterer tittel + dato + done, tom-tittel-avvisning, defensiv mot manglende id, sletting fungerer, modal lukkes. Alle 8 visninger og tidligere HANDLERS (closeModal, toggleTaskCategory) fortsatt grønne.
+- Verifisert med 32-tests jsdom-suite.
 
 ## 2026-05-27 — Kategori-toggle på To Do-rad + tooltip-fiks
 
 - **Ny `●`-knapp på hver To Do-rad** — vippe mellom Jobb ↔ Privat uten å åpne redigeringsskjemaet. Vises mellom prioritet-knappene og «Utsett»-dropdownen. Fargen følger kategorien: slate-blå for Jobb, støvrosa for Privat. Tooltip viser nåværende verdi og hva klikk gjør. `HANDLERS.toggleTaskCategory` lagt til (defensiv mot manglende id). Standard-kategori for nye To Do-er er fortsatt 'arbeid' (Jobb).
 - **Tooltip-fiks** — `○`-knappen for å fjerne prioritet hadde tooltip «Fjern kategori», som var misvisende (den nullstiller prioritet, ikke kategori). Rettet til «Fjern prioritet».
-- Verifisert med 25-tests jsdom-suite — to nye seksjoner: handler-flipper kategori begge veier + er defensiv mot manglende id; rendering bruker riktig farge per kategori og fikset `○`-tooltip; selve To Do-visningen rendres med den nye knappen i DOM. Alle 8 visninger fortsatt grønne.
+- Verifisert med 25-tests jsdom-suite.
 
 ## 2026-05-27 — Lukk-knappen i Settings (og 10 andre modaler) fungerer igjen
 
-- **`HANDLERS.closeModal` lagt til** — `data-action="closeModal"` brukes 11 steder (Settings-modal, prosjekt-form-cancel, oppgave-form-cancel, hendelse-form-cancel, m.fl.), men `closeModal()` eksisterte bare som modul-lokal funksjon, ikke på HANDLERS. Den sentrale klikk-lytteren slo opp `HANDLERS[action]`, fant ingenting, og returnerte stille. Resultat: ingen av Lukk-knappene fungerte — bruker måtte trykke Esc eller klikke bakgrunnen for å lukke modaler. Rapportert av Maria 2026-05-27 (Settings → Lukk).
-- **Root cause-analyse:** Samme klasse bug som de 39 inline-handler-bugsa fra runde 1 tidligere i dag, men inversen: der var `HANDLERS.X` referert uten prefiks i inline-attributter; her var `data-action="closeModal"` referert til en funksjon som fantes i modul-scope men ikke på HANDLERS. Audit-skriptet som fanget runde 1 sjekket bare inline-attributter — ikke data-action-bindinger mot HANDLERS. Krysset av alle 52 unike data-action-verdier i app.js: bare `closeModal` manglet. Bekrefter at det er en isolert bug.
-- **Smoke-testen utvidet** — to nye assertions: `typeof HANDLERS.closeModal === 'function'`, og en faktisk klikk-test som åpner Settings, finner Lukk-knappen, klikker, og verifiserer at modalen lukkes. Tidligere smoke-test sjekket bare at Settings-modalen åpner — ikke at den lukker via knappen. 19/19 tester grønne.
+- **`HANDLERS.closeModal` lagt til** — `data-action="closeModal"` brukes 11 steder, men `closeModal()` eksisterte bare som modul-lokal funksjon, ikke på HANDLERS. Den sentrale klikk-lytteren slo opp `HANDLERS[action]`, fant ingenting, og returnerte stille. Rapportert av Maria.
+- **Root cause:** Samme klasse bug som de 39 inline-handler-bugsa tidligere på dagen, men inversen. Krysset av alle 52 unike data-action-verdier — bare `closeModal` manglet.
+- Verifisert med 19-tests jsdom-suite.
 
 ## 2026-05-27 — Flerdagsbar + state.settings-opprydding
 
-- **Flerdagshendelser tegnes som sammenhengende bar i månedsvisning** — multi-day events vises nå som én visuelt sammenhengende bar over alle dagene de spenner (innenfor samme ukerad). Tidligere fikk hver dag en separat boks med «↳» / «→»-piler. Endringene: negative horisontalmarginer i `.ev.multi`-CSS bløder boksene over cellegrensene, første-dag beholder tittel og avrundet venstrekant, mellomdager og siste dag dropper venstrekant og tittel (`&nbsp;`-plassholder), siste dag avrunder høyrekanten. `eventsOnDay` sorterer flerdags-hendelser først per celle slik at baren ligger på samme vertikale slot fra dag til dag.
-- **`state.settings` ryddet bort permanent** — migreringen 2026-05-26 etterlot vestigial `settings`-felt i lagrede blobs dersom `ui`/`sync` allerede fantes. Nå stripper `loadState` **alltid** `merged.settings` etter merge, uavhengig av om ui/sync også finnes. Legacy-fold (settings → ui/sync) skjer fortsatt kun når ui/sync mangler. Hindrer at stale `settings.icsUrl` o.l. blir liggende i evig tid.
-- **Røyktesten oppdatert** — `test.html` brukte fortsatt `state.settings.view`-referanser (4 steder). Ryddet til `state.ui.view`. Ny assertion sjekker at `state.settings === undefined` etter loadState.
-- **Helligdager til og med 2040 verifisert** — `generateNorwegianHolidays(year)` er allerede dynamisk via Easter-computus. Test-kjøring bekrefter 17. mai 2027 håndterer overlappet med 2. pinsedag, og at 2028, 2029, 2030 alle returnerer 15 helligdager med riktige datoer.
-- Verifisert med 34-tests jsdom-røyktest (boot + helligdager + flerdagsrendering + 8 visninger + migrasjons-edge-cases). Alle grønne.
+- **Flerdagshendelser tegnes som sammenhengende bar i månedsvisning** — multi-day events vises nå som én visuelt sammenhengende bar over alle dagene de spenner (innenfor samme ukerad). Negative horisontalmarginer i `.ev.multi`-CSS bløder boksene over cellegrensene. `eventsOnDay` sorterer flerdags-hendelser først per celle.
+- **`state.settings` ryddet bort permanent** — `loadState` stripper nå **alltid** `merged.settings` etter merge.
+- **Røyktesten oppdatert** — `test.html` brukte fortsatt `state.settings.view`-referanser (4 steder). Ryddet til `state.ui.view`.
+- **Helligdager til og med 2040 verifisert** — `generateNorwegianHolidays(year)` er allerede dynamisk via Easter-computus.
+- Verifisert med 34-tests jsdom-røyktest.
 
 ## 2026-05-27 — Kvalitetskontroll runde 2: 4 bugs til
 
-- **Sync-credentials bevart riktig etter pull/restore** — `pullFromRemote` og `restoreCloudBackup` skrev fortsatt til den gamle `state.settings`-noden (regresjon fra splittingen 2026-05-26). Nå skriver de til `state.sync` slik at lokale syncUrl/syncToken/icsUrl faktisk preserves.
-- **5 race-condition-kasts fjernet** — `addProjectMilestone`, `quickAddMilestone`, `addProjectPerson`, `addProjectLink`, `saveProjectForm`, `saveTaskForm`, `saveEventForm`, `saveProjectTaskForm`, `openProjectTaskForm` kastet alle `Cannot read properties of undefined` hvis entiteten ble slettet mellom skjema-åpning og lagring. Lagt til defensive `if (!p) return;` på alle 9 stedene.
-- **`renderMarkdown` slettet** (38 linjer) — død funksjon, aldri kalt. Foreldet etter overgang til rich-text-noteList.
-- **Notat-innhold sanitiseres ved rendering** — ny `sanitizeNoteHTML` stripper inline event-handlers (`onerror=`, `onclick=` osv.), `<script>`/`<iframe>`/`<object>`/`<embed>`, og `javascript:`/`data:`-URLs fra notatinnhold før det skrives til innerHTML. Beskytter mot uventet HTML lagret via copy-paste fra eksterne sider.
-- Verifisert med 79-tests jsdom-suite (58 standard + 11 race-condition + 10 sanitizer).
+- **Sync-credentials bevart riktig etter pull/restore** — `pullFromRemote` og `restoreCloudBackup` skrev fortsatt til den gamle `state.settings`-noden.
+- **5 race-condition-kasts fjernet** — defensive `if (!p) return;` på 9 steder.
+- **`renderMarkdown` slettet** (38 linjer død funksjon).
+- **Notat-innhold sanitiseres ved rendering** — ny `sanitizeNoteHTML`.
+- Verifisert med 79-tests jsdom-suite.
 
 ## 2026-05-27 — Kvalitetskontroll: 39 inline-handler-bugs + 3 oppryddinger
 
-- **39 ubeskyttede inline-kall fikset** — etter event-delegation-refaktoren (2026-05-26) gjensto en bug-klasse: `onchange="..."`, `ondragstart="..."`, `ondragover="..."` osv. kalte HANDLERS-funksjoner uten `HANDLERS.`-prefiks og ville kaste `ReferenceError` første gang de ble utløst. Berørte UI-elementer: kanban-dra-og-slipp (5), to-do-dra-og-slipp (6), dag-visning-dra (4), avkrysningsbokser (7), hurtigfangst-nedtrekk (5), personstatus-velgere (1), tema-bytte (1), dobbeltklikk-rediger (2), klikk-på-listerad (4). Samme mønster som `importData`-bugen. Verifisert med 58-tests jsdom-røyktest.
-- **`importData` migrerer nå riktig** — gamle JSON-backups (pre-2026-05-26 med flatt `state.settings`) kan nå importeres uten brudd. Skriver til `localStorage` og kjører `loadState()` på nytt så alle migrasjoner utløses.
-- **"Personer"-seksjon koblet inn på prosjektsiden** — `renderProjectPeople` + `HANDLERS.addProjectPerson` var orphan-kode (schemaet støttet `p.people`, men ingen UI utløste det). Lagt til `_projectPeopleSectionHTML` i `renderProjectPage` med inline `+ Legg til`-form, slik som Delmål/Lenker.
-- **Død kode slettet** (~100 linjer) — `function habitsActive` (aldri kalt), `HANDLERS.toggleMilestone` (refererte `state.goals` uten render), hele Goal-form-blokken (`openGoalForm` + 2 HANDLERS), hele Habit-form-blokken (`openHabitForm` + 3 HANDLERS). Alt er rester etter Fokus-fjerningen 2026-05-26.
+- **39 ubeskyttede inline-kall fikset** — `onchange`, `ondragstart`, `ondragover` osv. kalte HANDLERS-funksjoner uten `HANDLERS.`-prefiks.
+- **`importData` migrerer nå riktig** — gamle JSON-backups kan nå importeres uten brudd.
+- **"Personer"-seksjon koblet inn på prosjektsiden**.
+- **Død kode slettet** (~100 linjer).
 
 ## 2026-05-26 — Dyp opprydding (10-årshorisont)
 
-- **state.settings splittet** i `state.ui` (visning, filtre, ankre, tema, projectViewMode, openProjectId, notifications) og `state.sync` (icsUrl, lastSync, syncUrl, syncToken, lastWeeklyExport). Migrering i `loadState` håndterer gammel lagret state. Meta-versjon bumpet til 4.
-- **Inline JS-uttrykk eliminert** — alle ~40 `onclick="..."` med inline kode er konvertert til `data-action="..." data-args='[...]'`. Listener-en utvidet med `data-stop="1"` og `data-preventDefault="1"` for hendelses-modifikatorer. 11 nye HANDLERS lagt til (execCmd, openProject, switchView, toggleShowCompleted, m.fl.). Notatredaktørens 12 formatknapper deler nå én generisk `HANDLERS.execCmd(cmd, value)`.
-- **Inline styles → CSS-klasser** — 51 av 144 statiske inline-styles erstattet med 16 nye utility-klasser i `<style>`-blokken (`.text-alert`, `.text-muted-sm`, `.btn-sec`, `.flex-row-gap`, `.section-title`, m.fl.). De gjenværende 95 statiske og 15 dynamiske styles er ekte engangsbruk, ikke verdt å klasse-ifisere.
+- **state.settings splittet** i `state.ui` + `state.sync`. Meta-versjon bumpet til 4.
+- **Inline JS-uttrykk eliminert** — alle ~40 `onclick="..."` er konvertert til `data-action="..." data-args='[...]'`.
+- **Inline styles → CSS-klasser** — 51 av 144 statiske inline-styles erstattet med 16 nye utility-klasser.
 
 ## 2026-05-26 — Oppryddings-økt
 
-- **App.js skilt ut fra index.html** — JavaScript-koden (4500+ linjer) bor nå i en sidecar-fil. Index.html er nede i ~1100 linjer (struktur + CSS). Supersede av ADR 0001.
-- **«Oppdater nå» for Outlook** — ny knapp i innstillinger som tvinger umiddelbar ICS-sync uten å vente på neste auto-runde.
-- **Røyk-testen utvidet** — `test.html` tester nå klikk-nivå atferd (settings åpner, FAB åpner, knapper utløser handlere) i tillegg til at hver visning rendrer.
+- **App.js skilt ut fra index.html** — JavaScript-koden bor nå i en sidecar-fil. Index.html er nede i ~1100 linjer. Supersede av ADR 0001.
+- **«Oppdater nå» for Outlook**.
+- **Røyk-testen utvidet**.
 - **`CHANGELOG.md` opprettet** — denne filen.
-- **Backup-mappen ryddet** — fra ~3,3 MB til 1,4 MB. Beholdt siste pre-edit HTML, siste JSON-eksport, og arkivert worker.js.
-- **`docs/handoff-2026-05-23.md` slettet** — foreldet.
-- **`docs/architecture-review-2026-05-23.md` oppdatert** med statusboks som markerer hva som er gjort siden.
+- **Backup-mappen ryddet** — fra ~3,3 MB til 1,4 MB.
 
 ## 2026-05-26 (tidligere på dagen)
 
-- **`importData`-bugen fikset** (`65bb344`). Reglet hadde gått glipp av én bare-referanse under event-delegation refactoren. Settings frøs på «Henter…».
-- **Automatisk ukentlig JSON-backup til valgt mappe** (`f6acfc0`). Bruker File System Access API til å skrive direkte til en mappe du velger (typisk `OneDrive\Claude\Planner\backups`). Faller tilbake til Nedlastinger på iPhone/uvalgt-mappe.
-- **Personvern: fjernet personlige referanser fra kildekoden** (`719c620`). Hardkodet "Maria"-hilsen + placeholder-URL erstattet med anonyme verdier. Live-URL inneholder ingen ord som identifiserer eieren.
-- **Event delegation refactor** (`1cb1a28`). 76 `window.*`-globale handlere → 1 (`HANDLERS`). 76 inline `onclick="fn(...)"` → `data-action="fn" data-args='[...]'`. Sentralisert click-listener. Se ADR 0012.
-- **Fokus-visningen fjernet** (`cb2f974`). Maria brukte den aldri. ADR 0011 superseder ADR 0008. Lagrede Fokus-data beholdt i state men ikke rendret.
+- **`importData`-bugen fikset** (`65bb344`).
+- **Automatisk ukentlig JSON-backup til valgt mappe** (`f6acfc0`).
+- **Personvern: fjernet personlige referanser fra kildekoden** (`719c620`).
+- **Event delegation refactor** (`1cb1a28`). 76 `window.*`-globale handlere → 1 (`HANDLERS`). Se ADR 0012.
+- **Fokus-visningen fjernet** (`cb2f974`). ADR 0011 superseder ADR 0008.
 
 ## 2026-05-24
 
-- **`strategy` → `fokus` rename** (`58099dd`). Internt navn på Fokus-visningen samsvarer nå med UI-etiketten. Migrering: gammel `view:'strategy'` mappes til `'fokus'`. Også fjernet dødt kode (`WINDOW`-konstant, `_LEGACY_HOLIDAYS`).
-- **GitHub Pages tatt i bruk** (`64cb7a4`). Planleggeren serveres nå på `mariabenedictef.github.io/Planner`. Worker.js arkivert til backups. ADR 0010 superseder ADR 0009.
+- **`strategy` → `fokus` rename** (`58099dd`).
+- **GitHub Pages tatt i bruk** (`64cb7a4`). ADR 0010 superseder ADR 0009.
 
 ## 2026-05-23
 
-- **Arkitekturgjennomgang utført** ([docs/architecture-review-2026-05-23.md](docs/architecture-review-2026-05-23.md)). Identifiserte tier-1-til-tier-4-forbedringer.
-- **Reorder-helpers konsolidert**. 5 nær-identiske funksjoner deler nå `_spliceByTargetId` + `_renumberOrder`-primitiver.
-- **`renderProjectPage` splittet i 8 seksjons-helpers** (header, tasks, milestones, notes, links, backlinks, actions, reorder-wire-up).
+- **Arkitekturgjennomgang utført**. Identifiserte tier-1-til-tier-4-forbedringer.
+- **Reorder-helpers konsolidert**.
+- **`renderProjectPage` splittet i 8 seksjons-helpers**.
 - **CONTEXT.md opprettet** + ADR-er 0001–0009 backfilled.
-- **Matt Pocock-prinsipper tatt i bruk** som arbeidsmåte: grilling, CONTEXT.md, ADR-er, periodisk arkitekturoppfølging.
+- **Matt Pocock-prinsipper tatt i bruk** som arbeidsmåte.
 
 ## Pre-2026-05-23 (tidligere)
 
