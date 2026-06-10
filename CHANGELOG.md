@@ -6,6 +6,12 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-06-09 — Modaler lukker ikke lenger ved utilsiktet drag-out
+
+- **Bug:** Når du markerte tekst i et notat eller skjema-input og slapp musen utenfor modalen (på den mørke bakgrunnen), lukket modalen seg uventet. `click`-eventets target er felles forfedre av mousedown og mouseup — så hvis mousedown var inne i modalen og mouseup på bakgrunnen, ble click-eventet registrert på `modalBg` og lukkemekanismen utløst. Rapportert av Maria (notat-editoren på prosjektsiden).
+- **Fix:** Modal-bakgrunnen sporer nå om mousedown faktisk skjedde på den (`_modalMouseDownOnBg`). Modal lukkes kun hvis BÅDE mousedown og click skjedde på bakgrunnen. Tekstmarkering med utenfor-drop blir derfor ignorert. Esc-tasten og «Lukk»-knappen fungerer som før.
+- Verifisert med 16-tests jsdom-suite: modal forblir åpen ved drag-out (mousedown på content → click på bg), modal lukkes ved ekte bg-klikk (mousedown + click begge på bg), Escape og Lukk-knappen fortsatt funksjonelle, alle 8 visninger grønne.
+
 ## 2026-06-09 — Prosjekt-tag synes nå overalt (ikke bare i To Do's-visningen)
 
 - **Bug:** Forrige commit (`0a3a419`) la prosjekt-tag-rendring kun til `todoRowHTML` (To Do's-visningen). Hjem-visningens Urgent-panel, Hjem-visningens «Forfaller i dag», iPhone-Dag-dashboard, og List-visning brukte andre render-paths som ikke kjente til `t.projectId`. Maria rapporterte at hun ikke så prosjekt-tag på Urgent-panelet på Hjem-siden selv etter hard-reload — det var fordi tag-en aldri ble rendret der.

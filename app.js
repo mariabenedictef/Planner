@@ -874,7 +874,17 @@ function daysUntil(key){
 // ============================================================
 const modalBg = document.getElementById('modal-bg');
 const modalEl = document.getElementById('modal');
-modalBg.addEventListener('click', e=>{ if(e.target===modalBg) closeModal(); });
+// Track whether the mousedown started on the backdrop. A `click` event's target is
+// the common ancestor of mousedown and mouseup — so if the user starts a text
+// selection inside the modal and releases the mouse on the backdrop, the click
+// would target modalBg and close the modal. Maria reported this happening in the
+// note editor. Fix: only close if BOTH mousedown and click are on the backdrop.
+let _modalMouseDownOnBg = false;
+modalBg.addEventListener('mousedown', e=>{ _modalMouseDownOnBg = (e.target === modalBg); });
+modalBg.addEventListener('click', e=>{
+  if (e.target === modalBg && _modalMouseDownOnBg) closeModal();
+  _modalMouseDownOnBg = false;
+});
 function openModal(html){ modalEl.innerHTML = html; modalBg.classList.add('open'); }
 function closeModal(){ modalBg.classList.remove('open'); modalEl.innerHTML=''; }
 // Expose on HANDLERS so the 11 `data-action="closeModal"` buttons in modal footers
