@@ -6,6 +6,14 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-06-09 — Bug-klasse: 5 stille ReferenceError-bugs fikset på én gang
+
+- **Bug Maria rapporterte:** klikk på «+ Nytt notat» gjorde ingenting — notatet ble lagret, men modalen åpnet ikke. Kun etter refresh dukket det opp som en tom rad.
+- **Root cause:** `HANDLERS.addProjectNote` kalte `openNoteEditor(pid, n.id)` uten `HANDLERS.`-prefiks. `openNoteEditor` er kun definert på `HANDLERS`, så bare-kallet kastet `ReferenceError: openNoteEditor is not defined`. Den sentrale klikk-lytterens try/catch slukte feilen — modalen åpnet aldri, men noten ble lagret før kastet.
+- **Audit + 4 til:** En statisk gjennomgang av samme mønster fant 4 andre bare-HANDLERS-kall som ville ha blitt utløst av kantete brukerhandlinger: swipe-høyre på inbox (`inboxToTodo`), swipe-venstre slett (`deleteFreeTask`, `deleteInbox`), drag-og-slipp av oppgave til prioritetsbøtte (`setTaskPriority`, `inboxToTodo`). Alle fikset i samme commit.
+- **Audit-skriptet** lagret som memory (`feedback_planner_handlers_audit.md`) og lagt inn som steg 1.5 i pre-push-sjekklisten. Fanger denne bug-klassen statisk på fremtidige pusher.
+- Verifisert med 24-tests jsdom-suite: faktisk `button.click()` på «+ Nytt notat» åpner modalen og legger til notatet, alle 5 navn har 0 bare-kall igjen, alle 5 HANDLERS fortsatt funksjonelle, alle 8 visninger grønne, ingen console-errors under runden.
+
 ## 2026-06-09 — Modaler lukker ikke lenger ved utilsiktet drag-out
 
 - **Bug:** Når du markerte tekst i et notat eller skjema-input og slapp musen utenfor modalen (på den mørke bakgrunnen), lukket modalen seg uventet. `click`-eventets target er felles forfedre av mousedown og mouseup — så hvis mousedown var inne i modalen og mouseup på bakgrunnen, ble click-eventet registrert på `modalBg` og lukkemekanismen utløst. Rapportert av Maria (notat-editoren på prosjektsiden).

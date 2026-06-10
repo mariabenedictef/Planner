@@ -1575,7 +1575,7 @@ HANDLERS.addProjectNote = (pid)=>{
   const n = { id: 'note-'+uid(), title: 'Nytt notat', content: '' };
   p.noteList.push(n);
   saveState();
-  openNoteEditor(pid, n.id);
+  HANDLERS.openNoteEditor(pid, n.id);
 };
 
 HANDLERS.openNoteEditor = (pid, nid)=>{
@@ -2232,15 +2232,15 @@ function renderTodos(){
           setTimeout(()=>{ t.done = !t.done; render(); }, 380);
         } else if (kind === 'inbox'){
           // Inbox can't be "done"; swipe right promotes to short-term
-          inboxToTodo(id, 'short');
+          HANDLERS.inboxToTodo(id, 'short');
         }
       },
       // Left swipe → delete (with confirm)
       ()=>{
         const label = kind === 'freetask' ? 'oppgaven' : 'innboks-elementet';
         if (!confirm(`Slett ${label}?`)) return;
-        if (kind === 'freetask') deleteFreeTask(id);
-        else if (kind === 'inbox') deleteInbox(id);
+        if (kind === 'freetask') HANDLERS.deleteFreeTask(id);
+        else if (kind === 'inbox') HANDLERS.deleteInbox(id);
       }
     );
   });
@@ -2311,10 +2311,10 @@ HANDLERS.todoDrop = (e, prio)=>{
     if (data.kind === 'task'){
       // Dropping a task on Innboks (prio='') with no priority makes no sense — keep it as is
       if (prio === '__inbox__') return;
-      setTaskPriority(data.id, prio);
+      HANDLERS.setTaskPriority(data.id, prio);
     } else if (data.kind === 'inbox'){
       if (prio === '__inbox__') return;
-      inboxToTodo(data.id, prio);
+      HANDLERS.inboxToTodo(data.id, prio);
     }
   } catch(_){}
 };
