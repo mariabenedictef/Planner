@@ -19,6 +19,8 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0013](0013-split-js-into-sidecar.md) | JavaScript split into `app.js` sidecar | Accepted (partially supersedes 0001) |
 | [0014](0014-multiday-bar-via-css-bleed.md) | Multi-day events as continuous bar via CSS margin-bleed | Accepted |
 | [0015](0015-always-strip-settings.md) | `loadState` always strips `merged.settings`, unconditionally | Accepted |
+| [0016](0016-taskproject-tag-not-move.md) | `taskToProject` tags the task (sets `projectId`) instead of moving it | Accepted |
+| [0017](0017-project-page-merges-tagged-tasks.md) | Project page merges tagged free tasks into the Oppgaver list | Accepted |
 
 ## How to add a new ADR
 
