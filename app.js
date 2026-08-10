@@ -1795,18 +1795,40 @@ HANDLERS.setProjectViewMode = (mode)=>{
 };
 
 function renderProjectTasks(p){
-  if (!(p.tasks||[]).length) return `<div class="empty-state">Ingen oppgaver ennå — legg til den første øverst</div>`;
-  return p.tasks.slice().sort((a,b)=>{
+  // Merge two sources: the project's own subtasks (p.tasks) and free tasks that
+  // have been tagged to this project via the "▸ Prosjekt"-dropdown in To Do's
+  // (state.tasks with t.projectId === p.id). Each origin uses different HANDLERS
+  // for toggle/edit/delete so the underlying data goes to the right store.
+  const subtasks = (p.tasks || []).map(t => ({ ...t, _origin: 'sub' }));
+  const tagged = state.tasks.filter(t => t.projectId === p.id).map(t => ({ ...t, _origin: 'free' }));
+  const all = [...subtasks, ...tagged];
+  if (!all.length) return `<div class="empty-state">Ingen oppgaver ennå — legg til den første øverst</div>`;
+  return all.sort((a,b)=>{
     if (a.done !== b.done) return a.done?1:-1;
     return _dateThenOrderCmp(a, b);
   }).map(t=>{
     const range = (t.endDate && t.endDate>t.due) ? '–'+fmtDateShort(fromKey(t.endDate)) : '';
-    return `<div class="ptask ${t.done?'done':''}" data-task-id="${t.id}" draggable="true">
-      <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
-      <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleProjectTask('${p.id}','${t.id}',event)">
-      <span class="pttitle" data-action="openProjectTaskForm" data-args='["${p.id}","${t.id}"]'>${escapeHTML(t.title)}</span>
+    const isFree = t._origin === 'free';
+    const toggleH = isFree
+      ? `HANDLERS.toggleTask('${t.id}',event)`
+      : `HANDLERS.toggleProjectTask('${p.id}','${t.id}',event)`;
+    const editAction = isFree
+      ? `data-action="openTaskForm" data-args='["${t.id}"]'`
+      : `data-action="openProjectTaskForm" data-args='["${p.id}","${t.id}"]'`;
+    const deleteAction = isFree
+      ? `data-action="deleteFreeTask" data-args='["${t.id}"]'`
+      : `data-action="deleteProjectTask" data-args='["${p.id}","${t.id}"]'`;
+    // Free tasks: not draggable within project view — their order lives in the
+    // priority-bucket flow on the To Do's page. Reordering them here would be
+    // confusing (which order-field wins?). User can drag them in To Do's instead.
+    const draggable = isFree ? 'false' : 'true';
+    const dragTitle = isFree ? 'Fra To Do\'s — endres på To Do\'s-siden' : 'Dra for å sortere';
+    return `<div class="ptask ${t.done?'done':''}" data-task-id="${t.id}" draggable="${draggable}">
+      <span class="drag-handle" title="${dragTitle}"${isFree?' style="opacity:.35"':''}>⋮⋮</span>
+      <input type="checkbox" ${t.done?'checked':''} onchange="${toggleH}">
+      <span class="pttitle" ${editAction}>${escapeHTML(t.title)}</span>
       ${t.due?`<span class="ptdate">${fmtDateShort(fromKey(t.due))}${range}</span>`:''}
-      <button class="ptdel" data-action="deleteProjectTask" data-args='["${p.id}","${t.id}"]'>×</button>
+      <button class="ptdel" ${deleteAction}>×</button>
     </div>`;
   }).join('');
 }

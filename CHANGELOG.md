@@ -6,6 +6,12 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-06-09 — Prosjekt-siden viser nå tagget-frie-tasks under Oppgaver
+
+- **Bug Maria rapporterte:** Når en To Do fikk prosjekt-tag i To Do's-visningen, dukket den ikke opp under «Oppgaver»-seksjonen på prosjektsiden. Kun `p.tasks` (prosjekt-egne subtasks laget med «+ Ny» på prosjektsiden) ble vist. Prosjektet ble halvsynlig — man måtte hoppe tilbake til To Do's for å se hva som var tagget.
+- **Fix:** `renderProjectTasks(p)` merger nå to kilder: `p.tasks` (prosjekt-subtasks) og `state.tasks.filter(t => t.projectId === p.id)` (taggede frie tasks). Hver rad rendres med korrekte HANDLERS basert på origin — subtasks bruker `toggleProjectTask`/`openProjectTaskForm`/`deleteProjectTask` som før, frie tasks bruker `toggleTask`/`openTaskForm`/`deleteFreeTask` slik at avkrysning/redigering/sletting går mot rett datastore. Frie tasks er ikke draggable innenfor prosjekt-visningen (rekkefølgen deres tilhører prioritetsbøttene på To Do's-siden).
+- Verifisert med 29-tests jsdom-suite: prosjekt-side rendrer alle tre rader (1 subtask + 2 taggede), urelatert fri task ikke synlig, riktige handlere per origin, avkrysning muterer riktig datastore (state.tasks vs p.tasks), tom-tilstand vises kun når begge kilder er tomme, tagget task alene fyller ellers-tomt prosjekt. Alle tidligere HANDLERS intakte.
+
 ## 2026-06-09 — Bug-klasse: 5 stille ReferenceError-bugs fikset på én gang
 
 - **Bug Maria rapporterte:** klikk på «+ Nytt notat» gjorde ingenting — notatet ble lagret, men modalen åpnet ikke. Kun etter refresh dukket det opp som en tom rad.
