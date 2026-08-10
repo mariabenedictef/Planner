@@ -45,6 +45,24 @@ HANDLERS.execCmd = (cmd, value) => {
   if (ed) ed.focus();
 };
 
+// Notes editor: colour / highlight selects. Non-click inline attributes (onchange=)
+// must call HANDLERS.X explicitly — see ADR 0012.
+HANDLERS.noteTextColor = (sel) => {
+  if (!sel || !sel.value) return;
+  document.execCommand('foreColor', false, sel.value);
+  sel.value = '';
+  const ed = document.getElementById('note-editor');
+  if (ed) ed.focus();
+};
+
+HANDLERS.noteHighlight = (sel) => {
+  if (!sel || !sel.value) return;
+  document.execCommand('hiliteColor', false, sel.value);
+  sel.value = '';
+  const ed = document.getElementById('note-editor');
+  if (ed) ed.focus();
+};
+
 // Notes editor: prompt for URL, then insert as link
 HANDLERS.insertLink = () => {
   const u = prompt('Lim inn URL');
@@ -1496,7 +1514,8 @@ function _projectMilestonesSectionHTML(p){
 
 function _projectNotesSectionHTML(p){
   const noteCards = (p.noteList||[]).map(n=>{
-    const preview = (n.content||'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
+    const preview = (n.content||'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ')
+      .replace(/\[\[([^\[\]]+)\]\]/g,'$1').replace(/\s+/g,' ').trim();
     const previewSnippet = preview ? escapeHTML(preview.slice(0,120)) + (preview.length>120?'…':'') : 'Tomt notat — klikk for å skrive';
     return `<div class="note-card" data-action="openNoteEditor" data-args='["${p.id}","${n.id}"]'>
       <div class="note-card-title">${escapeHTML(n.title||'Uten tittel')}</div>
@@ -1624,7 +1643,7 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
         <button type="button" data-action="execCmd" data-args='["insertUnorderedList"]' title="Punktliste">•</button>
         <button type="button" data-action="execCmd" data-args='["insertOrderedList"]' title="Nummerert liste">1.</button>
         <span class="tb-sep"></span>
-        <select onchange="if(this.value){document.execCommand('foreColor',false,this.value);this.value='';document.getElementById('note-editor').focus()}" title="Tekstfarge">
+        <select onchange="HANDLERS.noteTextColor(this)" title="Tekstfarge">
           <option value="">Farge</option>
           <option value="#2c3340">Standard</option>
           <option value="#c8503e">Rød</option>
@@ -1633,7 +1652,7 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
           <option value="#6b7d99">Blå</option>
           <option value="#8a93a3">Grå</option>
         </select>
-        <select onchange="if(this.value){document.execCommand('hiliteColor',false,this.value);this.value='';document.getElementById('note-editor').focus()}" title="Markering">
+        <select onchange="HANDLERS.noteHighlight(this)" title="Markering">
           <option value="">Marker</option>
           <option value="#fdf6e3">Gul</option>
           <option value="#fae8e3">Rosa</option>
@@ -1656,12 +1675,33 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
   const editor = document.getElementById('note-editor');
   const titleInput = document.getElementById('note-title-input');
   const toggleBtn = document.getElementById('note-toggle-edit');
-  // Mode toggle helper
+  // Re-find the note on every access — sync may have replaced the state object
+  const noteRef = ()=>{
+    const p2 = state.projects.find(x=>x.id===pid);
+    return (p2 && p2.noteList) ? p2.noteList.find(x=>x.id===nid) : null;
+  };
+  // Persist immediately. Content is only read back while in edit mode, and always
+  // stripped of rendered wikilink markup — lagret innhold beholder rå [[...]] (ADR 0019).
+  const saveNow = ()=>{
+    const n2 = noteRef();
+    if (!n2) return;
+    n2.title = (titleInput.value.trim()) || 'Uten tittel';
+    if (modalInner.dataset.noteMode === 'edit'){
+      n2.content = unrenderWikilinks(editor.innerHTML);
+    }
+    saveState();
+  };
+  // Mode toggle helper. Wikilinks are rendered in view mode only; edit mode always
+  // shows the raw [[...]] source so the user can change it.
   const setMode = (mode)=>{
+    if (modalInner.dataset.noteMode === 'edit' && mode === 'view') saveNow();
     modalInner.dataset.noteMode = mode;
     editor.contentEditable = (mode === 'edit') ? 'true' : 'false';
     titleInput.readOnly = (mode !== 'edit');
     toggleBtn.textContent = (mode === 'edit') ? '✓ Ferdig' : '✎ Rediger';
+    const n2 = noteRef();
+    const raw = sanitizeNoteHTML((n2 && n2.content) || '');
+    editor.innerHTML = (mode === 'view') ? renderWikilinks(raw) : raw;
     if (mode === 'edit'){
       setTimeout(()=>editor.focus(), 30);
     }
@@ -1686,25 +1726,12 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
   let _saveTimer = null;
   const autoSave = ()=>{
     if (_saveTimer) clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(()=>{
-      // Re-find the note in case state was replaced by sync in between
-      const p2 = state.projects.find(x=>x.id===pid);
-      const n2 = p2?.noteList?.find(x=>x.id===nid);
-      if (n2){
-        n2.title = (titleInput.value.trim()) || 'Uten tittel';
-        n2.content = editor.innerHTML;
-        saveState();
-      }
-    }, 400);
+    _saveTimer = setTimeout(saveNow, 400);
   };
   if (editor){
     editor.addEventListener('input', autoSave);
-    editor.addEventListener('blur', ()=>{
-      // Immediate save on blur (no debounce)
-      const p2 = state.projects.find(x=>x.id===pid);
-      const n2 = p2?.noteList?.find(x=>x.id===nid);
-      if (n2){ n2.content = editor.innerHTML; saveState(); }
-    });
+    // Immediate save on blur (no debounce)
+    editor.addEventListener('blur', saveNow);
     editor.addEventListener('paste', e=>{
       const items = e.clipboardData && e.clipboardData.items;
       if (!items) return;
@@ -1726,23 +1753,8 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
   }
   if (titleInput){
     titleInput.addEventListener('input', autoSave);
-    titleInput.addEventListener('blur', ()=>{
-      const p2 = state.projects.find(x=>x.id===pid);
-      const n2 = p2?.noteList?.find(x=>x.id===nid);
-      if (n2){ n2.title = titleInput.value.trim() || 'Uten tittel'; saveState(); }
-    });
+    titleInput.addEventListener('blur', saveNow);
   }
-};
-
-HANDLERS.saveProjectNote = (pid, nid)=>{
-  const p = state.projects.find(x=>x.id===pid);
-  const n = p?.noteList?.find(x=>x.id===nid);
-  if (!p || !n) return;
-  n.title = (document.getElementById('note-title-input').value.trim()) || 'Uten tittel';
-  n.content = document.getElementById('note-editor').innerHTML;
-  saveState();
-  closeModal();
-  render();
 };
 
 HANDLERS.deleteProjectNote = (pid, nid)=>{
@@ -4088,7 +4100,46 @@ HANDLERS.openOutlookEvent = id => {
 function escapeHTML(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function escapeAttr(s){ return escapeHTML(s).replace(/'/g,"&#39;"); }
 
-// Strip inline event handlers + javascript:/data: URLs from rich-text note content.
+// ----- Wikilinks -----
+// [[Prosjekttittel]] i notat-tekst blir en klikkbar lenke ved RENDERING, aldri i lagret
+// innhold. Lagret note.content beholder alltid rå [[...]]-form — se ADR 0019.
+function renderWikilinks(html){
+  if (!html) return '';
+  return String(html).replace(/\[\[([^\[\]<>]{1,120})\]\]/g, (m, raw) => {
+    const target = raw.trim();
+    if (!target) return m;
+    const lower = target.toLowerCase();
+    const projects = (state && state.projects) || [];
+    const exists = projects.some(p => (p.title || '').toLowerCase() === lower)
+                || projects.some(p => (p.title || '').toLowerCase().includes(lower));
+    const cls = exists ? 'wikilink' : 'wikilink wikilink-broken';
+    const tip = exists ? `Gå til «${target}»` : `Fant ikke prosjekt «${target}»`;
+    return `<a class="${cls}" ${act('openWikilink')} data-target="${escapeAttr(target)}" data-stop="1" title="${escapeAttr(tip)}">${escapeHTML(target)}</a>`;
+  });
+}
+
+// Inverse of renderWikilinks — turn rendered anchors back into [[...]] text.
+// Belt-and-braces: applied on every save path so rendered markup can never be persisted.
+function unrenderWikilinks(html){
+  if (!html) return '';
+  return String(html).replace(/<a\b[^>]*\bclass="[^"]*\bwikilink\b[^"]*"[^>]*>([\s\S]*?)<\/a>/gi,
+    (m, inner) => '[[' + inner.replace(/<[^>]+>/g, '').trim() + ']]');
+}
+
+// URL-whitelist for notat-innhold. javascript: blokkeres alltid; data: kun for
+// innlimte raster-bilder (skjermbilder limes inn som data:image/...;base64).
+function _noteUrlIsSafe(url){
+  let u = String(url == null ? '' : url);
+  // Decode numeric HTML entities so java&#115;cript: can't slip through
+  u = u.replace(/&#x([0-9a-f]+);?/gi, (m, h) => String.fromCharCode(parseInt(h, 16)))
+       .replace(/&#(\d+);?/g, (m, d) => String.fromCharCode(parseInt(d, 10)));
+  u = u.replace(/[\s\u0000-\u001f]/g, '');
+  if (/^javascript:/i.test(u) || /^vbscript:/i.test(u)) return false;
+  if (/^data:/i.test(u)) return /^data:image\/(png|jpe?g|gif|webp|bmp|avif);base64,/i.test(u);
+  return true;
+}
+
+// Strip inline event handlers + unsafe URLs from rich-text note content.
 // Notes are stored as HTML (from contenteditable editor) and rendered into innerHTML.
 // Anything pasted in from external sources is sanitized here before re-render.
 function sanitizeNoteHTML(html){
@@ -4102,10 +4153,11 @@ function sanitizeNoteHTML(html){
   out = out.replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '');
   out = out.replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '');
   out = out.replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, '');
-  // Neutralise javascript:/data: URLs in href/src
-  out = out.replace(/(href|src)\s*=\s*"\s*(?:javascript|data):[^"]*"/gi, '$1="#"');
-  out = out.replace(/(href|src)\s*=\s*'\s*(?:javascript|data):[^']*'/gi, "$1='#'");
-  out = out.replace(/(href|src)\s*=\s*(?:javascript|data):[^\s>]+/gi, '$1="#"');
+  // Neutralise unsafe URLs in href/src. Inline raster images (data:image/...;base64)
+  // are kept — pasted screenshots are stored that way. See _noteUrlIsSafe.
+  out = out.replace(/(href|src)\s*=\s*"([^"]*)"/gi, (m, a, u) => _noteUrlIsSafe(u) ? m : a + '="#"');
+  out = out.replace(/(href|src)\s*=\s*'([^']*)'/gi, (m, a, u) => _noteUrlIsSafe(u) ? m : a + "='#'");
+  out = out.replace(/(href|src)\s*=\s*([^\s>"']+)/gi, (m, a, u) => _noteUrlIsSafe(u) ? m : a + '="#"');
   return out;
 }
 
@@ -4529,7 +4581,6 @@ function setupImagePaste(textarea, onChange){
 }
 
 HANDLERS.goToday = goToday;
-HANDLERS.openEventForm = openEventForm;
 HANDLERS.openTaskForm = openTaskForm;
 
 // ============================================================

@@ -6,7 +6,23 @@ Nye innslag legges øverst.
 
 ---
 
-## 2026-08-10 — `renderHome` splittet i seksjons-helpere
+## 2026-08-10 (senere på dagen) — Wikilinks virker begge veier + datatapsfeil på innlimte bilder stengt
+
+Fire funn fra en helsesjekk av notat-kodestien, fikset i samme runde.
+
+- **Wikilinks var halvferdige (ADR 0019).** `.wikilink`-CSS, `HANDLERS.openWikilink`, `HANDLERS.resolveWikilink` og «Referert i»-seksjonen fantes alle — men *ingenting* rendret `[[Prosjekttittel]]` som klikkbar lenke. Bakoverlenker virket (de leser rå tekst), foroverlenker ikke. Skrev du `[[Meox AS]]` i et notat, så du bare rå klammer. Årsak: `renderMarkdown` ble slettet som død kode 2026-05-27, og den var det eneste stedet som lagde anker-markup.
+  - Ny `renderWikilinks(html)` kjører etter `sanitizeNoteHTML` og lager `<a class="wikilink" data-action="openWikilink" data-target="…">`. Ukjent prosjekt får `wikilink-broken` men beholder `data-target`, slik at klikk gir «Fant ikke prosjekt …»-toast i stedet for stille ingenting.
+  - Notat-editoren rendrer lenker i **view**-modus og viser rå `[[...]]` i **edit**-modus, så de kan endres. `setMode` skriver `editor.innerHTML` på nytt ved hvert modusbytte.
+  - Ny `unrenderWikilinks(html)` + ny `saveNow()` som bare leser editoren i edit-modus: to uavhengige barrierer mot at anker-markup havner i lagret innhold. `[[Tittel]]` blir værende kildeformatet, så `findBacklinks` fortsetter å virke og eksportert JSON er app-uavhengig.
+- **Innlimte bilder i notater ble slettet permanent (ADR 0020).** `sanitizeNoteHTML` nøytraliserte *alle* `data:`-URL-er, mens lim-inn-håndtereren lagrer skjermbilder som `data:image/png;base64,…`. Kjeden: lim inn → bildet vises og lagres riktig → åpne notatet igjen → sanitizeren gjør det til `src="#"` → autolagring skriver `src="#"` tilbake → bildet er borte for godt. Har ligget der siden 2026-05-27.
+  - Ny `_noteUrlIsSafe(url)`-whitelist: `data:image/(png|jpe?g|gif|webp|bmp|avif);base64` slippes gjennom, `data:image/svg+xml` blokkeres bevisst (kan bære script), alt annet `data:` blokkeres. Strengere enn før på to punkter: entitet-kodet `java&#115;cript:` blokkeres nå (slapp gjennom den gamle blacklisten), og `vbscript:` også.
+  - **NB:** notater der bildet alt er blitt `src="#"` er ikke reparerbare fra koden — innholdet er overskrevet. Se `backups/` hvis et bestemt notat mangler et bilde.
+- **`index.html` hadde 305 NUL-bytes etter `</html>`** — halen av en OneDrive-skriving 2026-05-27 som ble padda. Harmløst i nettleser, men det er korrupsjons-signaturen vi har advart mot, og den lå i repoet. Filen er trunkert etter `</html>` (73 109 → 72 804 bytes). NUL-byte-sjekk lagt inn i pre-push-sjekklisten.
+- **Død kode + inline JS:** `HANDLERS.saveProjectNote` slettet (erstattet av autolagring i juni, aldri kalt), alias-linja `HANDLERS.openEventForm = openEventForm` slettet (funksjonen består). De to `onchange="if(this.value){document.execCommand(…)}"`-uttrykkene i notat-verktøylinja er nå `HANDLERS.noteTextColor(this)` / `HANDLERS.noteHighlight(this)` per ADR 0012.
+- **Verifisert:** `node -c` grønn, 91 HANDLERS, 0 bare-HANDLERS-kall, 0 `data-action` uten handler, 0 døde handlere, 0 NUL-bytes i begge filer. jsdom-suite **81/81 grønn** — inkludert round-trip `unrender(render(x)) === x`, at lagret innhold aldri inneholder `class="wikilink`, at `blur` i view-modus ikke forurenser lagret innhold, at `data:image/png` bevares mens `data:text/html` og entitet-kodet `javascript:` blokkeres, at innlimt bilde overlever en åpne-lukke-runde, og at alle 8 visninger + ADR-0018-hjelperne er uendret grønne.
+- **Doc-sync i samme change-set:** ADR 0019 (wikilink-render-beslutningen), ADR 0020 (URL-whitelisten), ADR-indeks, CONTEXT.md (wikilink-vokabular + notat-lagringsregelen), `test.html` seksjon 13.
+
+## 2026-08-10 (tidligere) — `renderHome` splittet i seksjons-helpere
 
 - **Refactor (ikke bug):** `renderHome` var 226 linjer og gjorde alt — data-samling, HTML-generering for alle 5 seksjoner, DOM-innsetting, quick-capture-listener, og urgent-drag-reorder-wiring. Vanskelig å endre én seksjon uten å skanne hele funksjonen. Splittet i seks små hjelpere i samme fil, hver med tydelig ansvar:
   - `_homeUrgentHTML(urgent, todayK)` — Urgent-seksjonen
