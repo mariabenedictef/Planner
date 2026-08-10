@@ -17,7 +17,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0011](0011-fokus-layer-removed.md) | Fokus layer removed | Accepted |
 | [0012](0012-event-delegation.md) | Event delegation via HANDLERS map | Accepted |
 | [0013](0013-split-js-into-sidecar.md) | JavaScript split into `app.js` sidecar | Accepted (partially supersedes 0001) |
-| [0014](0014-multiday-bar-via-css-bleed.md) | Multi-day events as continuous bar via CSS margin-bleed | Accepted |
+| [0014](0014-multiday-bar-via-css-bleed.md) | Multi-day events as continuous bar via CSS margin-bleed | Accepted (amended by 0027) |
 | [0015](0015-always-strip-settings.md) | `loadState` always strips `merged.settings`, unconditionally | Accepted |
 | [0016](0016-taskproject-tag-not-move.md) | `taskToProject` tags the task (sets `projectId`) instead of moving it | Accepted |
 | [0017](0017-project-page-merges-tagged-tasks.md) | Project page merges tagged free tasks into the Oppgaver list | Accepted |
@@ -29,6 +29,8 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0023](0023-inputs-commit-on-input-not-blur.md) | Felt lagrer på `input` (strupet); vi stempler ikke suksess vi ikke kan bekrefte | Accepted |
 | [0024](0024-list-view-removed.md) | List-visningen fjernet | Accepted |
 | [0025](0025-rrule-support-boundary.md) | Hva RRULE-ekspansjonen støtter — og hva den bevisst ikke støtter | Accepted |
+| [0026](0026-wikilink-autocomplete.md) | Wikilink-autocomplete skriver kildeformat, ikke markup | Accepted |
+| [0027](0027-multiday-row-segments.md) | Flerdagsbar segmenteres per uke-rad, med etikett på hvert segment | Accepted (amends 0014) |
 
 ## How to add a new ADR
 
