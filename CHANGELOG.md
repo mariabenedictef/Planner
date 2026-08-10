@@ -6,6 +6,18 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-10 — `renderHome` splittet i seksjons-helpere
+
+- **Refactor (ikke bug):** `renderHome` var 226 linjer og gjorde alt — data-samling, HTML-generering for alle 5 seksjoner, DOM-innsetting, quick-capture-listener, og urgent-drag-reorder-wiring. Vanskelig å endre én seksjon uten å skanne hele funksjonen. Splittet i seks små hjelpere i samme fil, hver med tydelig ansvar:
+  - `_homeUrgentHTML(urgent, todayK)` — Urgent-seksjonen
+  - `_homeTodayTasksHTML(todayTasks, todayK)` — «Forfaller i dag»-seksjonen
+  - `_homeWeekHTML(today)` — «Kalender denne uka»-seksjonen (7-kolonne uke-grid)
+  - `_homeActiveProjectsHTML(activeProjects)` — «Aktive prosjekter» (returnerer tom streng når listen er tom)
+  - `_homeQuickCaptureHTML()` — quick-capture-input + Dumpefelt-knapp
+  - `_wireUrgentDragReorder()` — post-render event-wiring for drag-sortering på Urgent-lista
+- `renderHome` selv er nå ~55 linjer: gjør bare data-forberedelse (`activeProjects`/`urgent`/`todayTasks`), setter greeting, komponerer HTML fra hjelperne, og kaller quick-capture-listener + `_wireUrgentDragReorder()` etterpå. Ingen adferdsendring — kun leselighet.
+- Verifisert med `node -c` + jsdom smoke-test at alle 7 nye/eksisterende funksjonene er definert, at `_homeQuickCaptureHTML` returnerer forventet HTML, at `_homeUrgentHTML([])` gir «Ingen urgent» tom-state, og at `_homeActiveProjectsHTML([])` returnerer tom streng slik at seksjonen skjules når det ikke er noe.
+
 ## 2026-06-09 — Prosjekt-siden viser nå tagget-frie-tasks under Oppgaver
 
 - **Bug Maria rapporterte:** Når en To Do fikk prosjekt-tag i To Do's-visningen, dukket den ikke opp under «Oppgaver»-seksjonen på prosjektsiden. Kun `p.tasks` (prosjekt-egne subtasks laget med «+ Ny» på prosjektsiden) ble vist. Prosjektet ble halvsynlig — man måtte hoppe tilbake til To Do's for å se hva som var tagget.

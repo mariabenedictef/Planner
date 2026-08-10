@@ -984,48 +984,18 @@ document.getElementById('fab').onclick = openQuickCapture;
 // ============================================================
 // VIEW: HJEM (Home dashboard — landing view)
 // ============================================================
-function renderHome(){
-  const today = new Date();
-  const todayK = todayKey();
-  const horizon30 = dKey(addDays(today, 30));
-  const greetings = ['God morgen', 'Hei', 'God dag', 'God ettermiddag', 'God kveld'];
-  const h = today.getHours();
-  const greeting = h < 5 ? greetings[1] : h < 11 ? greetings[0] : h < 14 ? greetings[2] : h < 18 ? greetings[3] : greetings[4];
-  const y = today.getFullYear();
-  const mKey = `${y}-${pad(today.getMonth()+1)}`;
+// -----------------------------------------------------------------------------
+// HOME VIEW SECTIONS
+// renderHome delegates to these small helpers. Each returns a fully-rendered
+// HTML string. renderHome() itself is only responsible for gathering data,
+// picking the greeting, assembling the sections, and wiring up interactive
+// bits after the DOM is written (quick-capture Enter, urgent drag-reorder).
+// Splitted 2026-06-09 following the ADR 0013-style section-helpers pattern.
+// -----------------------------------------------------------------------------
 
-  // -------- Active projects: anything (target/task/milestone) within next 30 days --------
-  const activeProjects = state.projects
-    .filter(p=>{
-      if (p.archived || !passesFilter(p)) return false;
-      if (p.targetDate && p.targetDate >= todayK && p.targetDate <= horizon30) return true;
-      if ((p.tasks||[]).some(t => !t.done && t.due && t.due >= todayK && t.due <= horizon30)) return true;
-      if ((p.milestones||[]).some(m => !m.done && m.date && m.date >= todayK && m.date <= horizon30)) return true;
-      return false;
-    })
-    .map(p => ({ p, nd: projectNextDate(p) }))
-    .filter(x => x.nd && x.nd.date >= todayK && x.nd.date <= horizon30)
-    .sort((a,b) => a.nd.date.localeCompare(b.nd.date));
-
-  // -------- Urgent To Do's (sorted by due date asc, then manual order) --------
-  // Dates with values come first ascending. Same date or both undated → by manual order field.
-  const urgent = state.tasks.filter(t=>t.priority==='urgent' && !t.done && passesFilter(t))
-    .sort((a,b)=>{
-      const aDue = a.due || '';
-      const bDue = b.due || '';
-      if (aDue && bDue && aDue !== bDue) return aDue.localeCompare(bDue);
-      if (aDue && !bDue) return -1;
-      if (!aDue && bDue) return 1;
-      return (a.order||0) - (b.order||0);
-    });
-
-  // -------- Today's events + tasks --------
-  const todayEvents = eventsOnDay(todayK);
-  const todayTasks = tasksOnDay(todayK).filter(t=>!t.done);
-  const todayCount = todayEvents.length + todayTasks.length;
-
-// -------- Section 1: URGENT (prominent, with checkboxes) --------
-  const urgentHTML = `
+// Section 1: URGENT (prominent, with checkboxes and drag-to-reorder)
+function _homeUrgentHTML(urgent, todayK){
+  return `
     <div class="home-section">
       <h3 style="color:var(--alert);display:flex;align-items:center;gap:6px">⚠ Urgent ${urgent.length?`(${urgent.length})`:''}</h3>
       ${urgent.length === 0 ? `<div class="home-empty">Ingen urgent-saker — godt jobba</div>` :
@@ -1045,9 +1015,11 @@ function renderHome(){
         </div>`}
     </div>
   `;
+}
 
-  // -------- Section 2: FORFALLER I DAG (tasks due today, with checkboxes) --------
-  const todayTasksHTML = `
+// Section 2: FORFALLER I DAG (tasks due today, mixed free + project tasks + milestones)
+function _homeTodayTasksHTML(todayTasks, todayK){
+  return `
     <div class="home-section">
       <h3>✓ Forfaller i dag ${todayTasks.length?`(${todayTasks.length})`:''}</h3>
       ${todayTasks.length === 0 ? `<div class="home-empty">Ingen oppgaver forfaller i dag</div>` :
@@ -1068,8 +1040,10 @@ function renderHome(){
         </div>`}
     </div>
   `;
+}
 
-  // -------- Section 3: KALENDER — denne uka (7-column week view) --------
+// Section 3: KALENDER — denne uka (7-column week view)
+function _homeWeekHTML(today){
   const wkStart = startOfWeek(today);
   const wkEnd = addDays(wkStart, 6);
   const wn = isoWeek(wkStart);
@@ -1083,7 +1057,7 @@ function renderHome(){
   const wkTitle = wkStart.getMonth() === wkEnd.getMonth()
     ? `${wkStart.getDate()}.–${wkEnd.getDate()}. ${I18N.months[wkEnd.getMonth()]} ${wkEnd.getFullYear()}`
     : `${wkStart.getDate()}. ${I18N.monthsShort[wkStart.getMonth()]} – ${wkEnd.getDate()}. ${I18N.monthsShort[wkEnd.getMonth()]} ${wkEnd.getFullYear()}`;
-  const weekHTML = `
+  return `
     <div class="home-section">
       <h3 style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
         📅 Kalender
@@ -1118,9 +1092,12 @@ function renderHome(){
       </div>
     </div>
   `;
+}
 
-  // -------- Section 3: AKTIVE PROSJEKTER (30 days) --------
-  const projectsHTML = activeProjects.length === 0 ? '' : `
+// Section 4: AKTIVE PROSJEKTER (projects with something happening in next 30 days)
+function _homeActiveProjectsHTML(activeProjects){
+  if (activeProjects.length === 0) return '';
+  return `
     <div class="home-section">
       <h3>🎯 Aktive prosjekter <span style="font-size:12px;color:var(--ink-muted);font-weight:400;font-family:var(--font);font-style:italic">— neste 30 dager (${activeProjects.length})</span></h3>
       <div class="home-countdowns">
@@ -1139,9 +1116,11 @@ function renderHome(){
       </div>
     </div>
   `;
+}
 
-  // -------- Quick capture --------
-  const quickHTML = `
+// Section 5: Quick-capture input (Enter to add to inbox, or Dumpefelt for multi-line)
+function _homeQuickCaptureHTML(){
+  return `
     <div class="home-quick">
       <input id="home-quick-input" type="text" placeholder="Hva tenker du på? Trykk Enter for å legge i innboks…">
       <div class="home-quick-hint flex-row-gap">
@@ -1151,16 +1130,92 @@ function renderHome(){
       </div>
     </div>
   `;
+}
 
-  // -------- Assemble --------
+// Post-render: drag-to-reorder for urgent tasks. Date deadlines still win in
+// the sort; ties use the manual `order` field. Called after viewEl.innerHTML
+// is set so the urgent-list element exists.
+function _wireUrgentDragReorder(){
+  const urgentList = document.getElementById('urgent-list');
+  if (!urgentList) return;
+  let draggedId = null;
+  urgentList.querySelectorAll('.urgent-item').forEach(row=>{
+    row.addEventListener('dragstart', e=>{
+      draggedId = row.dataset.taskId;
+      e.dataTransfer.effectAllowed = 'move';
+      row.classList.add('dragging');
+    });
+    row.addEventListener('dragend', ()=>{
+      row.classList.remove('dragging');
+      urgentList.querySelectorAll('.urgent-item').forEach(r=>r.classList.remove('drop-before','drop-after'));
+    });
+    row.addEventListener('dragover', e=>{
+      if (!draggedId || draggedId === row.dataset.taskId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = row.getBoundingClientRect();
+      const before = e.clientY < rect.top + rect.height/2;
+      row.classList.toggle('drop-before', before);
+      row.classList.toggle('drop-after', !before);
+    });
+    row.addEventListener('dragleave', ()=>{
+      row.classList.remove('drop-before','drop-after');
+    });
+    row.addEventListener('drop', e=>{
+      e.preventDefault();
+      const targetId = row.dataset.taskId;
+      if (!draggedId || draggedId === targetId) return;
+      const rect = row.getBoundingClientRect();
+      const before = e.clientY < rect.top + rect.height/2;
+      reorderUrgent(draggedId, targetId, before);
+    });
+  });
+}
+
+function renderHome(){
+  const today = new Date();
+  const todayK = todayKey();
+  const horizon30 = dKey(addDays(today, 30));
+  const greetings = ['God morgen', 'Hei', 'God dag', 'God ettermiddag', 'God kveld'];
+  const h = today.getHours();
+  const greeting = h < 5 ? greetings[1] : h < 11 ? greetings[0] : h < 14 ? greetings[2] : h < 18 ? greetings[3] : greetings[4];
+  const y = today.getFullYear();
+
+  // Active projects: anything (target/task/milestone) within next 30 days
+  const activeProjects = state.projects
+    .filter(p=>{
+      if (p.archived || !passesFilter(p)) return false;
+      if (p.targetDate && p.targetDate >= todayK && p.targetDate <= horizon30) return true;
+      if ((p.tasks||[]).some(t => !t.done && t.due && t.due >= todayK && t.due <= horizon30)) return true;
+      if ((p.milestones||[]).some(m => !m.done && m.date && m.date >= todayK && m.date <= horizon30)) return true;
+      return false;
+    })
+    .map(p => ({ p, nd: projectNextDate(p) }))
+    .filter(x => x.nd && x.nd.date >= todayK && x.nd.date <= horizon30)
+    .sort((a,b) => a.nd.date.localeCompare(b.nd.date));
+
+  // Urgent To Do's — dates ascending, then manual order for ties
+  const urgent = state.tasks.filter(t=>t.priority==='urgent' && !t.done && passesFilter(t))
+    .sort((a,b)=>{
+      const aDue = a.due || '';
+      const bDue = b.due || '';
+      if (aDue && bDue && aDue !== bDue) return aDue.localeCompare(bDue);
+      if (aDue && !bDue) return -1;
+      if (!aDue && bDue) return 1;
+      return (a.order||0) - (b.order||0);
+    });
+
+  // Today's tasks (both project subtasks and free-floating, deduped via tasksOnDay)
+  const todayTasks = tasksOnDay(todayK).filter(t=>!t.done);
+
   viewEl.innerHTML = `
     <div class="home-greeting">${greeting}</div>
     <div class="home-date">${I18N.weekdaysLong[monIdx(today)]} ${today.getDate()}. ${I18N.months[today.getMonth()]} ${y}${HOLIDAYS[todayK] ? ' · ' + HOLIDAYS[todayK] : ''}</div>
-    ${quickHTML}
-    ${urgentHTML}
-    ${todayTasksHTML}
-    ${projectsHTML}
-    ${weekHTML}
+    ${_homeQuickCaptureHTML()}
+    ${_homeUrgentHTML(urgent, todayK)}
+    ${_homeTodayTasksHTML(todayTasks, todayK)}
+    ${_homeActiveProjectsHTML(activeProjects)}
+    ${_homeWeekHTML(today)}
   `;
 
   const qi = document.getElementById('home-quick-input');
@@ -1173,42 +1228,7 @@ function renderHome(){
     }
   });
 
-  // Drag-to-reorder urgent tasks (date deadlines still win in sort, but ties use manual order)
-  const urgentList = document.getElementById('urgent-list');
-  if (urgentList){
-    let draggedId = null;
-    urgentList.querySelectorAll('.urgent-item').forEach(row=>{
-      row.addEventListener('dragstart', e=>{
-        draggedId = row.dataset.taskId;
-        e.dataTransfer.effectAllowed = 'move';
-        row.classList.add('dragging');
-      });
-      row.addEventListener('dragend', ()=>{
-        row.classList.remove('dragging');
-        urgentList.querySelectorAll('.urgent-item').forEach(r=>r.classList.remove('drop-before','drop-after'));
-      });
-      row.addEventListener('dragover', e=>{
-        if (!draggedId || draggedId === row.dataset.taskId) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        const rect = row.getBoundingClientRect();
-        const before = e.clientY < rect.top + rect.height/2;
-        row.classList.toggle('drop-before', before);
-        row.classList.toggle('drop-after', !before);
-      });
-      row.addEventListener('dragleave', ()=>{
-        row.classList.remove('drop-before','drop-after');
-      });
-      row.addEventListener('drop', e=>{
-        e.preventDefault();
-        const targetId = row.dataset.taskId;
-        if (!draggedId || draggedId === targetId) return;
-        const rect = row.getBoundingClientRect();
-        const before = e.clientY < rect.top + rect.height/2;
-        reorderUrgent(draggedId, targetId, before);
-      });
-    });
-  }
+  _wireUrgentDragReorder();
 }
 
 // Sort comparators reused across reorder operations (date wins, manual order is tiebreaker)
