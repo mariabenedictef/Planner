@@ -334,14 +334,37 @@ function startOfWeek(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.g
 function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 function addMonths(d,n){ return new Date(d.getFullYear(), d.getMonth()+n, 1); }
 function monthDays(y,m){ return new Date(y,m+1,0).getDate(); }
+// Add n months, PRESERVING the day of month (clamped to the target month's last day,
+// so 31 Jan + 1 month = 28/29 Feb). Distinct from addMonths(), which snaps to the 1st
+// on purpose for calendar navigation — using that one for RRULE expansion collapsed
+// every monthly recurrence onto the 1st. See ADR 0025.
+function addMonthsKeepDay(d, n){
+  const day = d.getDate();
+  const t = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  t.setDate(Math.min(day, monthDays(t.getFullYear(), t.getMonth())));
+  return t;
+}
+// BYDAY weekday codes → JS getDay() numbers
+const _BYDAY_NUM = { SU:0, MO:1, TU:2, WE:3, TH:4, FR:5, SA:6 };
+// All dates in month (y,m) falling on weekday dow. ord > 0 picks the nth, ord < 0 the
+// nth from the end, ord === 0 returns every one (BYDAY without an ordinal).
+function _weekdaysOfMonth(y, m, dow, ord){
+  const all = [];
+  const n = monthDays(y, m);
+  for (let day = 1; day <= n; day++){
+    const d = new Date(y, m, day);
+    if (d.getDay() === dow) all.push(d);
+  }
+  if (!ord) return all;
+  const idx = ord > 0 ? ord - 1 : all.length + ord;
+  return all[idx] ? [all[idx]] : [];
+}
 function isoWeek(d){
   const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
   const dn=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-dn);
   const ys=new Date(Date.UTC(t.getUTCFullYear(),0,1));
   return Math.ceil((((t-ys)/86400000)+1)/7);
 }
-function quarterOf(month){ return Math.floor(month/3)+1; }
-function quarterKey(d){ return `${d.getFullYear()}-Q${quarterOf(d.getMonth())}`; }
 function fmtDate(d){ return `${d.getDate()}. ${I18N.months[d.getMonth()]} ${d.getFullYear()}`; }
 function fmtDateShort(d){ return `${d.getDate()}. ${I18N.monthsShort[d.getMonth()]}`; }
 function fmtMonth(y,m){ return `${I18N.months[m].charAt(0).toUpperCase()+I18N.months[m].slice(1)} ${y}`; }
@@ -370,6 +393,7 @@ function evDurationStyle(e, slotH){
 // STATE MANAGEMENT
 // ============================================================
 const STORAGE_KEY = 'planlegger.v1';
+const STATE_VERSION = 4;
 const DEFAULT_STATE = {
   themes: {},      // legacy yearly themes — migrated to yearFocus
   yearFocus: {},   // { "2026": "string" }  optional
@@ -415,6 +439,19 @@ function loadState(){
     const raw = localStorage.getItem(STORAGE_KEY);
     if(!raw) return structuredClone(DEFAULT_STATE);
     const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)){
+      throw new Error('Stored state is not an object');
+    }
+    // Normalise bucket types BEFORE anything iterates them. A single wrong-typed
+    // bucket (tasks:{} or projects:null) used to throw, and the catch below then
+    // returned an empty DEFAULT_STATE which render()'s saveState() wrote straight
+    // over the original blob — losing everything. See ADR 0022.
+    ['events','tasks','projects','outlookEvents','inbox','goals','habits'].forEach(k=>{
+      if (!Array.isArray(parsed[k])) delete parsed[k];
+    });
+    ['ui','sync','themes','quarterly','yearFocus','quarterFocus','monthFocus','reviews','notes','meta'].forEach(k=>{
+      if (parsed[k] === null || typeof parsed[k] !== 'object' || Array.isArray(parsed[k])) delete parsed[k];
+    });
     const merged = Object.assign(structuredClone(DEFAULT_STATE), parsed, {
       ui: Object.assign({}, DEFAULT_STATE.ui, parsed.ui || {}),
       sync: Object.assign({}, DEFAULT_STATE.sync, parsed.sync || {}),
@@ -431,7 +468,7 @@ function loadState(){
       if (!parsed.ui || !parsed.sync) {
         const s = parsed.settings;
         const legacyFilter = (s.filter === 'personlig') ? 'privat' : s.filter;
-        const legacyView = (s.view === 'strategy' || s.view === 'fokus') ? 'home' : s.view;
+        const legacyView = (s.view === 'strategy' || s.view === 'fokus' || s.view === 'list') ? 'home' : s.view;
         merged.ui = Object.assign({}, DEFAULT_STATE.ui, {
           view: legacyView, filter: legacyFilter, anchor: s.anchor, overviewAnchor: s.overviewAnchor,
           theme: s.theme, projectViewMode: s.projectViewMode, showCompletedTodos: s.showCompletedTodos,
@@ -495,9 +532,51 @@ function loadState(){
         }
       }
     });
+    // Stamp the schema version so a future version-gated migration has something to
+    // gate on. It was never written back before, so every load reported the stored
+    // value (or undefined) forever. See ADR 0022.
+    // The List view was removed 2026-08-10 (ADR 0024) — send anyone parked there home.
+    if (merged.ui && merged.ui.view === 'list') merged.ui.view = 'home';
+    if (!merged.meta) merged.meta = {};
+    merged.meta.version = STATE_VERSION;
     return merged;
-  }catch(e){ console.warn('State load failed', e); return structuredClone(DEFAULT_STATE); }
+  }catch(e){
+    console.error('State load failed', e);
+    // Do NOT let the caller silently continue with an empty state — render() ends in
+    // saveState(), which would overwrite the unreadable-but-possibly-salvageable blob.
+    // Keep the original bytes under a recovery key and tell the user. See ADR 0022.
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) localStorage.setItem('planlegger.unreadable.' + Date.now(), raw);
+    } catch(_){}
+    const fresh = structuredClone(DEFAULT_STATE);
+    fresh.meta.loadFailed = (e && e.message) || String(e);
+    return fresh;
+  }
 }
+// ============================================================
+// GLOBAL ERROR SURFACE
+// ============================================================
+// The delegated click dispatcher catches handler throws, but anything thrown from a
+// setTimeout, a promise, or module top-level used to vanish into the console — which is
+// how a full localStorage quota could lose a whole session while the UI looked fine.
+// Surface it once per session so a silent failure is at least visible. See ADR 0022.
+let _globalErrorShown = false;
+function _reportGlobalError(what, err){
+  console.error('Unhandled ' + what, err);
+  if (_globalErrorShown) return;
+  _globalErrorShown = true;
+  const msg = String((err && (err.message || err.name)) || err || '');
+  const isQuota = /quota|exceeded|storage/i.test(msg);
+  if (typeof showToast === 'function'){
+    showToast(isQuota
+      ? '⚠ Lagringsplassen er full — eksportér til JSON nå og slett store bilder fra notater.'
+      : '⚠ Noe gikk galt internt: ' + msg.slice(0, 120) + ' — sjekk at siste endring ble lagret.', 15000);
+  }
+}
+window.addEventListener('error', e => _reportGlobalError('error', e.error || e.message));
+window.addEventListener('unhandledrejection', e => _reportGlobalError('rejection', e.reason));
+
 // Track last-saved body (state without lastModified) so we only bump timestamp on real changes
 let _lastSavedBody = null;
 function _computeStateBody(){
@@ -520,7 +599,50 @@ function saveState(){
     _lastSavedBody = body;
     scheduleRemoteSync();
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // localStorage can throw QuotaExceededError — notes may contain base64 images, and
+  // the backup rings are pruned by count, not bytes. This used to be unguarded, so a
+  // full quota lost every edit in the session while the UI looked saved. See ADR 0022.
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    _saveFailed = false;
+  } catch (err) {
+    console.error('saveState failed', err);
+    if (!_saveFailed){
+      _saveFailed = true;
+      // Free what we safely can, then retry once before bothering the user.
+      const freed = _pruneStorage();
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        _saveFailed = false;
+        console.warn('saveState recovered after pruning ' + freed + ' old backup key(s)');
+      } catch (err2) {
+        if (typeof showToast === 'function'){
+          showToast('⚠ Kunne ikke lagre — lagringsplassen er full. Eksportér til JSON nå, og slett store bilder fra notater.', 15000);
+        }
+      }
+    }
+  }
+}
+let _saveFailed = false;
+// Drop the oldest recovery/pre-sync/backup keys to make room. Never touches the live
+// state key, and keeps the two most recent daily backups.
+function _pruneStorage(){
+  const droppable = [];
+  for (let i = 0; i < localStorage.length; i++){
+    const k = localStorage.key(i);
+    if (!k || k === STORAGE_KEY) continue;
+    if (/^planlegger\.(preSync|unreadable)\./.test(k)) droppable.push({k, keep:0});
+    else if (/^planlegger\.backup\./.test(k)) droppable.push({k, keep:1});
+  }
+  droppable.sort((a,b)=> a.keep - b.keep || a.k.localeCompare(b.k));
+  const backups = droppable.filter(d=>d.keep===1);
+  const protectedKeys = new Set(backups.slice(-2).map(d=>d.k));
+  let n = 0;
+  for (const d of droppable){
+    if (protectedKeys.has(d.k)) continue;
+    try { localStorage.removeItem(d.k); n++; } catch(_){}
+  }
+  return n;
 }
 
 // ============================================================
@@ -528,6 +650,12 @@ function saveState(){
 // ============================================================
 let _syncDebounceTimer = null;
 let _syncStatus = { state:'idle', lastSyncAt:0, error:null };
+// Last PUSH failure, tracked separately: push and pull shared one status, so a
+// successful poll erased a failed push within 60 s and the indicator went green
+// while the cloud never received the change. See ADR 0023.
+let _lastPushError = null;
+// Last Outlook sync failure (auto-sync used to discard errors entirely).
+let _outlookStatus = { failedAt: 0, error: null };
 const SYNC_DEBOUNCE_MS = 2500;
 
 function scheduleRemoteSync(){
@@ -535,7 +663,10 @@ function scheduleRemoteSync(){
   if (!state.sync.syncUrl || !state.sync.syncToken) return;
   // Guard: don't auto-push if local is empty (prevents wiping cloud data on a fresh device).
   // Manual "Send til sky" button bypasses this.
-  const hasContent = ((state.projects||[]).length + (state.tasks||[]).length + (state.events||[]).length + (state.outlookEvents||[]).length) > 0;
+  // Outlook events are NOT content for this purpose: a fresh device that has only
+  // pulled the ICS feed would otherwise pass the guard and push its empty projects,
+  // tasks and events over good cloud data. Mirrors the pull-side guard.
+  const hasContent = ((state.projects||[]).length + (state.tasks||[]).length + (state.events||[]).length) > 0;
   if (!hasContent) return;
   _syncDebounceTimer = setTimeout(pushToRemote, SYNC_DEBOUNCE_MS);
 }
@@ -555,9 +686,11 @@ async function pushToRemote(){
     _syncStatus.state = 'synced';
     _syncStatus.lastSyncAt = Date.now();
     _syncStatus.error = null;
+    _lastPushError = null;
   } catch (e) {
     _syncStatus.state = 'error';
     _syncStatus.error = e.message;
+    _lastPushError = { at: Date.now(), error: e.message };
   }
   updateSyncIndicator();
 }
@@ -569,10 +702,14 @@ async function loadCloudBackups(){
     const base = state.sync.syncUrl.replace(/\/+$/, '');
     const url = base + '/backups?token=' + encodeURIComponent(state.sync.syncToken);
     const res = await fetch(url);
-    if (!res.ok) return [];
+    // Distinguish "no backups" from "couldn't ask". Returning [] for both told the
+    // user to update their worker when the real problem was an expired token.
+    if (!res.ok) return { error: res.status === 401 || res.status === 403
+      ? 'Ikke autorisert (' + res.status + ') — sjekk synk-tokenet.'
+      : 'HTTP ' + res.status };
     const data = await res.json();
     return Array.isArray(data.backups) ? data.backups : [];
-  } catch(e){ return []; }
+  } catch(e){ return { error: e.message || 'Nettverksfeil' }; }
 }
 
 HANDLERS.restoreCloudBackup = async (key)=>{
@@ -660,9 +797,16 @@ async function pullFromRemote(silent, force){
       _lastSavedBody = _computeStateBody();
       pulled = true;
     }
-    _syncStatus.state = 'synced';
+    // A successful pull must not paint over an unresolved push failure — the change
+    // that failed to upload is still only on this device. See ADR 0023.
+    if (_lastPushError){
+      _syncStatus.state = 'error';
+      _syncStatus.error = 'Siste opplasting feilet: ' + _lastPushError.error;
+    } else {
+      _syncStatus.state = 'synced';
+      _syncStatus.error = null;
+    }
     _syncStatus.lastSyncAt = Date.now();
-    _syncStatus.error = null;
     updateSyncIndicator();
     if (pulled) render();
     return { ok:true, pulled, remoteMod, localMod };
@@ -834,8 +978,6 @@ function tasksOnDay(key){
   });
   return [...free, ...proj];
 }
-function tasksUndated(){ return state.tasks.filter(t=>!t.due && !t.done && passesFilter(t)); }
-function holidayFor(key){ return HOLIDAYS[key]; }
 function projectsActive(){ return state.projects.filter(p=>!p.archived && passesFilter(p)); }
 function projectsArchived(){ return state.projects.filter(p=>p.archived && passesFilter(p)); }
 // Project's next upcoming date — earliest of: targetDate, undone task dues, undone milestone dates that are today or later.
@@ -867,19 +1009,6 @@ function projectProgress(p){
   const done = items.filter(i=>i.done).length;
   return Math.round(done/items.length*100);
 }
-function projectsOverlapping(year, month){
-  // Returns projects whose [startDate, targetEndDate||targetDate] range overlaps the given month
-  const monStart = new Date(year, month, 1);
-  const monEnd = new Date(year, month+1, 0);
-  return projectsActive().filter(p=>{
-    if (!p.targetDate && !p.startDate) return false;
-    const endKey = p.targetEndDate || p.targetDate || p.startDate;
-    const s = p.startDate ? fromKey(p.startDate) : (p.targetDate?fromKey(p.targetDate):null);
-    const e = endKey ? fromKey(endKey) : s;
-    if (!s || !e) return false;
-    return e >= monStart && s <= monEnd;
-  });
-}
 function daysUntil(key){
   if (!key) return null;
   const now = new Date(); now.setHours(0,0,0,0);
@@ -904,7 +1033,15 @@ modalBg.addEventListener('click', e=>{
   _modalMouseDownOnBg = false;
 });
 function openModal(html){ modalEl.innerHTML = html; modalBg.classList.add('open'); }
-function closeModal(){ modalBg.classList.remove('open'); modalEl.innerHTML=''; }
+// Optional one-shot callback a modal can register to run when it closes (e.g. the
+// note editor re-rendering the page behind it so its card reflects the new title).
+let _onModalClose = null;
+function closeModal(){
+  if (_onModalClose){
+    const cb = _onModalClose;
+    _onModalClose = null;
+    try { cb(); } catch(e){ console.error('modal close callback threw', e); }
+  } modalBg.classList.remove('open'); modalEl.innerHTML=''; }
 // Expose on HANDLERS so the 11 `data-action="closeModal"` buttons in modal footers
 // actually fire — without this they were silently no-ops, leaving Esc and backdrop-click
 // as the only ways to dismiss a modal. Reported by Maria 2026-05-27 (Settings → Lukk).
@@ -941,7 +1078,6 @@ function render(){
   else if (v==='month') renderMonth();
   else if (v==='week') renderWeek();
   else if (v==='day') renderDay();
-  else if (v==='list') renderList();
   else renderHome(); // fallback
   saveState();
 }
@@ -1614,6 +1750,10 @@ HANDLERS.addProjectNote = (pid)=>{
   const n = { id: 'note-'+uid(), title: 'Nytt notat', content: '' };
   p.noteList.push(n);
   saveState();
+  // Render the page behind the modal too. Without this the new note card doesn't
+  // appear when the editor closes, so it looks like nothing happened and you end up
+  // creating several empty notes that all show up later at once.
+  render();
   HANDLERS.openNoteEditor(pid, n.id);
 };
 
@@ -1708,7 +1848,11 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
   };
   setMode(startMode);
   // Click on editor when in view mode → switch to edit
-  editor.addEventListener('click', ()=>{
+  editor.addEventListener('click', (ev)=>{
+    // A click on a wikilink must not also flip the note into edit mode. This listener
+    // fires during bubbling BEFORE the document-level dispatcher, so data-stop="1"
+    // comes too late — check the target here instead. See ADR 0021.
+    if (ev.target && ev.target.closest && ev.target.closest('a.wikilink')) return;
     if (modalInner.dataset.noteMode === 'view') setMode('edit');
   });
   // Click on title when in view mode → switch to edit and focus title
@@ -1724,9 +1868,11 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
   });
   // Auto-save on every change — content preserved even if modal closes for any reason
   let _saveTimer = null;
+  // Throttle rather than debounce — see the day-notes comment in renderDay(). A
+  // restarting debounce means continuous typing never reaches state.
   const autoSave = ()=>{
-    if (_saveTimer) clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(saveNow, 400);
+    if (_saveTimer) return;
+    _saveTimer = setTimeout(()=>{ _saveTimer = null; saveNow(); }, 400);
   };
   if (editor){
     editor.addEventListener('input', autoSave);
@@ -1755,6 +1901,9 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
     titleInput.addEventListener('input', autoSave);
     titleInput.addEventListener('blur', saveNow);
   }
+  // Re-render the page behind when the editor closes, so the note card reflects a
+  // changed title or preview without waiting for some other action to trigger render().
+  _onModalClose = ()=>{ saveNow(); render(); };
 };
 
 HANDLERS.deleteProjectNote = (pid, nid)=>{
@@ -1927,9 +2076,19 @@ HANDLERS.toggleProjectTask = (pid,tid,ev)=>{
     render();
   }
 };
-HANDLERS.deleteProjectTask = (pid,tid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.tasks=p.tasks.filter(t=>t.id!==tid); render();} };
+HANDLERS.deleteProjectTask = (pid,tid)=>{
+  const p=state.projects.find(x=>x.id===pid); if(!p) return;
+  const t=(p.tasks||[]).find(x=>x.id===tid);
+  if (!confirm(`Slett oppgaven «${t? t.title : ''}»?`)) return;
+  p.tasks=p.tasks.filter(x=>x.id!==tid); render();
+};
 HANDLERS.toggleProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); const m=p?.milestones.find(x=>x.id===mid); if(m){m.done=!m.done; render();} };
-HANDLERS.deleteProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.milestones=p.milestones.filter(m=>m.id!==mid); render();} };
+HANDLERS.deleteProjectMilestone = (pid,mid)=>{
+  const p=state.projects.find(x=>x.id===pid); if(!p) return;
+  const m=(p.milestones||[]).find(x=>x.id===mid);
+  if (!confirm(`Slett delmålet «${m? m.title : ''}»?`)) return;
+  p.milestones=p.milestones.filter(x=>x.id!==mid); render();
+};
 
 // Edit an existing milestone. Opens a modal with title + date + done checkbox,
 // modelled after openProjectTaskForm. Added 2026-05-27 — milestones were missing
@@ -2000,7 +2159,12 @@ HANDLERS.addProjectPerson = (pid)=>{
   render();
 };
 HANDLERS.setPersonStatus = (pid,ppid,v)=>{ const p=state.projects.find(x=>x.id===pid); const pp=p?.people.find(x=>x.id===ppid); if(pp){pp.status=v; saveState();} };
-HANDLERS.deleteProjectPerson = (pid,ppid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.people=p.people.filter(x=>x.id!==ppid); render();} };
+HANDLERS.deleteProjectPerson = (pid,ppid)=>{
+  const p=state.projects.find(x=>x.id===pid); if(!p) return;
+  const pe=(p.people||[]).find(x=>x.id===ppid);
+  if (!confirm(`Fjern ${pe && pe.name ? pe.name : 'personen'} fra prosjektet?`)) return;
+  p.people=p.people.filter(x=>x.id!==ppid); render();
+};
 HANDLERS.addProjectLink = (pid)=>{
   const t = document.getElementById('pl-title').value.trim();
   const u = document.getElementById('pl-url').value.trim();
@@ -2010,7 +2174,12 @@ HANDLERS.addProjectLink = (pid)=>{
   p.links.push({id:uid(),title:t||u,url:u});
   render();
 };
-HANDLERS.deleteProjectLink = (pid,lid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.links=p.links.filter(l=>l.id!==lid); render();} };
+HANDLERS.deleteProjectLink = (pid,lid)=>{
+  const p=state.projects.find(x=>x.id===pid); if(!p) return;
+  const l=(p.links||[]).find(x=>x.id===lid);
+  if (!confirm(`Slett lenken «${l? (l.title||l.url) : ''}»?`)) return;
+  p.links=p.links.filter(x=>x.id!==lid); render();
+};
 HANDLERS.archiveProject = (pid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.archived=!p.archived; render();} };
 HANDLERS.deleteProject = (pid)=>{ if(!confirm('Slett prosjektet og alt innhold?')) return; state.projects=state.projects.filter(p=>p.id!==pid); state.ui.openProjectId=null; render(); };
 
@@ -2677,49 +2846,6 @@ function renderOverview(){
 }
 HANDLERS.overviewToday = ()=>{ state.ui.overviewAnchor=''; render(); };
 
-function monthMiniHTML(y,m,today){
-  const days = monthDays(y,m);
-  const first = new Date(y,m,1);
-  const offset = monIdx(first); // how many empties before day 1
-  let cells = '';
-  for (let i=0;i<offset;i++) cells += `<div class="d empty"></div>`;
-  let evCount = 0;
-  for (let d=1; d<=days; d++){
-    const date = new Date(y,m,d);
-    const key = dKey(date);
-    const dayEvents = eventsOnDay(key);
-    const dayProjectTasks = tasksOnDay(key).filter(t=>t._kind);
-    const totalDots = dayEvents.length + dayProjectTasks.length;
-    evCount += dayEvents.length;
-    const cls = [];
-    if (sameDay(date,today)) cls.push('today');
-    if (HOLIDAYS[key]) cls.push('holiday');
-    if (date.getDay()===0 || date.getDay()===6) cls.push('weekend');
-    if (totalDots) cls.push('has-events');
-    const dotItems = [
-      ...dayEvents.slice(0,3).map(e=>e.category),
-      ...dayProjectTasks.slice(0,2).map(t=>t.category)
-    ].slice(0,3);
-    const dots = dotItems.map(c=>`<i style="background:var(--${c||'ink-muted'})"></i>`).join('');
-    cells += `<div class="d ${cls.join(' ')}" title="${key}${HOLIDAYS[key]?' – '+HOLIDAYS[key]:''}">${d}${dots?`<span class="dotbar">${dots}</span>`:''}</div>`;
-  }
-  // Project bars overlapping this month
-  const overlapProjects = projectsOverlapping(y,m).slice(0,4);
-  const bars = overlapProjects.map(p=>`<div class="pbar cat-${p.category}" data-pid="${p.id}" title="${escapeAttr(p.title)}${p.targetDate?' · '+fmtDateShort(fromKey(p.targetDate)):''}"></div>`).join('');
-  const projCount = projectsOverlapping(y,m).length;
-  return `
-    <div class="mo" data-y="${y}" data-m="${m}">
-      <h3>${I18N.months[m].charAt(0).toUpperCase()+I18N.months[m].slice(1)}</h3>
-      <div class="yr">${y}</div>
-      <div class="mini">
-        ${I18N.weekdaysMini.map(w=>`<div class="h">${w}</div>`).join('')}
-        ${cells}
-      </div>
-      ${bars?`<div class="pbars">${bars}</div>`:''}
-      <div class="stats"><span>${evCount} hend.</span>${projCount?`<span>${projCount} prosjekt</span>`:''}</div>
-    </div>`;
-}
-
 // ============================================================
 // VIEW: MONTH
 // ============================================================
@@ -2852,11 +2978,15 @@ function renderWeek(){
         const last = e._isMultiDay && e._isLastDay ? ' multi-last' : '';
         const isProj = e._kind === 'project';
         const cls = `ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}${multi}${cont}${last}`;
+        // These used to be raw JS expressions interpolated as a bare attribute — no
+        // onclick=, no data-action — so the DOM got a junk attribute named
+        // "handlers.editevent('id')" and the click fell through to the .slot handler,
+        // opening an EMPTY «Ny hendelse». Use act() like Dag and Måned do (ADR 0012).
         const click = e._ics
-          ? `HANDLERS.openOutlookEvent('${e.id}')`
+          ? act('openOutlookEvent', e.id)
           : isProj
-            ? `state.ui.openProjectId='${e._projectId}';state.ui.view='projects';render()`
-            : `HANDLERS.editEvent('${e.id}')`;
+            ? act('openProject', e._projectId)
+            : act('editEvent', e.id);
         const style = evDurationStyle(e, 42);
         const prefix = (!e._isContinuation && isProj) ? '📍 ' : '';
         const timeP = (!e._isContinuation && e.start) ? `<strong>${e.start}${e.end?'–'+e.end:''}</strong> ` : '';
@@ -2878,68 +3008,6 @@ function renderWeek(){
 // VIEW: DAY
 // ============================================================
 // "I dag"-dashboard. Shown above the hour grid only when viewing today.
-function buildDashboardHTML(){
-  const today = new Date();
-  const todayK = todayKey();
-  // Urgent free tasks not done
-  const urgent = state.tasks.filter(t=>t.priority==='urgent' && !t.done && passesFilter(t));
-  // Next 7 days lookahead — events, project sub-tasks (with due), milestones
-  const next7 = [];
-  for (let i=1; i<=7; i++){
-    const d = addDays(today, i);
-    const k = dKey(d);
-    eventsOnDay(k).forEach(e=>{
-      if (!e._isContinuation){ // first day only
-        next7.push({ date:k, title:e.title, kind: e._ics?'📧 Outlook': e._kind==='project'?'★ ' + (e.title!==e.title?'':'måldato') :'📌 hendelse', clickHandler: e._ics ? act('openOutlookEvent', e.id) : (e._kind==='project' ? act('openProject', e._projectId) : act('editEvent', e.id)) });
-      }
-    });
-    tasksOnDay(k).forEach(t=>{
-      if (t.done) return;
-      if (t._isContinuation) return;
-      if (t._kind==='task'){
-        next7.push({ date:k, title:t.title, kind:'☐ oppgave' + (t.priority?' · '+t.priority:''), clickHandler: act('openTaskForm', t.id) });
-      } else if (t._kind==='projectTask'){
-        next7.push({ date:k, title:t.title, kind:`▸ ${t._projectTitle}`, clickHandler: act('openProjectTaskForm', t._projectId, t.id) });
-      } else if (t._kind==='milestone'){
-        next7.push({ date:k, title:t.title, kind:`◆ ${t._projectTitle}`, clickHandler: act('openProject', t._projectId) });
-      }
-    });
-  }
-  next7.sort((a,b)=>a.date.localeCompare(b.date));
-  const next7Top = next7.slice(0, 8);
-
-  const urgentHTML = urgent.length ? urgent.slice(0,5).map(t=>{
-    const due = t.due ? fmtDateShort(fromKey(t.due)) : '—';
-    const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
-    const projTag = proj ? `<span class="proj-tag">· ${escapeHTML(proj.title)}</span>` : '';
-    return `<div class="dash-item" data-action="openTaskForm" data-args='["${t.id}"]'>
-      <div class="ddate">${due}</div>
-      <div class="dtitle">${escapeHTML(t.title)}${projTag}</div>
-    </div>`;
-  }).join('') : `<div class="dash-empty">Ingen urgent-saker — godt jobbet</div>`;
-
-  const next7HTML = next7Top.length ? next7Top.map(it=>{
-    const d = fromKey(it.date);
-    const days = daysUntil(it.date);
-    const label = days===1?'i morgen':`om ${days}d`;
-    return `<div class="dash-item" ${it.clickHandler||''}>
-      <div class="ddate">${I18N.monthsShort[d.getMonth()]} ${d.getDate()}</div>
-      <div class="dtitle">${escapeHTML(it.title)}<span class="dmeta">${label} · ${escapeHTML(it.kind)}</span></div>
-    </div>`;
-  }).join('') : `<div class="dash-empty">Ingen planlagt for de neste 7 dagene</div>`;
-
-  return `<div class="dashboard">
-    <div class="dash-section dash-urgent">
-      <h4>⚠ Urgent To Do's${urgent.length>0?' ('+urgent.length+')':''}</h4>
-      ${urgentHTML}
-    </div>
-    <div class="dash-section">
-      <h4>Kommer de neste 7 dagene</h4>
-      ${next7HTML}
-    </div>
-  </div>`;
-}
-
 function renderDay(){
   const anchor = fromKey(state.ui.anchor||todayKey());
   const key = dKey(anchor);
@@ -3041,11 +3109,26 @@ function renderDay(){
     };
   });
 
-  document.getElementById('day-notes').addEventListener('blur', e=>{
-    const v = e.target.value.trim();
-    if (v) state.notes[key]=v; else delete state.notes[key];
-    saveState();
-  });
+  // Save on input (debounced) as well as blur. Blur alone lost the text whenever a
+  // background sync pull called render() — removing a focused element from the DOM
+  // fires no blur event. See ADR 0023.
+  const dayNotes = document.getElementById('day-notes');
+  if (dayNotes){
+    let _dnTimer = null;
+    const commitDayNote = ()=>{
+      const v = dayNotes.value.trim();
+      if (!state.notes) state.notes = {};
+      if (v) state.notes[key]=v; else delete state.notes[key];
+      saveState();
+    };
+    // Throttle, not debounce: a debounce that restarts on every keystroke never
+    // commits while you type continuously, which is exactly the case that lost text.
+    dayNotes.addEventListener('input', ()=>{
+      if (_dnTimer) return;
+      _dnTimer = setTimeout(()=>{ _dnTimer = null; commitDayNote(); }, 400);
+    });
+    dayNotes.addEventListener('blur', commitDayNote);
+  }
 }
 
 function taskRowHTML(t){
@@ -3181,90 +3264,6 @@ HANDLERS.toggleTask = (id, ev) => {
 // ============================================================
 // VIEW: LIST / AGENDA
 // ============================================================
-function renderList(){
-  const today = new Date();
-  const horizon = addDays(today, 365);
-  const startD = new Date(today.getFullYear(),today.getMonth(),today.getDate());
-  const evs = state.events.filter(e=>{
-    const d = fromKey(e.date);
-    return d>=startD && d<=horizon && passesFilter(e);
-  }).map(e=>({type:'event', date:e.date, ref:e}));
-  const outlookEvs = (state.outlookEvents||[]).filter(e=>{
-    const d = fromKey(e.date);
-    return d>=startD && d<=horizon && passesFilter({...e, category:e.category||'arbeid'});
-  }).map(e=>({type:'outlook', date:e.date, ref:e}));
-  const tks = state.tasks.filter(t=>t.due && passesFilter(t)).map(t=>({type:'task', date:t.due, ref:t}));
-  const projItems = [];
-  state.projects.filter(p=>!p.archived && passesFilter(p)).forEach(p=>{
-    (p.tasks||[]).filter(t=>t.due).forEach(t=>{
-      projItems.push({type:'projectTask', date:t.due, ref:t, project:p});
-    });
-    (p.milestones||[]).filter(m=>m.date).forEach(m=>{
-      projItems.push({type:'milestone', date:m.date, ref:m, project:p});
-    });
-    if (p.targetDate) projItems.push({type:'projectTarget', date:p.targetDate, ref:p, project:p});
-  });
-  const items = [...evs, ...outlookEvs, ...tks, ...projItems].sort((a,b)=>a.date.localeCompare(b.date));
-
-  viewEl.innerHTML = `
-    <div class="subnav">
-      <h2>Agenda <span class="yr">neste 12 måneder</span></h2>
-    </div>
-    <div class="list-view" id="lv"></div>`;
-
-  const lv = document.getElementById('lv');
-  if (!items.length){ lv.innerHTML = `<div class="empty-state">Ingen kommende elementer</div>`; return; }
-  let html=''; let lastMonth='';
-  items.forEach(it=>{
-    const d = fromKey(it.date);
-    const mKey = `${d.getFullYear()}-${d.getMonth()}`;
-    if (mKey!==lastMonth){
-      html += `<div class="lhead">${fmtMonth(d.getFullYear(),d.getMonth())}</div>`;
-      lastMonth = mKey;
-    }
-    const ref = it.ref;
-    const cat = (it.project?it.project.category:ref.category)||'other';
-    let sub, title;
-    if (it.type==='event'){
-      const range = (ref.endDate && ref.endDate>ref.date) ? ` · til ${fmtDateShort(fromKey(ref.endDate))}` : '';
-      sub = (ref.start?ref.start+(ref.end?'–'+ref.end:''):'hele dagen')+range;
-      title = escapeHTML(ref.title);
-    } else if (it.type==='outlook'){
-      const range = (ref.endDate && ref.endDate>ref.date) ? ` · til ${fmtDateShort(fromKey(ref.endDate))}` : '';
-      sub = `📧 Outlook${ref.start?' · '+ref.start+(ref.end?'–'+ref.end:''):' · hele dagen'}${range}${ref.location?' · '+ref.location:''}`;
-      title = escapeHTML(ref.title);
-    } else if (it.type==='task'){
-      sub = 'Oppgave' + (ref.done?' · fullført':'');
-      title = ref.done?`<s>${escapeHTML(ref.title)}</s>`:escapeHTML(ref.title);
-    } else if (it.type==='projectTask'){
-      const range = (ref.endDate && ref.endDate>ref.due) ? ` · til ${fmtDateShort(fromKey(ref.endDate))}` : '';
-      sub = `▸ ${escapeHTML(it.project.title)}${range}` + (ref.done?' · fullført':'');
-      title = ref.done?`<s>${escapeHTML(ref.title)}</s>`:escapeHTML(ref.title);
-    } else if (it.type==='milestone'){
-      sub = `◆ Delmål · ${escapeHTML(it.project.title)}` + (ref.done?' · nådd':'');
-      title = ref.done?`<s>${escapeHTML(ref.title)}</s>`:escapeHTML(ref.title);
-    } else if (it.type==='projectTarget'){
-      sub = `★ Selve dagen`;
-      title = `<strong>${escapeHTML(ref.title)}</strong>`;
-    }
-    html += `<div class="lrow" data-type="${it.type}" data-id="${ref.id}" data-pid="${it.project?it.project.id:''}">
-      <div class="ldate">${I18N.monthsShort[d.getMonth()].slice(0,3)}<span class="dn">${d.getDate()}</span></div>
-      <span class="lcat cat-${cat}"></span>
-      <div class="ltitle">${title}<span class="meta">${sub}</span></div>
-      <span class="pill cat-${cat}">${CAT_BY_ID[cat]?.label||'–'}</span>
-    </div>`;
-  });
-  lv.innerHTML = html;
-  lv.querySelectorAll('.lrow').forEach(r=>r.onclick=()=>{
-    const t = r.dataset.type;
-    if (t==='event') HANDLERS.editEvent(r.dataset.id);
-    else if (t==='outlook') HANDLERS.openOutlookEvent(r.dataset.id);
-    else if (t==='task') openTaskForm(r.dataset.id);
-    else if (t==='projectTask') openProjectTaskForm(r.dataset.pid, r.dataset.id);
-    else if (t==='milestone' || t==='projectTarget'){ state.ui.openProjectId = r.dataset.pid; state.ui.view='projects'; render(); }
-  });
-}
-
 // ============================================================
 // EVENT FORM
 // ============================================================
@@ -3500,10 +3499,8 @@ function openSearch(){
         </select>
         <select id="search-cat" style="${sel}">
           <option value="all">Alle kategorier</option>
-          <option value="arbeid">Arbeid</option>
-          <option value="personlig">Personlig</option>
-          <option value="helse">Helse</option>
-          <option value="reise">Reise</option>
+          <option value="arbeid">Jobb</option>
+          <option value="privat">Privat</option>
         </select>
         <select id="search-when" style="${sel}">
           <option value="all">Alle datoer</option>
@@ -3737,6 +3734,11 @@ function openSettings(){
   loadCloudBackups().then(keys=>{
     const list = document.getElementById('cloud-backups-list');
     if (!list) return;
+    if (keys && keys.error){
+      list.innerHTML = '<span style="font-style:italic;color:var(--alert)">Kunne ikke hente sky-backups: '
+        + escapeHTML(keys.error) + '</span>';
+      return;
+    }
     if (!state.sync.syncUrl || !state.sync.syncToken){
       list.innerHTML = '<span style="font-style:italic">Konfigurér synk over for å aktivere sky-backups</span>';
       return;
@@ -3839,15 +3841,44 @@ HANDLERS.importData = e=>{
   const r = new FileReader();
   r.onload = ev=>{
     try{
-      // Parse first to validate JSON before destroying current state
-      JSON.parse(ev.target.result);
-      if (!confirm('Dette overskriver dataen din. Er du sikker?')) return;
-      // Write raw blob to localStorage and re-run loadState so all migrations
-      // (state.settings → ui/sync, legacy categories, etc.) execute on imported data.
+      const parsed = JSON.parse(ev.target.result);
+      // Validate SHAPE, not just syntax. Any valid JSON used to pass — a package.json
+      // or an export from another tool would leave an empty planner. See ADR 0022.
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)){
+        alert('Dette ser ikke ut som en Planlegger-eksport (forventet et JSON-objekt).');
+        return;
+      }
+      const buckets = ['projects','tasks','events','inbox','outlookEvents'];
+      const present = buckets.filter(k => Array.isArray(parsed[k]));
+      if (!present.length){
+        alert('Dette ser ikke ut som en Planlegger-eksport — fant ingen av feltene '
+          + buckets.join(', ') + '.\n\nIngenting er endret.');
+        return;
+      }
+      const counts = present.map(k => `${parsed[k].length} ${k}`).join(', ');
+      if (!confirm(`Importér og overskriv all data?\n\nFilen inneholder: ${counts}.\n\n`
+        + 'Et øyeblikksbilde av dagens data lagres først, så du kan rulle tilbake.')) return;
+      // Snapshot before overwriting — pullFromRemote and restoreCloudBackup both do
+      // this; import used to be the one destructive path without a way back.
+      try {
+        localStorage.setItem('planlegger.preSync.' + Date.now(), JSON.stringify(state));
+      } catch(_){}
+      // Preserve this device's sync credentials. The imported file's own sync block
+      // used to win, so importing a backup taken before sync was set up silently
+      // killed sync with no message.
+      const keepSync = { syncUrl: state.sync.syncUrl, syncToken: state.sync.syncToken, icsUrl: state.sync.icsUrl };
+      // Write raw blob and re-run loadState so all migrations execute on imported data.
       localStorage.setItem(STORAGE_KEY, ev.target.result);
       state = loadState();
+      state.sync.syncUrl = keepSync.syncUrl || state.sync.syncUrl;
+      state.sync.syncToken = keepSync.syncToken || state.sync.syncToken;
+      state.sync.icsUrl = keepSync.icsUrl || state.sync.icsUrl;
+      // Mark the import as the newest change, otherwise the 60 s cloud poll sees the
+      // file's older lastModified and quietly replaces what was just restored.
+      state.meta.lastModified = Date.now();
       _lastSavedBody = null;  // force next saveState() to compute fresh hash
       closeModal(); render();
+      if (typeof showToast === 'function') showToast('Importert: ' + counts, 5000);
     }catch(err){ alert('Ugyldig fil: '+err.message); }
   };
   r.readAsText(file);
@@ -3930,34 +3961,122 @@ function parseICSDate(str){
   return { date:`${y}-${mo}-${d}`, time:`${h}:${mi}`, allDay:false };
 }
 
-function expandRRule(baseEv, baseDate, rrule){
+// ISO 8601 duration → minutes (DURATION:PT1H30M, P1D, P1W). Outlook normally sends
+// DTEND, but a VEVENT with only DURATION used to lose its end time entirely.
+function parseICSDuration(str){
+  const m = String(str||'').match(/^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
+  if (!m) return null;
+  const sign = m[1] === '-' ? -1 : 1;
+  const w = +(m[2]||0), d = +(m[3]||0), h = +(m[4]||0), mi = +(m[5]||0);
+  const total = ((w*7 + d) * 24 * 60) + h*60 + mi;
+  return total ? sign * total : 0;
+}
+
+// Chronological occurrence dates for an RRULE, from DTSTART up to winEnd.
+// Occurrences are computed from baseStart each time (not iteratively) so day-of-month
+// and BYDAY don't drift. Supported: FREQ DAILY/WEEKLY/MONTHLY/YEARLY, INTERVAL,
+// COUNT, UNTIL, BYDAY (weekly + monthly with ordinals). Not supported: TZID,
+// per-occurrence DST, BYSETPOS, RECURRENCE-ID overrides — see ADR 0025.
+function _rruleOccurrences(baseStart, params, winEnd, maxOcc){
+  const freq = params.FREQ;
+  const interval = Math.max(1, parseInt(params.INTERVAL||'1') || 1);
+  const byday = String(params.BYDAY||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const out = [];
+  if (freq === 'DAILY'){
+    for (let k=0; k<maxOcc; k++){
+      const d = addDays(baseStart, k*interval);
+      if (d > winEnd) break;
+      out.push(d);
+    }
+  } else if (freq === 'WEEKLY'){
+    const dows = byday.map(b => _BYDAY_NUM[b.replace(/^[+-]?\d+/,'')]).filter(n => n !== undefined);
+    if (!dows.length){
+      for (let k=0; k<maxOcc; k++){
+        const d = addDays(baseStart, 7*k*interval);
+        if (d > winEnd) break;
+        out.push(d);
+      }
+    } else {
+      const offsets = [...new Set(dows.map(n => (n + 6) % 7))].sort((a,b)=>a-b); // Mon=0
+      const wkStart = startOfWeek(baseStart);
+      weeks: for (let w=0; ; w++){
+        const base = addDays(wkStart, 7*w*interval);
+        if (base > winEnd) break;
+        for (const off of offsets){
+          const d = addDays(base, off);
+          if (d < baseStart) continue;      // series can't start before DTSTART
+          if (d > winEnd) break weeks;
+          out.push(d);
+          if (out.length >= maxOcc) break weeks;
+        }
+      }
+    }
+  } else if (freq === 'MONTHLY'){
+    const ords = byday.map(b => {
+      const m = b.match(/^([+-]?\d+)?([A-Z]{2})$/);
+      return m && _BYDAY_NUM[m[2]] !== undefined ? { n: m[1] ? parseInt(m[1]) : 0, d: _BYDAY_NUM[m[2]] } : null;
+    }).filter(Boolean);
+    months: for (let mo=0; ; mo++){
+      const anchor = new Date(baseStart.getFullYear(), baseStart.getMonth() + mo*interval, 1);
+      if (anchor > winEnd) break;
+      if (!ords.length){
+        const d = addMonthsKeepDay(baseStart, mo*interval);
+        if (d > winEnd) break;
+        if (d >= baseStart){ out.push(d); if (out.length >= maxOcc) break; }
+      } else {
+        const cands = [];
+        ords.forEach(o => cands.push(..._weekdaysOfMonth(anchor.getFullYear(), anchor.getMonth(), o.d, o.n)));
+        cands.sort((a,b)=>a-b);
+        for (const d of cands){
+          if (d < baseStart) continue;
+          if (d > winEnd) break months;
+          out.push(d);
+          if (out.length >= maxOcc) break months;
+        }
+      }
+    }
+  } else if (freq === 'YEARLY'){
+    for (let k=0; k<maxOcc; k++){
+      const d = addMonthsKeepDay(baseStart, 12*k*interval);
+      if (d > winEnd) break;
+      out.push(d);
+    }
+  }
+  return out;
+}
+
+function expandRRule(baseEv, baseDate, rrule, exdates){
   const params = {};
   rrule.split(';').forEach(p=>{ const [k,v]=p.split('='); params[k]=v; });
-  const freq = params.FREQ;
-  const interval = parseInt(params.INTERVAL||'1');
-  const count = params.COUNT ? parseInt(params.COUNT) : 500;
+  // COUNT is an occurrence limit counted from DTSTART. It used to default to 500 and
+  // the counter was also incremented for occurrences BEFORE the display window, so a
+  // series that started years ago spent its whole budget in the past and vanished.
+  // No COUNT now means no occurrence limit — the window bounds the loop instead.
+  const MAX_OCC = 20000;   // safety net: ~54 years daily, ~384 years weekly
+  const count = params.COUNT ? Math.max(0, parseInt(params.COUNT) || 0) : Infinity;
   const until = params.UNTIL ? parseICSDate(params.UNTIL) : null;
   // Window: 12 months back, 24 months forward
   const winStart = addMonths(new Date(), -12);
   const winEnd = addMonths(new Date(), 24);
-  const instances = [];
-  // Preserve multi-day duration across recurrences
   const baseStart = fromKey(baseDate.date);
+  // Excluded occurrences (EXDATE). Matched on date, not time — see ADR 0025.
+  const exSet = new Set();
+  (exdates || []).forEach(raw => String(raw).split(',').forEach(v => {
+    const p = parseICSDate(v.trim());
+    if (p) exSet.add(p.date);
+  }));
+  // Preserve multi-day duration across recurrences
   const durationDays = baseEv.endDate ? Math.round((fromKey(baseEv.endDate)-baseStart)/86400000) : 0;
-  let cur = new Date(baseStart);
-  let n = 0;
-  while (n < count && cur <= winEnd){
+  const dates = _rruleOccurrences(baseStart, params, winEnd, Math.min(count, MAX_OCC));
+  const instances = [];
+  for (let i = 0; i < dates.length; i++){
+    const cur = dates[i];
     if (until && fromKey(dKey(cur)) > fromKey(until.date)) break;
-    if (cur >= winStart){
-      const newEndDate = durationDays > 0 ? dKey(addDays(cur, durationDays)) : '';
-      instances.push({ ...baseEv, id: baseEv.id+'-'+n, date: dKey(cur), endDate: newEndDate });
-    }
-    n++;
-    if (freq==='DAILY') cur = addDays(cur, interval);
-    else if (freq==='WEEKLY') cur = addDays(cur, 7*interval);
-    else if (freq==='MONTHLY') cur = addMonths(cur, interval);
-    else if (freq==='YEARLY') cur = new Date(cur.getFullYear()+interval, cur.getMonth(), cur.getDate());
-    else break;
+    if (cur < winStart) continue;
+    const key = dKey(cur);
+    if (exSet.has(key)) continue;
+    const newEndDate = durationDays > 0 ? dKey(addDays(cur, durationDays)) : '';
+    instances.push({ ...baseEv, id: baseEv.id+'-'+i, date: key, endDate: newEndDate });
   }
   return instances;
 }
@@ -3967,10 +4086,16 @@ function parseICS(text){
   const lines = text.split(/\r?\n/);
   const events = [];
   let cur = null;
+  let inAlarm = false;
   for (const line of lines){
-    if (line==='BEGIN:VEVENT'){ cur = {}; continue; }
+    if (line==='BEGIN:VEVENT'){ cur = {}; inAlarm = false; continue; }
+    // A VALARM's own DESCRIPTION ("REMINDER") used to overwrite the event's, wiping
+    // the Teams link / agenda text. Skip everything inside the alarm block.
+    if (line==='BEGIN:VALARM'){ inAlarm = true; continue; }
+    if (line==='END:VALARM'){ inAlarm = false; continue; }
+    if (inAlarm) continue;
     if (line==='END:VEVENT'){
-      if (cur && cur.dtstart && cur.summary && cur.status!=='CANCELLED'){
+      if (cur && cur.dtstart && cur.status!=='CANCELLED'){
         const startD = parseICSDate(cur.dtstart);
         const endD = cur.dtend ? parseICSDate(cur.dtend) : null;
         if (startD){
@@ -3988,21 +4113,37 @@ function parseICS(text){
               endDate = endD.date;
             }
           }
+          // No DTEND but a DURATION: derive the end. Whole days extend endDate,
+          // an intraday duration gives the end time.
+          let durEnd = null;
+          if (!endD && cur.duration){
+            const mins = parseICSDuration(cur.duration);
+            if (mins && mins > 0){
+              const startMin = startD.allDay ? 0
+                : (parseInt(startD.time.slice(0,2))*60 + parseInt(startD.time.slice(3,5)));
+              const dayShift = Math.floor((startMin + mins) / 1440);
+              if (dayShift > 0) endDate = dKey(addDays(fromKey(startD.date), dayShift));
+              if (!startD.allDay){
+                const em = (startMin + mins) % 1440;
+                durEnd = pad(Math.floor(em/60)) + ':' + pad(em%60);
+              }
+            }
+          }
           const ev = {
             id: 'ics-' + (cur.uid || (Math.random().toString(36).slice(2))),
-            title: cur.summary,
+            title: cur.summary || '(uten tittel)',
             date: startD.date,
             endDate,
             start: startD.allDay?'':startD.time,
-            end: endD && !endD.allDay ? endD.time : '',
+            end: endD && !endD.allDay ? endD.time : (durEnd || ''),
             location: cur.location||'',
             description: cur.description||'',
             category: 'arbeid',
             _ics: true,
           };
           if (cur.rrule){
-            try { events.push(...expandRRule(ev, startD, cur.rrule)); }
-            catch(e){ events.push(ev); }
+            try { events.push(...expandRRule(ev, startD, cur.rrule, cur.exdates)); }
+            catch(e){ console.error('RRULE expansion failed for', ev.title, e); events.push(ev); }
           } else {
             events.push(ev);
           }
@@ -4024,6 +4165,8 @@ function parseICS(text){
     else if (propName==='uid') cur.uid = rhs;
     else if (propName==='status') cur.status = rhs;
     else if (propName==='rrule') cur.rrule = rhs;
+    else if (propName==='duration') cur.duration = rhs.trim();
+    else if (propName==='exdate') (cur.exdates = cur.exdates || []).push(rhs);
   }
   return events;
 }
@@ -4055,8 +4198,18 @@ function importICSFile(file){
         const text = ev.target.result;
         if (!text.includes('BEGIN:VCALENDAR')) { resolve({error:'Ikke en gyldig ICS-fil'}); return; }
         const events = parseICS(text);
+        // This replaced the whole synced calendar and stamped lastSync, which also
+        // blocked the hourly auto-resync for an hour — so importing one emailed
+        // invitation wiped every Outlook event for at least an hour. Ask, and don't
+        // touch lastSync so the next auto-sync repairs the list.
+        const existing = (state.outlookEvents||[]).length;
+        if (existing && !confirm(`Filen inneholder ${events.length} hendelse(r).\n\n`
+          + `Dette erstatter de ${existing} Outlook-hendelsene du har nå. `
+          + 'Neste automatiske Outlook-sync henter dem tilbake.\n\nFortsett?')){
+          resolve({ cancelled:true });
+          return;
+        }
         state.outlookEvents = events;
-        state.sync.lastSync = new Date().toISOString();
         saveState(); render();
         resolve({ ok:true, count: events.length });
       } catch(e){ resolve({error: e.message}); }
@@ -4149,15 +4302,30 @@ function sanitizeNoteHTML(html){
   out = out.replace(/<(script|iframe|object|embed)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
   // Also strip self-closing or unmatched opening tags of those
   out = out.replace(/<\/?(?:script|iframe|object|embed)\b[^>]*>/gi, '');
-  // Remove inline event handlers (quoted, single-quoted, or unquoted)
-  out = out.replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '');
-  out = out.replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '');
-  out = out.replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, '');
-  // Neutralise unsafe URLs in href/src. Inline raster images (data:image/...;base64)
-  // are kept — pasted screenshots are stored that way. See _noteUrlIsSafe.
-  out = out.replace(/(href|src)\s*=\s*"([^"]*)"/gi, (m, a, u) => _noteUrlIsSafe(u) ? m : a + '="#"');
-  out = out.replace(/(href|src)\s*=\s*'([^']*)'/gi, (m, a, u) => _noteUrlIsSafe(u) ? m : a + "='#'");
-  out = out.replace(/(href|src)\s*=\s*([^\s>"']+)/gi, (m, a, u) => _noteUrlIsSafe(u) ? m : a + '="#"');
+  // Drop a trailing unterminated tag fragment — it can't be attribute-cleaned safely.
+  const lastLt = out.lastIndexOf('<');
+  if (lastLt !== -1 && out.indexOf('>', lastLt) === -1) out = out.slice(0, lastLt);
+  // Clean attributes INSIDE TAGS ONLY, one tag at a time. Running the attribute
+  // regexes over the whole string also matched ordinary prose: «Prøvemiddag onsdag =
+  // 18:00» looked like an on*= handler and was silently deleted, and the note editor's
+  // autosave then persisted the truncated text. See ADR 0021.
+  out = out.replace(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/g,
+    (m, close, tag, attrs) => {
+      if (close) return '</' + tag + '>';
+      let selfClose = '';
+      if (/\/\s*$/.test(attrs)) { attrs = attrs.replace(/\/\s*$/, ''); selfClose = '/'; }
+      const cleaned = attrs
+        // inline event handlers
+        .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
+        .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '')
+        .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, '')
+        // unsafe URLs. Inline raster images (data:image/...;base64) are kept —
+        // pasted screenshots are stored that way. See _noteUrlIsSafe / ADR 0020.
+        .replace(/(href|src)\s*=\s*"([^"]*)"/gi, (mm, a, u) => _noteUrlIsSafe(u) ? mm : a + '="#"')
+        .replace(/(href|src)\s*=\s*'([^']*)'/gi, (mm, a, u) => _noteUrlIsSafe(u) ? mm : a + "='#'")
+        .replace(/(href|src)\s*=\s*([^\s>"']+)/gi, (mm, a, u) => _noteUrlIsSafe(u) ? mm : a + '="#"');
+      return '<' + tag + cleaned + selfClose + '>';
+    });
   return out;
 }
 
@@ -4458,6 +4626,11 @@ HANDLERS.openDumpModal = ()=>{
 HANDLERS.resolveWikilink = (target)=>{
   const targetLower = (target||'').trim().toLowerCase();
   if (!targetLower) return;
+  // Navigating with the note modal still open left it sitting on top of the project
+  // that had just loaded behind it. Close it first — but don't run the note editor's
+  // close-callback render, since we're about to render anyway.
+  _onModalClose = null;
+  if (document.querySelector('.modal-bg.open')) closeModal();
   const proj = state.projects.find(p=>p.title.toLowerCase() === targetLower);
   if (proj){
     state.ui.openProjectId = proj.id;
@@ -4553,44 +4726,7 @@ HANDLERS.startVoiceCapture = ()=>{
 };
 
 // Paste handler for image-into-textarea
-function setupImagePaste(textarea, onChange){
-  textarea.addEventListener('paste', e=>{
-    const items = e.clipboardData && e.clipboardData.items;
-    if (!items) return;
-    for (const item of items){
-      if (item.type && item.type.startsWith('image/')){
-        e.preventDefault();
-        const blob = item.getAsFile();
-        if (!blob) return;
-        const r = new FileReader();
-        r.onload = ()=>{
-          const dataUrl = r.result;
-          const start = textarea.selectionStart;
-          const end = textarea.selectionEnd;
-          const before = textarea.value.slice(0, start);
-          const after = textarea.value.slice(end);
-          textarea.value = before + `\n![](${dataUrl})\n` + after;
-          textarea.dispatchEvent(new Event('input'));
-          if (onChange) onChange(textarea.value);
-        };
-        r.readAsDataURL(blob);
-        return;
-      }
-    }
-  });
-}
-
 HANDLERS.goToday = goToday;
-HANDLERS.openTaskForm = openTaskForm;
-
-// ============================================================
-// FIRST RUN — seed sensible defaults
-// ============================================================
-if (!state.meta.seeded){
-  // Pre-fill 2026 themes prompt blank, but seed a sample habit & goal hint
-  state.meta.seeded = true;
-  saveState();
-}
 
 // ============================================================
 // AUTO WEEKLY EXPORT — backup to a user-chosen folder (Edge/Chrome PC)
@@ -4709,7 +4845,15 @@ async function autoWeeklyExport(){
           if (typeof showToast === 'function') setTimeout(() => showToast(`💾 Ukentlig sikkerhetskopi lagret i ${dirHandle.name}`, 5000), 800);
           return;
         }
-        // Permission lapsed — try silent re-request (often works if user picked "always")
+        // Permission lapsed. requestPermission() requires user activation, and this
+        // runs at boot — Chrome throws SecurityError, which used to be swallowed so
+        // the backup silently degraded to Downloads on every browser restart. Only
+        // try it if the document currently has activation; otherwise skip straight to
+        // the download and let Settings show the ⚠. See ADR 0023.
+        if (!(navigator.userActivation && navigator.userActivation.isActive)){
+          console.warn('Backup folder permission needs a click to renew — falling back to Downloads');
+          throw new Error('permission-needs-activation');
+        }
         const newPerm = await dirHandle.requestPermission({ mode: 'readwrite' });
         if (newPerm === 'granted'){
           const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
@@ -4736,9 +4880,12 @@ async function autoWeeklyExport(){
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 
-    state.sync.lastWeeklyExport = today.toISOString();
-    saveState();
-    if (typeof showToast === 'function') setTimeout(() => showToast('💾 Ukentlig sikkerhetskopi lagret til Nedlastinger-mappen', 5000), 800);
+    // Deliberately NOT stamping lastWeeklyExport here. a.click() gives no confirmation
+    // that anything was written — on iOS, or when the browser blocks the download,
+    // nothing lands anywhere. Stamping it made the 7-day timer claim success and hid
+    // months of silent no-ops. Leaving it unstamped means we retry next load, and the
+    // wording below no longer promises a saved file. See ADR 0023.
+    if (typeof showToast === 'function') setTimeout(() => showToast('💾 Ukentlig sikkerhetskopi lastes ned. Velg en mappe i ⚙ Innstillinger for å lagre den automatisk.', 8000), 800);
   } catch (err) { console.error('autoWeeklyExport failed', err); }
 }
 
@@ -4759,6 +4906,9 @@ function listBackups(){
   return Object.keys(localStorage).filter(k=>k.startsWith('planlegger.backup.') || k.startsWith('planlegger.preSync.')).sort().reverse();
 }
 HANDLERS.restoreBackup = (key)=>{
+  // Snapshot first — restoreCloudBackup does this, the local variant didn't, so
+  // restoring the wrong day left nothing to roll back to. See ADR 0022.
+  try { localStorage.setItem('planlegger.preSync.' + Date.now(), JSON.stringify(state)); } catch(_){}
   const dateStr = key.replace('planlegger.backup.','');
   if (!confirm(`Erstatt ALL nåværende data med backup fra ${dateStr}? Dette kan ikke angres.`)) return;
   const data = localStorage.getItem(key);
@@ -4836,7 +4986,17 @@ updateSyncIndicator();
   const last = state.sync.lastSync ? new Date(state.sync.lastSync).getTime() : 0;
   const ageMin = (Date.now() - last) / 60000;
   if (ageMin > 60){
-    syncOutlook(true).then(r=>{ if (r.ok) render(); });
+    syncOutlook(true).then(r=>{
+      if (r.ok) render();
+      // Errors used to be dropped entirely — a rotated feed URL or a worker outage
+      // just left yesterday's meetings on screen with no hint. See ADR 0023.
+      else if (r.error){
+        _outlookStatus = { failedAt: Date.now(), error: r.error };
+        console.error('Outlook auto-sync failed:', r.error);
+        if (typeof showToast === 'function') showToast('⚠ Outlook-sync feilet: ' + r.error + ' — kalenderen kan være utdatert.', 10000);
+        updateSyncIndicator();
+      }
+    });
   }
 })();
 

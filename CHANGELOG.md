@@ -6,6 +6,48 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-10 (kveld) — Helsesjekk: 6 kritiske + 12 andre funn fikset i én runde
+
+Full helsesjekk av hele appen (rapport i `docs/health-check-2026-08-10.md`, lokal). 26 funn, hvert verifisert med kjørbar test før det ble rapportert. Alt lokalt løsbart er fikset her; TZID og sommertid er bevisst parkert til Graph-avgjørelsen (ADR 0025).
+
+### Kritisk
+
+- **Notat-saniteringen slettet vanlig norsk tekst (ADR 0021).** `/\son[a-z]+\s*=\s*[^\s>]+/gi` kjørte over hele notat-HTML-en, brødtekst inkludert. «Prøvemiddag onsdag = 18:00 hos Anne» ble «Prøvemiddag hos Anne»; «Status online = ja» spiste også `</p>`. Og fordi editoren skriver den saniterte DOM-en tilbake, ble det permanent ved neste åpne-og-lukk *uten at du skrev noe*. Attributt-rensingen skjer nå per tag, så tekstnoder røres ikke.
+- **ICS/RRULE: seks feil som viste gale datoer stille (ADR 0025).**
+  - MONTHLY kollapset til den 1. i måneden — `addMonths` snapper til den 1. med vilje (for navigasjon) og ble gjenbrukt i ekspansjonen. Ny `addMonthsKeepDay` med klamping.
+  - Gamle serier forsvant helt: COUNT defaultet til 500 og telleren økte også for forekomster *før* visningsvinduet, så budsjettet ble brukt opp i fortiden. Et ukesmøte fra 2016 ga **0 hendelser**; nå gir det 157. Uten COUNT er det ingen forekomst-grense lenger.
+  - `BYDAY` ble parset men ikke brukt: `MO,WE,FR` ga ni mandager på rad. Nå støttet for WEEKLY og for MONTHLY med ordinal (`-1FR` = siste fredag).
+  - `EXDATE` ble ikke parset — avlyste enkeltmøter sto der for alltid. Nå ekskludert (matchet på dato).
+  - `VALARM`-blokkens `DESCRIPTION` («REMINDER») overskrev hendelsens egen, så Teams-lenka forsvant. Alarm-blokker hoppes nå over.
+  - Hendelser uten `SUMMARY` ble forkastet stille; vises nå som «(uten tittel)». `DURATION` brukes når `DTEND` mangler.
+  - Forekomster beregnes nå fra DTSTART hver gang, ikke iterativt, så ingen avrunding akkumulerer.
+- **`loadState` var alt-eller-ingenting (ADR 0022).** Én feiltypet bøtte (`tasks:{}`) kastet, catch-en returnerte tom default, og `render()`s `saveState()` skrev den over originalen innen ett sekund. Bøtte-typer normaliseres nå *før* migreringene, en uleselig blob kopieres til `planlegger.unreadable.<tid>` før defaults returneres, og `meta.version` stemples faktisk (den ble aldri skrevet tilbake).
+- **`saveState` hadde ingen kvote-håndtering (ADR 0022).** `localStorage.setItem` sto uten try/catch, så en full kvote mistet hele sesjonens redigeringer mens UI-et så lagret ut. Nå: fang → rydd gamle preSync/backup-nøkler → prøv igjen → varsle én gang. Pluss en global feilflate (`error` + `unhandledrejection`), siden alt som kastes fra en `setTimeout` tidligere forsvant i konsollen.
+- **Dag-visningens notat-tekst forsvant ved bakgrunns-oppdatering (ADR 0023).** Feltet lagret bare på `blur`, og å fjerne et fokusert element fra DOM-en utløser ikke `blur` — så et 60-sekunders sync-poll som kalte `render()` tok avsnittet. Lagrer nå på `input`, strupet (ikke debounce'et: en debounce som restarter på hvert tastetrykk commiter aldri mens man skriver sammenhengende — notat-editoren hadde nøyaktig det mønsteret).
+- **`importData` reverterte seg selv og byttet sync-credentials (ADR 0022).** Ingen formvalidering (en `package.json` passerte), ingen `meta.lastModified` (så pollen erstattet det importerte etter 60 sekunder), ingen øyeblikksbilde, og filens `sync`-blokk overskrev enhetens egen. Alle fire fikset; importen viser nå hva den fant («12 projects, 40 tasks») før den overskriver.
+
+### Bør fikses
+
+- **Uke-visningen: klikk på en hendelse åpnet en tom «Ny hendelse».** `${click}` ble interpolert som et bart attributt — DOM-en fikk et søppel-attributt med navnet `handlers.editevent('id')` — og klikket falt gjennom til `.slot`-lytteren. Bruker nå `act()` som Dag og Måned.
+- **List-visningen fjernet (ADR 0024).** 83 linjer som ikke kunne åpnes: ingen nav-knapp, ingen «Mer»-oppføring, ingen `I18N`-etikett, ingen kaller. Prosjekt-tag-fiksen 2026-06-09 ble gjort i en visning ingen kunne se. Med kaskaden (`monthMiniHTML`, `buildDashboardHTML`, `projectsOverlapping`, `setupImagePaste`, `tasksUndated`, `holidayFor`, `quarterKey`, `quarterOf`) er 243 linjer borte, pluss 4 ubrukte CSS-regler.
+- **Søkets kategorifilter tilbød døde kategorier.** `personlig`, `helse`, `reise` — avskaffet 26. mai, ga alltid 0 treff — og manglet **Privat** helt. Nå Jobb/Privat. Søkemotoren var riktig hele veien.
+- **Nytt notat vistes ikke før noe annet rendret.** `addProjectNote` kalte ikke `render()`, og ingen av modalens utveier gjorde det. Ny `_onModalClose`-krok som notat-editoren registrerer, så kortet oppdateres når du lukker.
+- **Wikilink-klikk i notat-editoren gjorde to gale ting** (regresjon fra samme dag): flippet notatet til edit-modus *og* lot modalen stå oppå prosjektet som ble åpnet bak. Editorens click-lytter fyrer før dispatcheren, så `data-stop="1"` kom for sent — sjekken ligger nå i lytteren, og `resolveWikilink` lukker modalen.
+- **Rad-`×` slettet uten bekreftelse** for oppgaver, delmål, personer og lenker — mens de samme operasjonene fra modal og sveip bekreftet. Alle fire spør nå, med navnet på det som slettes.
+- **Empty-state-guarden telte `outlookEvents`**, så en fersk enhet med bare ICS-data kunne pushe tomme prosjekter over god sky-data. Teller nå bare prosjekter, oppgaver og hendelser, som pull-siden.
+- **`importICSFile` erstattet hele Outlook-kalenderen** og stemplet `lastSync`, som blokkerte auto-resync i en time. Spør nå, og rører ikke `lastSync`.
+- **Sync-feil var usynlige (ADR 0023).** Outlook auto-sync forkastet alle feil; `loadCloudBackups` returnerte `[]` både ved 401 og nettverksfeil, så et utløpt token ble vist som «Ingen sky-backups enda»; og push/pull delte statusindikator, så en vellykket pull malte over en mislykket push. Alle tre skilt fra hverandre; indikatoren blir rød til opplastingen faktisk lykkes.
+- **`autoWeeklyExport` stemplet suksess den ikke kunne bekrefte (ADR 0023).** `lastWeeklyExport` ble satt rett etter `a.click()`, som ikke sier noe om at noe ble skrevet — på iPhone havner filen ingen steder. Stempler nå bare i grenen som venter på `writable.close()`. Og `requestPermission()` kalles ikke lenger under boot uten brukeraktivering, som var grunnen til at mappevalget stille degraderte til Downloads ved hver nettleser-omstart.
+- **`restoreBackup` tar øyeblikksbilde** før gjenoppretting, slik `restoreCloudBackup` alltid har gjort.
+
+### Hygiene
+
+Duplisert `HANDLERS.openTaskForm`-linje fjernet · FIRST RUN-stubben fjernet (seedet ingenting, refererte funksjoner slettet i mai) · README rettet: den påsto fortsatt «Single HTML file, JavaScript inline, no build step», usant siden ADR 0013 · CONTEXT.md linjetall og views-tabell oppdatert · LES-MEG oppdatert med wikilinks, rullerende vindu og riktig backup-ordlyd.
+
+### Verifisert
+
+`node -c` grønn · **91 HANDLERS** · 0 bare-HANDLERS-kall · 0 `data-action` uten handler · 0 døde handlere · 0 definerte-men-ukalte funksjoner · 0 ubrukte CSS-klasser · 0 NUL-bytes · 0 CRLF · **app.js 5 222 → 4 979 linjer**. jsdom: **80/80** i hovedsuiten, pluss 24 + 12 målrettede regresjonstester der hvert enkelt funn ble utløst før fiksen og ikke lenger reproduserer. 13 modaler åpner rent, 7 visninger × 3 filtre, tomt state, alle tre temaer, søk med alle kategorifiltre.
+
 ## 2026-08-10 (senere på dagen) — Wikilinks virker begge veier + datatapsfeil på innlimte bilder stengt
 
 Fire funn fra en helsesjekk av notat-kodestien, fikset i samme runde.
