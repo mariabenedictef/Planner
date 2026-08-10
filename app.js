@@ -1755,6 +1755,153 @@ HANDLERS.addProjectNote = (pid)=>{
   HANDLERS.openNoteEditor(pid, n.id);
 };
 
+// ----- Wikilink-autocomplete (ADR 0026) -----
+// Wires a floating project-title picker to the note editor. Detects an unclosed `[[`
+// immediately before the caret, filters project titles, and inserts `[[Tittel]]`.
+// Internal to openNoteEditor — the dropdown lives inside the modal, so closeModal
+// disposes it along with the editor and its listeners.
+function _wireWikilinkAutocomplete(editor, afterInsert){
+  if (!editor || !editor.parentNode) return;
+  const box = document.createElement('div');
+  box.className = 'wl-ac';
+  box.setAttribute('role', 'listbox');
+  box.style.display = 'none';
+  editor.parentNode.appendChild(box);
+
+  let matches = [];
+  let active = 0;
+  let ctx = null;
+
+  const isOpen = ()=> box.style.display !== 'none';
+  const hide = ()=>{ box.style.display = 'none'; matches = []; ctx = null; };
+
+  // Locate an unclosed `[[` in the text node holding the caret. Returns null unless
+  // the caret sits directly after `[[` + a query with no brackets in it.
+  const readContext = ()=>{
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+    const node = sel.anchorNode;
+    if (!node || node.nodeType !== 3 || !editor.contains(node)) return null;
+    const before = node.textContent.slice(0, sel.anchorOffset);
+    const open = before.lastIndexOf('[[');
+    if (open === -1) return null;
+    const query = before.slice(open + 2);
+    if (query.length > 60 || /[\[\]]/.test(query)) return null;
+    return { node: node, start: open, end: sel.anchorOffset, query: query };
+  };
+
+  // Titles that could complete the query. Archived projects are excluded — you don't
+  // link to something you've put away. Prefix matches sort above substring matches.
+  const candidates = (query)=>{
+    const q = String(query || '').trim().toLowerCase();
+    return (state.projects || [])
+      .filter(p => p && p.title && !p.archived)
+      .filter(p => !q || p.title.toLowerCase().indexOf(q) > -1)
+      .sort((a, b)=>{
+        const as = a.title.toLowerCase().indexOf(q) === 0 ? 0 : 1;
+        const bs = b.title.toLowerCase().indexOf(q) === 0 ? 0 : 1;
+        return as !== bs ? as - bs : a.title.localeCompare(b.title, 'nb');
+      })
+      .slice(0, 8);
+  };
+
+  const paint = ()=>{
+    box.innerHTML = matches.length
+      ? matches.map((p, i)=>
+          `<div class="wl-ac-item" role="option" data-i="${i}" aria-selected="${i === active}">`
+          + `<span class="wl-ac-cat">${p.category === 'privat' ? 'Privat' : 'Jobb'}</span>`
+          + escapeHTML(p.title) + '</div>').join('')
+      : '<div class="wl-ac-empty">Ingen prosjekt matcher</div>';
+    box.style.display = 'block';
+    // Anchor to the caret, then keep the box inside the viewport.
+    const sel = window.getSelection();
+    let top = 0, left = 0;
+    if (sel && sel.rangeCount){
+      const range = sel.getRangeAt(0);
+      // A collapsed range has no client rects in some engines (and none at all in jsdom),
+      // so fall back through every option before giving up on positioning.
+      const rects = range.getClientRects ? range.getClientRects() : null;
+      const rect = (rects && rects[0])
+        || (range.getBoundingClientRect ? range.getBoundingClientRect() : null);
+      if (rect){ top = rect.bottom + 6; left = rect.left; }
+    }
+    const w = box.offsetWidth || 240;
+    const h = box.offsetHeight || 120;
+    box.style.left = Math.max(8, Math.min(left, window.innerWidth - w - 8)) + 'px';
+    box.style.top = (top + h > window.innerHeight - 8 ? Math.max(8, top - h - 22) : top) + 'px';
+  };
+
+  const refresh = ()=>{
+    if (editor.contentEditable !== 'true'){ hide(); return; }
+    ctx = readContext();
+    if (!ctx){ hide(); return; }
+    matches = candidates(ctx.query);
+    active = 0;
+    paint();
+  };
+
+  const markActive = ()=>{
+    const items = box.querySelectorAll('.wl-ac-item');
+    for (let i = 0; i < items.length; i++) items[i].setAttribute('aria-selected', i === active);
+    if (items[active] && items[active].scrollIntoView) items[active].scrollIntoView({ block: 'nearest' });
+  };
+
+  // Replace `[[query` with `[[Tittel]]` and drop the caret after it. Done with a Range
+  // rather than execCommand so the result is deterministic and undo-safe enough.
+  const insert = (p)=>{
+    if (!ctx || !p) return;
+    const range = document.createRange();
+    range.setStart(ctx.node, ctx.start);
+    range.setEnd(ctx.node, Math.min(ctx.end, ctx.node.textContent.length));
+    range.deleteContents();
+    const text = document.createTextNode('[[' + p.title + ']]');
+    range.insertNode(text);
+    const after = document.createRange();
+    after.setStartAfter(text);
+    after.collapse(true);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(after);
+    hide();
+    editor.focus();
+    if (typeof afterInsert === 'function') afterInsert();
+  };
+
+  editor.addEventListener('input', refresh);
+  editor.addEventListener('keyup', e=>{
+    if (['ArrowLeft','ArrowRight','Home','End'].indexOf(e.key) > -1) refresh();
+  });
+  editor.addEventListener('keydown', e=>{
+    if (!isOpen()) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      if (!matches.length) return;
+      e.preventDefault();
+      active = (active + (e.key === 'ArrowDown' ? 1 : matches.length - 1)) % matches.length;
+      markActive();
+      return;
+    }
+    if (e.key === 'Enter' || e.key === 'Tab'){
+      if (!matches.length) return;   // let Enter make a new line when nothing matches
+      e.preventDefault();
+      insert(matches[active]);
+      return;
+    }
+    if (e.key === 'Escape'){
+      e.preventDefault();
+      e.stopPropagation();           // the document-level Escape listener would close the modal
+      hide();
+    }
+  });
+  // Blur fires before click on the list, so defer the hide long enough for mousedown.
+  editor.addEventListener('blur', ()=> setTimeout(hide, 150));
+  box.addEventListener('mousedown', e=>{
+    const item = e.target.closest && e.target.closest('.wl-ac-item');
+    if (!item) return;
+    e.preventDefault();              // keep focus and the caret inside the editor
+    insert(matches[Number(item.dataset.i)]);
+  });
+}
+
 HANDLERS.openNoteEditor = (pid, nid)=>{
   const p = state.projects.find(x=>x.id===pid);
   const n = p?.noteList?.find(x=>x.id===nid);
@@ -1899,6 +2046,8 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
     titleInput.addEventListener('input', autoSave);
     titleInput.addEventListener('blur', saveNow);
   }
+  // «[[» i edit-modus foreslår prosjekttitler — ADR 0026
+  _wireWikilinkAutocomplete(editor, autoSave);
   // Re-render the page behind when the editor closes, so the note card reflects a
   // changed title or preview without waiting for some other action to trigger render().
   _onModalClose = ()=>{ saveNow(); render(); };
@@ -2885,22 +3034,34 @@ function renderMonth(){
     const tks = tasksOnDay(key);
     const isToday = sameDay(d, today);
     const hol = HOLIDAYS[key];
+    // A multi-day run can't be one unbroken bar across two week-rows — the cells live in
+    // different .row grids. Instead each row gets its own labelled segment: the Monday
+    // piece re-shows the title with a «↳», the Sunday piece ends flush with a «›».
+    // See ADR 0027 (amends 0014).
+    const rowStart = (i % 7) === 0;
+    const rowEnd = (i % 7) === 6;
     const evHTML = dayEvents.slice(0,3).map(e=>{
       const multi = e._isMultiDay ? ' multi' : '';
       const cont = e._isContinuation ? ' multi-cont' : '';
       const last = e._isMultiDay && e._isLastDay ? ' multi-last' : '';
+      const rs = (e._isMultiDay && e._isContinuation && rowStart) ? ' multi-rowstart' : '';
+      const re = (e._isMultiDay && !e._isLastDay && rowEnd) ? ' multi-rowend' : '';
       const isProj = e._kind === 'project';
-      const cls = `ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}${multi}${cont}${last}`;
+      const cls = `ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}${multi}${cont}${last}${rs}${re}`;
       const click = e._ics
         ? act('openOutlookEvent', e.id) + ' data-stop="1"'
         : isProj
           ? act('openProject', e._projectId) + ' data-stop="1"'
           : '';
-      // Continuation cells get a non-breaking-space placeholder so the visual bar
-      // keeps height; the title attribute still shows the full name on hover.
-      const inner = e._isContinuation
+      // Continuation cells get a non-breaking-space placeholder so the visual bar keeps
+      // height; the title attribute still shows the full name on hover. Exception: the
+      // first cell of a week-row re-labels the segment, otherwise a run crossing Sunday
+      // leaves a nameless grey bar on the next row (ADR 0027).
+      const inner = (e._isContinuation && !rowStart)
         ? '&nbsp;'
-        : `${isProj ? '📍 ' : ''}${e.start ? `<strong>${e.start}</strong> ` : ''}${escapeHTML(e.title)}`;
+        : e._isContinuation
+          ? `↳ ${escapeHTML(e.title)}`
+          : `${isProj ? '📍 ' : ''}${e.start ? `<strong>${e.start}</strong> ` : ''}${escapeHTML(e.title)}`;
       return `<div class="${cls}" title="${escapeAttr(e.title)}" ${click}>${inner}</div>`;
     }).join('');
     const taskHTML = tks.slice(0,Math.max(0,4-dayEvents.length)).map(t=>{
@@ -2908,9 +3069,11 @@ function renderMonth(){
       const multi = t._isMultiDay ? ' multi' : '';
       const cont = t._isContinuation ? ' multi-cont' : '';
       const last = t._isMultiDay && t._isLastDay ? ' multi-last' : '';
-      const cls = `ev cat-${t.category}${isProj?' proj':''}${multi}${cont}${last}`;
+      const rs = (t._isMultiDay && t._isContinuation && rowStart) ? ' multi-rowstart' : '';
+      const re = (t._isMultiDay && !t._isLastDay && rowEnd) ? ' multi-rowend' : '';
+      const cls = `ev cat-${t.category}${isProj?' proj':''}${multi}${cont}${last}${rs}${re}`;
       const label = isProj ? `${escapeHTML(t._projectTitle)}: ${escapeHTML(t.title)}` : `☐ ${escapeHTML(t.title)}`;
-      const inner = t._isContinuation ? '&nbsp;' : label;
+      const inner = (t._isContinuation && !rowStart) ? '&nbsp;' : (t._isContinuation ? `↳ ${label}` : label);
       return `<div class="${cls}" title="${escapeAttr(label)}">${inner}</div>`;
     }).join('');
     const more = (dayEvents.length+tks.length)-4;
