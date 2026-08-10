@@ -730,12 +730,10 @@ HANDLERS.restoreCloudBackup = async (key)=>{
     if (!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
     if (!data || !data.meta) throw new Error('Tom backup');
-    // Preserve sync credentials
-    const localSync = {
-      syncUrl: state.sync.syncUrl,
-      syncToken: state.sync.syncToken,
-      icsUrl: state.sync.icsUrl,
-    };
+    // Preserve sync credentials we actually have — an empty local value must not
+    // overwrite a good one from the backup. Same reasoning as pullFromRemote.
+    const localSync = {};
+    ['syncUrl','syncToken','icsUrl'].forEach(k=>{ if (state.sync[k]) localSync[k] = state.sync[k]; });
     state = Object.assign(structuredClone(DEFAULT_STATE), data);
     state.sync = Object.assign({}, state.sync, localSync);
     state.meta.lastModified = Date.now();
@@ -784,12 +782,12 @@ async function pullFromRemote(silent, force){
           while (psKeys.length > 5){ localStorage.removeItem(psKeys.shift()); }
         } catch(_){}
       }
-      // Preserve local sync credentials (don't overwrite with possibly-stale remote)
-      const localSync = {
-        syncUrl: state.sync.syncUrl,
-        syncToken: state.sync.syncToken,
-        icsUrl: state.sync.icsUrl,
-      };
+      // Preserve local sync credentials — but only the ones we actually have. Copying
+      // them unconditionally meant an EMPTY local value overwrote a good remote one, so
+      // a device that never had the ICS URL could never learn it from the cloud. That's
+      // why Outlook events sat frozen from 2026-05-23 on this browser. See ADR 0022.
+      const localSync = {};
+      ['syncUrl','syncToken','icsUrl'].forEach(k=>{ if (state.sync[k]) localSync[k] = state.sync[k]; });
       state = Object.assign(structuredClone(DEFAULT_STATE), remote);
       state.sync = Object.assign({}, state.sync, localSync);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));

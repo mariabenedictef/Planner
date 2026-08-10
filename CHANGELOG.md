@@ -39,6 +39,7 @@ Full helsesjekk av hele appen (rapport i `docs/health-check-2026-08-10.md`, loka
 - **Sync-feil var usynlige (ADR 0023).** Outlook auto-sync forkastet alle feil; `loadCloudBackups` returnerte `[]` både ved 401 og nettverksfeil, så et utløpt token ble vist som «Ingen sky-backups enda»; og push/pull delte statusindikator, så en vellykket pull malte over en mislykket push. Alle tre skilt fra hverandre; indikatoren blir rød til opplastingen faktisk lykkes.
 - **`autoWeeklyExport` stemplet suksess den ikke kunne bekrefte (ADR 0023).** `lastWeeklyExport` ble satt rett etter `a.click()`, som ikke sier noe om at noe ble skrevet — på iPhone havner filen ingen steder. Stempler nå bare i grenen som venter på `writable.close()`. Og `requestPermission()` kalles ikke lenger under boot uten brukeraktivering, som var grunnen til at mappevalget stille degraderte til Downloads ved hver nettleser-omstart.
 - **`restoreBackup` tar øyeblikksbilde** før gjenoppretting, slik `restoreCloudBackup` alltid har gjort.
+- **Tomme lokale credentials overskrev gode fra skyen** — funnet under live-verifiseringen etter pushen. `pullFromRemote` og `restoreCloudBackup` kopierte `syncUrl`/`syncToken`/`icsUrl` fra lokal state ubetinget, så en **tom** lokal verdi vant over en god fra skyen. Derfor var `icsUrl` tom i PC-nettleseren og Outlook-hendelsene frosne siden 23. mai: enheten kunne aldri lære URL-en fra skyen. Kopierer nå bare verdier som faktisk finnes lokalt.
 
 ### Hygiene
 
