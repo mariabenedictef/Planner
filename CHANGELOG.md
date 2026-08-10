@@ -17,6 +17,8 @@ Nye innslag legges øverst.
   - `_wireUrgentDragReorder()` — post-render event-wiring for drag-sortering på Urgent-lista
 - `renderHome` selv er nå ~55 linjer: gjør bare data-forberedelse (`activeProjects`/`urgent`/`todayTasks`), setter greeting, komponerer HTML fra hjelperne, og kaller quick-capture-listener + `_wireUrgentDragReorder()` etterpå. Ingen adferdsendring — kun leselighet.
 - Verifisert med `node -c` + jsdom smoke-test at alle 7 nye/eksisterende funksjonene er definert, at `_homeQuickCaptureHTML` returnerer forventet HTML, at `_homeUrgentHTML([])` gir «Ingen urgent» tom-state, og at `_homeActiveProjectsHTML([])` returnerer tom streng slik at seksjonen skjules når det ikke er noe.
+- **Doc-sync i samme change-set:** ADR 0018 skrevet for å låse inn seksjons-helper-mønsteret som strukturelt valg (ikke bare et engangs-triks) — anvendes på `renderProject`/`renderTodos`/`renderWeek`/`renderMonth` når de trenger neste endring. ADR-indeks (`docs/adr/0000-index.md`) oppdatert. CONTEXT.md fikk kort note om at underscore-prefiks-hjelpere er interne til én render-funksjon.
+- **Test-utvidelse:** `test.html` fikk ny seksjon 12 (`Hjem-seksjons-hjelpere — ADR 0018`) — asserer at hver av de 6 hjelperne er definert, kaller dem direkte med syntetisk input for å verifisere tomtilstand-kontraktene (`_homeActiveProjectsHTML([]) === ''`, `_homeUrgentHTML([]).includes('Ingen urgent')`, osv.), og verifiserer at `renderHome` integrerer alle hjelperne i DOM-en (`.home-greeting`, `.home-section`, `.home-quick`, `.hjem-week`). Fanger regresjon hvis noen fjerner en hjelper eller endrer signaturen.
 
 ## 2026-06-09 — Prosjekt-siden viser nå tagget-frie-tasks under Oppgaver
 

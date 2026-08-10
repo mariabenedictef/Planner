@@ -21,6 +21,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0015](0015-always-strip-settings.md) | `loadState` always strips `merged.settings`, unconditionally | Accepted |
 | [0016](0016-taskproject-tag-not-move.md) | `taskToProject` tags the task (sets `projectId`) instead of moving it | Accepted |
 | [0017](0017-project-page-merges-tagged-tasks.md) | Project page merges tagged free tasks into the Oppgaver list | Accepted |
+| [0018](0018-render-view-section-helpers.md) | Store render-visninger splittes i seksjons-helpere | Accepted |
 
 ## How to add a new ADR
 
