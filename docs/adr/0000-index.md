@@ -22,6 +22,8 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0016](0016-taskproject-tag-not-move.md) | `taskToProject` tags the task (sets `projectId`) instead of moving it | Accepted |
 | [0017](0017-project-page-merges-tagged-tasks.md) | Project page merges tagged free tasks into the Oppgaver list | Accepted |
 | [0018](0018-render-view-section-helpers.md) | Store render-visninger splittes i seksjons-helpere | Accepted |
+| [0019](0019-wikilinks-rendered-not-stored.md) | Wikilinks rendres ved visning, aldri i lagret innhold | Accepted |
+| [0020](0020-note-url-whitelist.md) | Notat-sanitizer bruker URL-whitelist, med unntak for innlimte raster-bilder | Accepted |
 
 ## How to add a new ADR
 
