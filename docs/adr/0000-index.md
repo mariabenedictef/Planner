@@ -24,6 +24,11 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0018](0018-render-view-section-helpers.md) | Store render-visninger splittes i seksjons-helpere | Accepted |
 | [0019](0019-wikilinks-rendered-not-stored.md) | Wikilinks rendres ved visning, aldri i lagret innhold | Accepted |
 | [0020](0020-note-url-whitelist.md) | Notat-sanitizer bruker URL-whitelist, med unntak for innlimte raster-bilder | Accepted |
+| [0021](0021-sanitize-per-tag-not-whole-string.md) | Notat-saniteringen opererer per tag, aldri på hele strengen | Accepted (utvider 0020) |
+| [0022](0022-state-never-degrades-silently.md) | Lasting og lagring av state skal aldri degradere stille | Accepted |
+| [0023](0023-inputs-commit-on-input-not-blur.md) | Felt lagrer på `input` (strupet); vi stempler ikke suksess vi ikke kan bekrefte | Accepted |
+| [0024](0024-list-view-removed.md) | List-visningen fjernet | Accepted |
+| [0025](0025-rrule-support-boundary.md) | Hva RRULE-ekspansjonen støtter — og hva den bevisst ikke støtter | Accepted |
 
 ## How to add a new ADR
 
