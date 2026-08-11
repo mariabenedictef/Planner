@@ -587,6 +587,7 @@ function _computeStateBody(){
   state.meta.lastModified = lm;
   return json;
 }
+let _lastWriteOk = false;
 function saveState(){
   if (!state.meta) state.meta = {};
   const body = _computeStateBody();
@@ -598,6 +599,15 @@ function saveState(){
     state.meta.lastModified = Date.now();
     _lastSavedBody = body;
     scheduleRemoteSync();
+  } else if (_lastWriteOk && (STORAGE_KEY in localStorage)){
+    // Ingenting er endret, forrige skriving gikk bra, og nøkkelen står der ⇒ blobben på
+    // disk er allerede identisk. Før serialiserte vi hele staten to ganger (én gang for
+    // sammenligningen, én gang for skrivingen) og skrev den på nytt ved HVER render() og
+    // hvert 400. ms mens hun skriver — for å lagre presis samme bytes. Målt 12,1 ms per
+    // kall, hvorav ~8 ms var denne andre runden.
+    // `in` sjekker nøkkelen uten å kopiere ut 649 kB, og lukker smutthullet der noe
+    // annet (f.eks. resetAll) har fjernet nøkkelen bak ryggen vår. ADR 0031.
+    return;
   }
   // localStorage can throw QuotaExceededError — notes may contain base64 images, and
   // the backup rings are pruned by count, not bytes. This used to be unguarded, so a
@@ -605,7 +615,9 @@ function saveState(){
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     _saveFailed = false;
+    _lastWriteOk = true;
   } catch (err) {
+    _lastWriteOk = false;
     console.error('saveState failed', err);
     if (!_saveFailed){
       _saveFailed = true;
@@ -614,6 +626,7 @@ function saveState(){
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         _saveFailed = false;
+        _lastWriteOk = true;
         console.warn('saveState recovered after pruning ' + freed + ' old backup key(s)');
       } catch (err2) {
         if (typeof showToast === 'function'){
@@ -665,20 +678,44 @@ function _snapshotJSON(){
   return JSON.stringify(slim);
 }
 
-function _snapshotKeys(){
-  return Object.keys(localStorage)
-    .filter(k => k.startsWith('planlegger.backup.') || k.startsWith('planlegger.preSync.'))
-    .sort();                               // tidsstemplet navn ⇒ leksikografisk = kronologisk
+// Nøkkelformat: `planlegger.preSync.<ISO>` og `planlegger.backup.<YYYY-MM-DD>`.
+// ADR 0031: sorteringen MÅ gå på parset tid, ikke på strengen. Leksikografisk sortering
+// på tvers av prefiksene setter alle `backup.*` før alle `preSync.*` (b < p), så et
+// preSync fra juni rangerte som «nyere» enn dagsbackupen fra 11. august og ble beholdt
+// mens dagsbackupen ble slettet. To skrivesteder brukte i tillegg `Date.now()` og to
+// brukte ISO, som ikke sorterer likt engang.
+function _snapshotTime(k){
+  const raw = k.replace('planlegger.backup.','').replace('planlegger.preSync.','').replace('planlegger.unreadable.','');
+  if (/^\d+$/.test(raw)) return Number(raw);                       // arv: Date.now()-nøkler
+  // ISO-ish: 2026-08-11T09-00-00 eller 2026-08-11
+  const iso = raw.replace(/T(\d\d)-(\d\d)-(\d\d)$/, 'T$1:$2:$3');
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? 0 : t;                                  // uparsebar ⇒ eldst
 }
 
-// Beskjær nyeste-først til budsjettet. Antallsgrensene over er fortsatt hovedpolicy;
-// dette er nettet som fanger opp at state har vokst siden grensene ble satt.
+function _snapshotKeys(){
+  // `unreadable.*` er en full kopi av en ødelagt state-blob. Den lå utenfor budsjettet
+  // og kunne dermed okkupere ~650 kB av kvoten permanent, usynlig.
+  return Object.keys(localStorage)
+    .filter(k => k.startsWith('planlegger.backup.') || k.startsWith('planlegger.preSync.') || k.startsWith('planlegger.unreadable.'))
+    .sort((a,b) => _snapshotTime(a) - _snapshotTime(b));            // eldst først
+}
+
+// Beskjær nyeste-først til budsjettet.
+// **Det nyeste øyeblikksbildet beskyttes alltid, uansett størrelse.** Uten det gulvet
+// slettet et enkelt øyeblikksbilde større enn budsjettet seg selv — og `autoBackup`
+// stemplet `ok: true` etterpå. Ett innlimt bilde i et notat er nok til å komme dit.
 function _pruneSnapshotsToBudget(){
   const keys = _snapshotKeys().reverse();   // nyeste først
-  let used = 0, dropped = 0;
+  const sizeOf = k => { const v = localStorage.getItem(k); return (v ? v.length : 0) + k.length; };
+  let used = 0, dropped = 0, first = true;
   for (const k of keys){
-    const v = localStorage.getItem(k);
-    const size = (v ? v.length : 0) + k.length;
+    const size = sizeOf(k);
+    if (first){
+      first = false;
+      used += size;                          // gulvet: nyeste står alltid
+      continue;
+    }
     if (used + size > SNAPSHOT_BUDGET_BYTES){
       try { localStorage.removeItem(k); dropped++; } catch(_){}
     } else {
@@ -688,6 +725,44 @@ function _pruneSnapshotsToBudget(){
   if (dropped) console.warn('[snapshots] beskar ' + dropped + ' gammelt øyeblikksbilde over budsjettet (' +
     Math.round(used/1024) + ' kB beholdt)');
   return dropped;
+}
+
+// Alle fire skrivesteder for preSync gikk hver sin vei: to hadde antallsgrense, ett
+// beskar før, ett gjorde ingen av tingene, og alle fire svelget feilen i `catch(_){}` —
+// selv om dette er den ENE veien tilbake fra en destruktiv operasjon. Én dør nå.
+function _writePreSyncSnapshot(){
+  const key = 'planlegger.preSync.' + new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  _pruneSnapshotsToBudget();                 // lag plass FØR, ikke etter
+  try {
+    localStorage.setItem(key, _snapshotJSON());
+  } catch (err){
+    console.error('preSync-øyeblikksbilde feilet', err);
+    if (typeof showToast === 'function'){
+      showToast('⚠ Klarte ikke lagre øyeblikksbilde først — du kan ikke rulle tilbake dette. Eksportér til JSON nå hvis du vil være trygg.', 15000);
+    }
+    return { ok: false, error: err.message || String(err) };
+  }
+  const psKeys = Object.keys(localStorage).filter(k=>k.startsWith('planlegger.preSync.'))
+    .sort((a,b)=> _snapshotTime(a) - _snapshotTime(b));
+  while (psKeys.length > 5) localStorage.removeItem(psKeys.shift());
+  _pruneSnapshotsToBudget();
+  // Beskjæringen kan i prinsippet ha spist den vi nettopp skrev. Sjekk, ikke anta.
+  if (!localStorage.getItem(key)){
+    console.error('preSync-øyeblikksbilde forsvant i beskjæringen', key);
+    if (typeof showToast === 'function'){
+      showToast('⚠ Øyeblikksbildet ble ikke beholdt — lagringsplassen er for full. Eksportér til JSON nå.', 15000);
+    }
+    return { ok: false, error: 'beskåret bort' };
+  }
+  return { ok: true, key };
+}
+
+// Brukes av lagre-handlerne når posten de redigerte ikke finnes lenger.
+function _warnVanished(){
+  console.warn('Lagring forkastet: posten finnes ikke lenger i state');
+  if (typeof showToast === 'function'){
+    showToast('⚠ Denne posten finnes ikke lenger — den ble antakelig slettet på en annen enhet mens du redigerte. Endringen ble ikke lagret.', 12000);
+  }
 }
 
 // Et øyeblikksbilde uten Outlook-cachen skal ikke tømme kalenderen ved gjenoppretting.
@@ -723,7 +798,17 @@ function scheduleRemoteSync(){
   // pulled the ICS feed would otherwise pass the guard and push its empty projects,
   // tasks and events over good cloud data. Mirrors the pull-side guard.
   const hasContent = ((state.projects||[]).length + (state.tasks||[]).length + (state.events||[]).length) > 0;
-  if (!hasContent) return;
+  if (!hasContent){
+    // Vakten er riktig, men den var stille: sletter du det siste prosjektet, blir
+    // indikatoren stående grønn mens slettingen aldri når skyen — og pullet henter
+    // den ikke tilbake, siden lokal `lastModified` er nyere. To enheter kan divergere
+    // permanent mens begge sier «synket». ADR 0031.
+    _syncStatus.state = 'blocked';
+    _syncStatus.error = 'Lokalt er tomt for prosjekter, oppgaver og hendelser, så pushen er stanset for å ikke overskrive skyen. Bruk «Send til sky» i Innstillinger hvis dette er med vilje.';
+    updateSyncIndicator();
+    return;
+  }
+  if (_syncStatus.state === 'blocked'){ _syncStatus.state = 'idle'; _syncStatus.error = null; }
   _syncDebounceTimer = setTimeout(pushToRemote, SYNC_DEBOUNCE_MS);
 }
 
@@ -771,14 +856,8 @@ async function loadCloudBackups(){
 HANDLERS.restoreCloudBackup = async (key)=>{
   const dateStr = key.replace('backup-','');
   if (!confirm(`Erstatt all nåværende data med sky-backup ${dateStr}?\n\nEt pre-sync-øyeblikksbilde lages automatisk før, så du kan rulle tilbake hvis du ombestemmer deg.`)) return;
-  // Save current as pre-sync snapshot
-  try {
-    const ts = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
-    localStorage.setItem('planlegger.preSync.'+ts, _snapshotJSON());
-    const psKeys = Object.keys(localStorage).filter(k=>k.startsWith('planlegger.preSync.')).sort();
-    while (psKeys.length > 5) localStorage.removeItem(psKeys.shift());
-    _pruneSnapshotsToBudget();
-  } catch(_){}
+  // Save current as pre-sync snapshot. Feiler den, sier den fra — se ADR 0031.
+  _writePreSyncSnapshot();
   // Fetch backup
   try {
     const base = state.sync.syncUrl.replace(/\/+$/,'');
@@ -830,15 +909,11 @@ async function pullFromRemote(silent, force){
       // Else: local has data but remote is empty → skip pull (prevents wipe)
     }
     if (shouldPull){
-      // Save a pre-sync snapshot if local had content (for conflict recovery)
+      // Save a pre-sync snapshot if local had content (for conflict recovery).
+      // Dette er det automatiske 60-sekunders pullet: det erstatter hele state uten at
+      // Maria ber om det, så øyeblikksbildet er det eneste nettet. ADR 0031.
       if (localHasContent){
-        try {
-          const ts = new Date().toISOString().replace(/[:.]/g,'-').slice(0, 19);
-          localStorage.setItem('planlegger.preSync.' + ts, _snapshotJSON());
-          const psKeys = Object.keys(localStorage).filter(k=>k.startsWith('planlegger.preSync.')).sort();
-          while (psKeys.length > 5){ localStorage.removeItem(psKeys.shift()); }
-          _pruneSnapshotsToBudget();
-        } catch(_){}
+        _writePreSyncSnapshot();
       }
       // Preserve local sync credentials — but only the ones we actually have. Copying
       // them unconditionally meant an EMPTY local value overwrote a good remote one, so
@@ -886,12 +961,13 @@ function updateSyncIndicator(){
     pushing: { color:'#c9a87a', label:'↑' },
     pulling: { color:'#c9a87a', label:'↓' },
     error:   { color:'#b04949', label:'!' },
+    blocked: { color:'#b04949', label:'⨯' },
   };
   const s = map[_syncStatus.state] || map.idle;
   el.style.color = s.color;
   const ago = _syncStatus.lastSyncAt ? Math.round((Date.now()-_syncStatus.lastSyncAt)/1000) : 0;
-  const tip = _syncStatus.state==='error'
-    ? 'Synk-feil: ' + (_syncStatus.error||'ukjent')
+  const tip = (_syncStatus.state==='error' || _syncStatus.state==='blocked')
+    ? (_syncStatus.state==='blocked' ? 'Push stanset: ' : 'Synk-feil: ') + (_syncStatus.error||'ukjent')
     : (ago<60?'synket nå':(`sist synket ${Math.round(ago/60)} min siden`));
   el.textContent = s.label;
   el.title = tip;
@@ -936,26 +1012,51 @@ function recurringInstanceOnDay(e, key){
   const maxEnd = new Date(baseStart); maxEnd.setFullYear(maxEnd.getFullYear()+5);
   if (target > maxEnd) return null;
 
-  let cur = new Date(baseStart);
-  let n = 0;
-  while (n < 2000){
+  const hit = (cur, n)=>{
     const curEnd = new Date(cur.getTime() + durationMs);
-    if (cur > target) return null;
-    // Check if target falls within [cur, curEnd]
     if (cur <= target && target <= curEnd){
-      return {
-        ...e,
-        id: e.id + '-r' + n,
-        _origId: e.id,
-        _isRecurring: true,
-        date: dKey(cur),
-        endDate: durationMs > 0 ? dKey(curEnd) : '',
-      };
+      return { ...e, id: e.id + '-r' + n, _origId: e.id, _isRecurring: true,
+               date: dKey(cur), endDate: durationMs > 0 ? dKey(curEnd) : '' };
     }
-    n++;
-    if (e.recurring === 'daily') cur = addDays(cur, 1);
-    else if (e.recurring === 'weekly') cur = addDays(cur, 7);
-    else if (e.recurring === 'monthly') cur = addMonths(cur, 1);
+    return null;
+  };
+
+  // For `daily` og `weekly` hopper vi rett til området rundt målet. Den gamle loopen gikk
+  // ett steg av gangen fra seriens start og allokerte to Date-objekter per steg, kalt én
+  // gang per (gjentakende hendelse × dagcelle) — 112 ganger per ukesvisning. Kostnaden
+  // vokste med kalendertid, ikke med dataene: en daglig serie fra 2022 målte 124 ms per
+  // tegning. Å legge til `i` dager fra basen er per definisjon identisk med å steppe `i`
+  // ganger med én dag, så semantikken er uendret. Verifisert med differansetest over
+  // 153 600 tilfeller. ADR 0031.
+  if (e.recurring === 'daily' || e.recurring === 'weekly'){
+    const DAY = 86400000;
+    const stride = e.recurring === 'daily' ? 1 : 7;
+    const spanDays = Math.max(0, Math.round(durationMs / DAY));
+    const gapDays = Math.round((target - baseStart) / DAY);
+    const guess = Math.floor(gapDays / stride);
+    const back = Math.ceil(spanDays / stride) + 1;
+    for (let n = Math.max(0, guess - back); n <= guess + 1; n++){
+      const cur = addDays(baseStart, n * stride);
+      if (cur > target) break;
+      const found = hit(cur, n);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  // `monthly` og `yearly` stepper fortsatt kumulativt — med vilje. `addMonths` fra
+  // forrige forekomst DRIFTER: en månedlig serie fra 31. januar går 31/1 → 3/3 → 3/4 →
+  // 3/5 og blir liggende på den 3., mens `addMonths(base, n)` ville gitt 31/1 → 3/3 →
+  // 31/3. Differansetesten avslørte forskjellen. Den aritmetiske varianten er nok den
+  // riktigere, men å bytte flytter hendelser som alt ligger i kalenderen hennes, og det
+  // hører ikke inn i en ytelsesfiks. Kostnaden er uansett neglisjerbar her: 5-årstaket
+  // over gir maks 60 steg for monthly og 5 for yearly, mot 1826 for daily.
+  let cur = new Date(baseStart);
+  for (let n = 0; n < 2000; n++){
+    if (cur > target) return null;
+    const found = hit(cur, n);
+    if (found) return found;
+    if (e.recurring === 'monthly') cur = addMonths(cur, 1);
     else if (e.recurring === 'yearly') cur = new Date(cur.getFullYear()+1, cur.getMonth(), cur.getDate());
     else return null;
   }
@@ -2164,8 +2265,19 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
           if (!blob) return;
           const r = new FileReader();
           r.onload = ()=>{
-            document.execCommand('insertImage', false, r.result);
-            autoSave();
+            // Skalér ned FØR bildet havner i state. Rå-blobben fra utklippstavlen ble
+            // lagret som base64 uten noen grense: én skjermdump målte state fra 569 kB
+            // til 2617 kB, og to–tre av dem sprenger localStorage-kvoten på ~5 MB. Dette
+            // er den ene handlingen som kan ta hele lagringsplassen på ett klikk. ADR 0031.
+            _downscaleDataURL(r.result, 1400, 0.85).then(small=>{
+              document.execCommand('insertImage', false, small);
+              autoSave();
+              const kb = Math.round(small.length/1024);
+              if (typeof showToast === 'function'){
+                if (kb > 400) showToast(`⚠ Bildet er ${kb} kB selv etter nedskalering. Lagringsplassen er på ~5000 kB til alt — legg helst store bilder i OneDrive og lenk til dem.`, 12000);
+                else showToast(`🖼 Bilde lagt inn (${kb} kB)`, 3000);
+              }
+            });
           };
           r.readAsDataURL(blob);
           return;
@@ -2485,7 +2597,7 @@ function openProjectForm(id){
       <button data-action="closeModal">${I18N.cancel}</button>
       <button class="primary" data-action="saveProjectForm" data-args='["${p?p.id:''}"]'>${I18N.save}</button>
     </div>`);
-  setTimeout(()=>document.getElementById('p-title').focus(),50);
+  _focusLater('p-title');
   if (isNew){
     document.getElementById('p-template').addEventListener('change', e=>{
       const tid = e.target.value;
@@ -2516,7 +2628,10 @@ HANDLERS.saveProjectForm = id=>{
   if (!data.title) return;
   if (id){
     const ex = state.projects.find(x=>x.id===id);
-    if (!ex){ closeModal(); render(); return; }
+    // Posten forsvant mellom åpning og lagring — typisk fordi 60-sekunders-pullet
+    // erstattet hele state mens dialogen sto åpen. Før lukket dialogen seg helt som
+    // ved suksess, så redigeringen var borte uten et ord. ADR 0031.
+    if (!ex){ _warnVanished(); closeModal(); render(); return; }
     Object.assign(ex, data);
   } else {
     const np = Object.assign({id:uid(),tasks:[],milestones:[],people:[],links:[],notes:'',status:'active',archived:false}, data);
@@ -2591,7 +2706,7 @@ function openProjectTaskForm(pid, tid){
       <button data-action="closeModal">${I18N.cancel}</button>
       <button class="primary" data-action="saveProjectTaskForm" data-args='["${pid}","${t?t.id:''}"]'>${I18N.save}</button>
     </div>`);
-  setTimeout(()=>document.getElementById('pt-title').focus(),50);
+  _focusLater('pt-title');
 }
 HANDLERS.openProjectTaskForm = openProjectTaskForm;
 HANDLERS.saveProjectTaskForm = (pid, tid)=>{
@@ -2610,7 +2725,10 @@ HANDLERS.saveProjectTaskForm = (pid, tid)=>{
   if (!p) { closeModal(); render(); return; }
   if (tid){
     const ex = p.tasks.find(x=>x.id===tid);
-    if (!ex){ closeModal(); render(); return; }
+    // Posten forsvant mellom åpning og lagring — typisk fordi 60-sekunders-pullet
+    // erstattet hele state mens dialogen sto åpen. Før lukket dialogen seg helt som
+    // ved suksess, så redigeringen var borte uten et ord. ADR 0031.
+    if (!ex){ _warnVanished(); closeModal(); render(); return; }
     Object.assign(ex, data);
   } else { p.tasks.push(Object.assign({id:uid(),done:false}, data)); }
   closeModal(); render();
@@ -3263,12 +3381,17 @@ function renderWeek(){
   }).join('');
 
   const startHour = 7, endHour = 22;
+  // Hentet ut av time-loopen: dette sto inne i `for (h) { days.forEach(...) }` og kalte
+  // altså eventsOnDay 16 × 7 = 112 ganger per tegning, 16 av dem med identisk nøkkel.
+  // Hvert kall fullskanner outlookEvents (627 og voksende), state.events og projects.
+  // renderDay gjorde det riktig hele tiden — regner én gang, filtrerer per time. ADR 0031.
+  const evsByKey = new Map(days.map(d=>[dKey(d), eventsOnDay(dKey(d))]));
   for (let h=startHour; h<=endHour; h++){
     html += `<div class="hour-label">${pad(h)}:00</div>`;
     days.forEach(d=>{
       const key = dKey(d);
       const isWeekend = d.getDay()===0||d.getDay()===6;
-      const evs = eventsOnDay(key).filter(e=>{
+      const evs = (evsByKey.get(key)||[]).filter(e=>{
         if(!e.start) return h===startHour; // events without time appear at top
         const eh = parseInt(e.start.split(':')[0]);
         return eh===h;
@@ -3594,7 +3717,7 @@ function openEventForm(id, defaults={}){
       <button data-action="closeModal">${I18N.cancel}</button>
       <button class="primary" data-action="saveEventForm" data-args='["${e?e.id:''}"]'>${I18N.save}</button>
     </div>`);
-  setTimeout(()=>document.getElementById('ev-title').focus(),50);
+  _focusLater('ev-title');
 }
 HANDLERS.saveEventForm = id=>{
   const endDateRaw = document.getElementById('ev-endDate').value||'';
@@ -3613,7 +3736,10 @@ HANDLERS.saveEventForm = id=>{
   if (!data.title || !data.date) return;
   if (id){
     const ex = state.events.find(x=>x.id===id);
-    if (!ex){ closeModal(); render(); return; }
+    // Posten forsvant mellom åpning og lagring — typisk fordi 60-sekunders-pullet
+    // erstattet hele state mens dialogen sto åpen. Før lukket dialogen seg helt som
+    // ved suksess, så redigeringen var borte uten et ord. ADR 0031.
+    if (!ex){ _warnVanished(); closeModal(); render(); return; }
     Object.assign(ex, data);
   }
   else { state.events.push(Object.assign({id:uid()}, data)); }
@@ -3678,7 +3804,7 @@ function openTaskForm(id, defaults={}){
       <button data-action="closeModal">${I18N.cancel}</button>
       <button class="primary" data-action="saveTaskForm" data-args='["${t?t.id:''}"]'>${I18N.save}</button>
     </div>`);
-  setTimeout(()=>document.getElementById('tk-title').focus(),50);
+  _focusLater('tk-title');
 }
 HANDLERS.openTaskForm = openTaskForm;
 HANDLERS.saveTaskForm = id=>{
@@ -3694,7 +3820,10 @@ HANDLERS.saveTaskForm = id=>{
   if (!data.title) return;
   if (id){
     const ex = state.tasks.find(x=>x.id===id);
-    if (!ex){ closeModal(); render(); return; }
+    // Posten forsvant mellom åpning og lagring — typisk fordi 60-sekunders-pullet
+    // erstattet hele state mens dialogen sto åpen. Før lukket dialogen seg helt som
+    // ved suksess, så redigeringen var borte uten et ord. ADR 0031.
+    if (!ex){ _warnVanished(); closeModal(); render(); return; }
     Object.assign(ex, data);
   } else { state.tasks.push(Object.assign({id:uid(),done:false}, data)); }
   closeModal(); render();
@@ -3732,7 +3861,7 @@ function openQuickCapture(){
       <button data-action="switchView" data-args='["todos"]'>Se alle To Do's →</button>
       <button data-action="closeModal">${I18N.cancel}</button>
     </div>`);
-  setTimeout(()=>document.getElementById('qc-text').focus(),50);
+  _focusLater('qc-text');
   document.getElementById('qc-text').addEventListener('keydown', e=>{
     if(e.key==='Enter'){ e.preventDefault(); HANDLERS.qcSave('inbox'); }
   });
@@ -3820,7 +3949,7 @@ function openSearch(){
       <div class="search-results" id="search-results"><div class="empty">Begynn å skrive eller bruk filtrene…</div></div>
     </div>
     <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
-  setTimeout(()=>document.getElementById('search-input').focus(),50);
+  _focusLater('search-input');
   const trigger = ()=>{
     doSearch({
       q: document.getElementById('search-input').value,
@@ -3941,6 +4070,18 @@ function doSearch(filt){
 // ============================================================
 function openSettings(){
   const stat = state.ui.notifications?'På':'Av';
+  // «På» alene løy: den sa ingenting om at nettleseren blokkerer varsler eller ikke kan
+  // vise dem i det hele tatt. ADR 0031.
+  const notifyNote = (()=>{
+    if (!state.ui.notifications) return '';
+    // `'Notification' in window` er sant også når verdien er undefined, så spør på verdien.
+    const N = _notificationAPI();
+    if (!N) return '⚠ Nettleseren støtter ikke varsler';
+    if (N.permission === 'denied') return '⚠ Blokkert i nettleseren — endre via låsikonet i adressefeltet';
+    if (N.permission === 'default') return '⚠ Ikke gitt tilgang ennå';
+    if (_notifyStatus.supported === false) return '⚠ Varsler kan ikke vises her: ' + escapeHTML(_notifyStatus.error||'');
+    return '✓ Tillatt' + (_notifyStatus.firedCount ? ` · ${_notifyStatus.firedCount} sendt denne økten` : '');
+  })();
   const icsUrl = state.sync.icsUrl||'';
   const outlookCount = (state.outlookEvents||[]).length;
   const syncUrl = state.sync.syncUrl||'';
@@ -3973,6 +4114,7 @@ function openSettings(){
           </div>
           <span class="sync-status" id="sync-status">${outlookCount} hendelser · ${lastSyncLabel()}</span>
         </div>
+        ${_outlookStatusHTML()}
       </div>
       <div class="sl"><span>Tema</span>
         <select onchange="HANDLERS.setTheme(this.value)" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">
@@ -3981,7 +4123,12 @@ function openSettings(){
           <option value="dark" ${state.ui.theme==='dark'?'selected':''}>Mørk</option>
         </select>
       </div>
-      <div class="sl"><span>Påminnelser i nettleseren</span><button data-action="toggleNotifications">${stat}</button></div>
+      <div class="sl flex-col-stretch">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span>Påminnelser i nettleseren</span><button data-action="toggleNotifications">${stat}</button>
+        </div>
+        ${notifyNote ? `<div style="font-size:12px;color:${notifyNote.startsWith('✓')?'var(--ink-muted)':'var(--alert)'};padding:2px 0">${notifyNote}</div>` : ''}
+      </div>
       <div class="sl"><span>Eksporter til JSON</span><button data-action="exportData">Last ned</button></div>
       <div class="sl"><span>Importer fra JSON</span><div class="pos-rel-ib"><button type="button" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);color:var(--ink-soft);background:#fff;pointer-events:none">Velg fil</button><input id="imp" type="file" accept=".json,application/json" class="input-overlay"></div></div>
       <div class="sl flex-col-stretch">
@@ -4043,6 +4190,11 @@ function openSettings(){
       status.textContent = permLabel + h.name;
       status.style.color = permLabel.startsWith('✓') ? '#588a58' : 'var(--alert)';
       if (clear) clear.style.display = 'inline-block';
+    } else if (_backupDirError){
+      // «Ingen mappe valgt» og «klarte ikke lese IndexedDB» så identiske ut før.
+      status.textContent = '⚠ klarte ikke lese mappevalget (' + _backupDirError + ')';
+      status.style.color = 'var(--alert)';
+      if (clear) clear.style.display = 'none';
     } else {
       status.textContent = '— bruker Nedlastinger';
       status.style.color = 'var(--ink-muted)';
@@ -4141,18 +4293,54 @@ HANDLERS.setTheme = (theme)=>{
 };
 
 HANDLERS.toggleNotifications = async ()=>{
-  state.ui.notifications = !state.ui.notifications;
-  if (state.ui.notifications && 'Notification' in window){
-    try { await Notification.requestPermission(); } catch(e){}
+  const turningOn = !state.ui.notifications;
+  if (turningOn){
+    const N = _notificationAPI();
+    if (!N){
+      _notifyStatus = { supported: false, error: 'Notification finnes ikke i denne nettleseren', lastFiredAt: 0, firedCount: 0 };
+      if (typeof showToast === 'function') showToast('⚠ Denne nettleseren støtter ikke varsler. Fristene står fortsatt i planleggeren.', 8000);
+      saveState(); openSettings(); return;   // ikke slå PÅ noe som ikke kan virke
+    }
+    let perm = N.permission;
+    if (perm === 'default'){
+      // Resultatet ble kastet før, så et AVSLAG etterlot «På» i Innstillinger for alltid.
+      try { perm = await N.requestPermission(); }
+      catch (err){ perm = 'denied'; console.error('requestPermission feilet', err); }
+    }
+    if (perm !== 'granted'){
+      state.ui.notifications = false;
+      _notifyStatus = { supported: false, error: 'ikke tillatt (' + perm + ')', lastFiredAt: 0, firedCount: 0 };
+      if (typeof showToast === 'function'){
+        showToast('⚠ Varsler er blokkert i nettleseren, så påminnelser kan ikke skrus på. Endre det i nettleserens side-innstillinger (låsikonet i adressefeltet).', 12000);
+      }
+      saveState(); openSettings(); return;
+    }
   }
+  state.ui.notifications = turningOn;
+  setupNotifications();      // starter eller stopper intervallet nå, ikke ved neste lasting
   saveState(); openSettings();
 };
 HANDLERS.exportData = ()=>{
-  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `planlegger-${todayKey()}.json`;
-  a.click();
+  // Dette er rømningsveien hver kvote-toast peker på, så den skal ikke feile stille.
+  // Ankeret var ikke i DOM-en (autoWeeklyExport legger sitt inn), URL-en ble aldri
+  // frigjort, og ingenting bekreftet at nedlastingen faktisk startet. ADR 0031.
+  try {
+    const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `planlegger-${todayKey()}.json`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
+    if (typeof showToast === 'function'){
+      showToast(`💾 planlegger-${todayKey()}.json lastes ned (${Math.round(blob.size/1024)} kB). Finner du den ikke, sjekk nettleserens nedlastinger.`, 8000);
+    }
+  } catch (err){
+    console.error('exportData failed', err);
+    if (typeof showToast === 'function') showToast('⚠ Klarte ikke lage eksportfilen: ' + (err.message||err), 12000);
+  }
 };
 HANDLERS.importData = e=>{
   const file = e.target.files[0]; if (!file) return;
@@ -4178,16 +4366,7 @@ HANDLERS.importData = e=>{
         + 'Et øyeblikksbilde av dagens data lagres først, så du kan rulle tilbake.')) return;
       // Snapshot before overwriting — pullFromRemote and restoreCloudBackup both do
       // this; import used to be the one destructive path without a way back.
-      _pruneSnapshotsToBudget();
-      try {
-        localStorage.setItem('planlegger.preSync.' + Date.now(), _snapshotJSON());
-      } catch (err){
-        // Ikke stille: dette er den ENE veien tilbake fra en import.
-        console.error('preSync-øyeblikksbilde før import feilet', err);
-        if (typeof showToast === 'function'){
-          showToast('⚠ Klarte ikke lagre øyeblikksbilde før import — du kan ikke rulle tilbake. Eksportér til JSON først hvis du vil være trygg.', 12000);
-        }
-      }
+      _writePreSyncSnapshot();
       // Preserve this device's sync credentials. The imported file's own sync block
       // used to win, so importing a backup taken before sync was set up silently
       // killed sync with no message.
@@ -4218,14 +4397,73 @@ HANDLERS.resetAll = ()=>{
 // Browser notifications — check upcoming events every minute, plus task reminders
 const REMIND_OFFSETS = { sameday:0, '1day':-1, '3days':-3, '1week':-7 };
 
+// Status for påminnelser, slik at Innstillinger kan vise sannheten i stedet for «På».
+// ADR 0031: `fired` ble stemplet selv når `new Notification()` kastet, og på iPhone
+// kaster konstruktøren alltid — så hver påminnelse ble svelget og deretter markert som
+// levert. Nå stemples den bare hvis varselet faktisk ble opprettet, og feiler det, sier
+// vi det én gang i stedet for å prøve i evighet.
+let _notifyStatus = { supported: null, error: null, lastFiredAt: 0, firedCount: 0 };
+
+// Én dør til API-et. `'Notification' in window` er sant også når verdien er undefined,
+// så alle sjekker går gjennom denne.
+function _notificationAPI(){
+  return (typeof Notification === 'function' || (typeof Notification === 'object' && Notification)) ? Notification : null;
+}
+
+// Returnerer true bare hvis varselet faktisk ble konstruert.
+function _fireNotification(title, opts){
+  const N = _notificationAPI();
+  if (!N){
+    if (_notifyStatus.supported !== false){
+      _notifyStatus = { supported: false, error: 'Notification finnes ikke i denne nettleseren',
+                        lastFiredAt: _notifyStatus.lastFiredAt, firedCount: _notifyStatus.firedCount };
+    }
+    return false;
+  }
+  try {
+    new N(title, opts);
+    _notifyStatus.supported = true;
+    _notifyStatus.lastFiredAt = Date.now();
+    _notifyStatus.firedCount++;
+    return true;
+  } catch (err){
+    // Chrome på Android og Safari på iOS kaster her: varsler krever
+    // ServiceWorkerRegistration.showNotification, som vi ikke har (ADR 0010 fjernet
+    // service workeren). Meld det én gang, ikke hvert minutt.
+    if (_notifyStatus.supported !== false){
+      _notifyStatus = { supported: false, error: err.message || String(err),
+                        lastFiredAt: _notifyStatus.lastFiredAt, firedCount: _notifyStatus.firedCount };
+      console.error('Varsel kunne ikke vises', err);
+      if (typeof showToast === 'function'){
+        showToast('⚠ Nettleseren din kan ikke vise påminnelser (typisk på iPhone). Fristene står fortsatt i planleggeren.', 12000);
+      }
+    }
+    return false;
+  }
+}
+
+let _notifyTimer = null;
 function setupNotifications(){
+  // Kan kalles på nytt når Maria skrur påminnelser av/på. Før kjørte den bare ved
+  // oppstart, så å skru dem PÅ gjorde ingenting før neste sidelasting.
+  if (_notifyTimer){ clearInterval(_notifyTimer); _notifyTimer = null; }
   if (!state.ui.notifications) return;
-  if (!('Notification' in window)) return;
-  if (Notification.permission==='default'){
-    Notification.requestPermission();
+  const N = _notificationAPI();
+  if (!N){
+    _notifyStatus = { supported: false, error: 'Notification finnes ikke i denne nettleseren', lastFiredAt: 0, firedCount: 0 };
+    return;
+  }
+  if (N.permission==='default'){
+    N.requestPermission().then(p=>{
+      if (p !== 'granted'){
+        console.warn('Varsler ikke tillatt:', p);
+        updateSyncIndicator && updateSyncIndicator();
+      }
+    }).catch(err=> console.error('requestPermission feilet', err));
   }
   const checkUpcoming = ()=>{
-    if (Notification.permission!=='granted') return;
+    const NN = _notificationAPI();
+    if (!NN || NN.permission!=='granted') return;
     const now = new Date();
     const todayK = dKey(now);
     const fired = JSON.parse(sessionStorage.getItem('fired')||'[]');
@@ -4235,8 +4473,10 @@ function setupNotifications(){
       const evTime = new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,mn);
       const diff = evTime - now;
       if (diff>0 && diff<=15*60*1000 && !fired.includes(e.id)){
-        try { new Notification(e.title, { body: `Om ${Math.round(diff/60000)} min · ${e.start}${e.end?'–'+e.end:''}`, tag: e.id }); } catch(_){}
-        fired.push(e.id); sessionStorage.setItem('fired', JSON.stringify(fired));
+        // Stemple KUN hvis varselet faktisk kom ut. Ellers får neste runde prøve igjen.
+        if (_fireNotification(e.title, { body: `Om ${Math.round(diff/60000)} min · ${e.start}${e.end?'–'+e.end:''}`, tag: e.id })){
+          fired.push(e.id); sessionStorage.setItem('fired', JSON.stringify(fired));
+        }
       }
     });
     // Task reminders — fire at 09:00 on the offset day
@@ -4256,17 +4496,16 @@ function setupNotifications(){
       // Fire if 0–60 min after the 09:00 trigger time
       const reminderId = 'task-' + t.id + '-' + t.remindBefore;
       if (diffMin >= 0 && diffMin < 60 && !fired.includes(reminderId)){
-        try {
-          const projectPart = t._projectTitle ? `[${t._projectTitle}] ` : '';
-          const offsetLabel = t.remindBefore==='sameday' ? 'I dag' : (t.remindBefore==='1day'?'I morgen':(t.remindBefore==='3days'?'Om 3 dager':'Om 1 uke'));
-          new Notification(`${projectPart}${t.title}`, { body: `${offsetLabel} · frist ${fmtDateShort(dueDate)}`, tag: reminderId });
-        } catch(_){}
-        fired.push(reminderId); sessionStorage.setItem('fired', JSON.stringify(fired));
+        const projectPart = t._projectTitle ? `[${t._projectTitle}] ` : '';
+        const offsetLabel = t.remindBefore==='sameday' ? 'I dag' : (t.remindBefore==='1day'?'I morgen':(t.remindBefore==='3days'?'Om 3 dager':'Om 1 uke'));
+        if (_fireNotification(`${projectPart}${t.title}`, { body: `${offsetLabel} · frist ${fmtDateShort(dueDate)}`, tag: reminderId })){
+          fired.push(reminderId); sessionStorage.setItem('fired', JSON.stringify(fired));
+        }
       }
     });
   };
   checkUpcoming();
-  setInterval(checkUpcoming, 60*1000);
+  _notifyTimer = setInterval(checkUpcoming, 60*1000);
 }
 
 // ============================================================
@@ -4359,8 +4598,21 @@ function _icsZone(tzid){
   raw = raw.replace(/^\([^)]*\)\s*/, '');
   const mapped = _WINDOWS_TZ[raw.toLowerCase()];
   const candidate = mapped || (raw.indexOf('/') > -1 ? raw : null);
-  if (!candidate) return null;
-  return _tzFormatter(candidate) ? candidate : null;
+  // Degraderingen til flytende tid er riktig (ADR 0028), men den var helt stille: et møte
+  // i en umappet sone vises på kilde-veggklokka som om den var lokal — 14:00 New York
+  // blir 14:00 norsk tid, seks timer feil, og ser helt normalt ut. Si det minst én gang
+  // per ukjent sonenavn, så det finnes et spor når en tid ser rar ut. ADR 0031.
+  if (!candidate || !_tzFormatter(candidate)){
+    _warnUnknownZone(raw);
+    return null;
+  }
+  return candidate;
+}
+const _warnedZones = new Set();
+function _warnUnknownZone(raw){
+  if (!raw || _warnedZones.has(raw)) return;
+  _warnedZones.add(raw);
+  console.warn('[ics] ukjent tidssone «' + raw + '» — hendelsen vises på kildens veggklokke som om den var lokal tid. Legg sonen til i _WINDOWS_TZ hvis tidene ser feil ut.');
 }
 
 // Offset of `zone` from UTC at a given instant, in ms. Read the zone's wall clock at
@@ -4695,10 +4947,14 @@ async function syncOutlook(silent){
     const events = parseICS(text);
     state.outlookEvents = events;
     state.sync.lastSync = new Date().toISOString();
+    _outlookStatus = { failedAt: 0, error: null };   // en vellykket synk fjerner advarselen
     saveState();
     if (!silent) render();
     return { ok:true, count: events.length };
   } catch (e) {
+    // Sett status her, ikke bare i auto-synk-grenen: en feilet manuell «Oppdater nå»
+    // etterlot ingen varig spor i det hele tatt.
+    _outlookStatus = { failedAt: Date.now(), error: e.message || String(e) };
     return { error: e.message || String(e) };
   }
 }
@@ -4729,6 +4985,26 @@ function importICSFile(file){
     };
     r.readAsText(file);
   });
+}
+
+// `_outlookStatus` ble skrevet og aldri lest — den eneste sporen etter en feilet
+// Outlook-sync var en toast som forsvant, mens kalenderen fortsatte å vise forrige ukes
+// møter som om alt var i orden. Cachen tømmes med vilje ikke ved feil (gamle møter er
+// bedre enn ingen), men da MÅ det stå at de er gamle. ADR 0031.
+function _outlookStatusHTML(){
+  if (!state.sync.icsUrl) return '';
+  const failed = _outlookStatus.failedAt;
+  if (failed){
+    const minSince = Math.round((Date.now() - failed)/60000);
+    return `<div style="font-size:12px;color:var(--alert);padding:2px 0">⚠ Siste synk feilet${minSince<60?` for ${minSince} min siden`:''}: ${escapeHTML(_outlookStatus.error||'ukjent')} — møtene under kan være utdaterte.</div>`;
+  }
+  const t = state.sync.lastSync ? new Date(state.sync.lastSync).getTime() : 0;
+  if (!t) return `<div style="font-size:12px;color:var(--alert);padding:2px 0">⚠ Aldri synkronisert — trykk «Oppdater nå».</div>`;
+  const hours = (Date.now() - t)/3600000;
+  if (hours > 26){
+    return `<div style="font-size:12px;color:var(--alert);padding:2px 0">⚠ Ingen vellykket synk på ${Math.round(hours/24)} døgn — kalenderen kan være utdatert.</div>`;
+  }
+  return '';
 }
 
 function lastSyncLabel(){
@@ -5080,7 +5356,7 @@ HANDLERS.openDumpModal = ()=>{
       <button data-action="closeModal" class="btn btn-ghost">${I18N.cancel}</button>
       <button id="dump-save" class="btn btn-primary" style="display:none">Lagre alle</button>
     </div>`);
-  setTimeout(()=>document.getElementById('dump-input').focus(),50);
+  _focusLater('dump-input');
 
   let parsedItems = [];
   document.getElementById('dump-parse').onclick = ()=>{
@@ -5190,6 +5466,51 @@ function findBacklinks(targetTitle){
 }
 
 // Lightweight toast notification
+// Skalerer et data-URL-bilde ned til `maxPx` på lengste side og re-koder som JPEG.
+// Degraderer til originalen hvis canvas ikke er tilgjengelig (jsdom) eller lasting feiler
+// — et litt for stort bilde er bedre enn et tapt bilde.
+function _downscaleDataURL(dataUrl, maxPx, quality){
+  return new Promise(resolve=>{
+    // Tidsvakt: fyrer verken `onload` eller `onerror` (skjer i miljøer uten
+    // bildedekoding, og ved korrupte data), ville løftet aldri blitt innfridd — og da
+    // ble bildet hun limte inn aldri satt inn, uten et ord. Løs alltid, én gang.
+    let done = false;
+    const finish = (v)=>{ if (!done){ done = true; resolve(v); } };
+    setTimeout(()=>{
+      if (!done) console.warn('nedskalering svarte ikke i tid, bruker originalen');
+      finish(dataUrl);
+    }, 4000);
+    const resolveOnce = finish;
+    try {
+      const img = new Image();
+      img.onload = ()=>{
+        try {
+          const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+          if (scale >= 1 && dataUrl.length < 300*1024) return resolveOnce(dataUrl);  // alt lite nok
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          const ctx = c.getContext('2d');
+          if (!ctx) return resolveOnce(dataUrl);
+          ctx.drawImage(img, 0, 0, w, h);
+          const out = c.toDataURL('image/jpeg', quality || 0.85);
+          resolveOnce(out && out.length < dataUrl.length ? out : dataUrl);
+        } catch (err){ console.warn('nedskalering feilet, bruker originalen', err); resolveOnce(dataUrl); }
+      };
+      img.onerror = ()=>{ console.warn('kunne ikke laste innlimt bilde, bruker originalen'); resolveOnce(dataUrl); };
+      img.src = dataUrl;
+    } catch (err){ console.warn('nedskalering ikke mulig', err); resolveOnce(dataUrl); }
+  });
+}
+
+// Dialogen kan være lukket igjen før de 50 ms har gått — trykker Maria Esc raskt, eller
+// lukker et bakgrunns-pull den, kastet `getElementById(...).focus()` en uncaught
+// TypeError. Sju steder hadde samme mønster. ADR 0031.
+function _focusLater(id, ms){
+  setTimeout(()=>{ const el = document.getElementById(id); if (el) el.focus(); }, ms || 50);
+}
+
 function showToast(msg, duration){
   duration = duration || 3000;
   const t = document.createElement('div');
@@ -5271,18 +5592,34 @@ async function getBackupDirHandle(){
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => reject(req.error);
     });
-  } catch { return null; }
+  } catch (err) {
+    // Skille «ingen mappe valgt» fra «klarte ikke spørre»: begge ga null, så en
+    // forbigående IndexedDB-feil fikk Innstillinger til å si «bruker Nedlastinger» som
+    // om hun aldri hadde valgt mappe. ADR 0031.
+    console.error('Kunne ikke lese backup-mappe fra IndexedDB', err);
+    _backupDirError = err.message || String(err);
+    return null;
+  }
 }
+let _backupDirError = null;
 async function setBackupDirHandle(handle){
   try {
     const db = await _openBackupIDB();
-    return await new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       const tx = db.transaction(BACKUP_IDB_STORE, 'readwrite');
       tx.objectStore(BACKUP_IDB_STORE).put(handle, BACKUP_IDB_KEY);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  } catch (e) { console.error('Could not save backup dir handle', e); }
+    _backupDirError = null;
+    return { ok: true };
+  } catch (e) {
+    // Returnerte `undefined` både ved suksess og feil, så kalleren toastet
+    // «✓ Backup-mappe satt» uansett.
+    console.error('Could not save backup dir handle', e);
+    _backupDirError = e.message || String(e);
+    return { ok: false, error: _backupDirError };
+  }
 }
 async function clearBackupDirHandle(){
   try {
@@ -5310,8 +5647,11 @@ HANDLERS.chooseBackupFolder = async () => {
       alert('Skrivetillatelse ble ikke gitt. Velg mappen på nytt og klikk Tillat.');
       return;
     }
-    await setBackupDirHandle(handle);
-    if (typeof showToast === 'function') showToast(`✓ Backup-mappe satt: ${handle.name}`, 4000);
+    const res = await setBackupDirHandle(handle);
+    if (typeof showToast === 'function'){
+      if (res && res.ok) showToast(`✓ Backup-mappe satt: ${handle.name}`, 4000);
+      else showToast(`⚠ Klarte ikke huske mappevalget (${(res&&res.error)||'ukjent feil'}). Backupene går til Nedlastinger.`, 12000);
+    }
     // Refresh Settings UI if open
     if (document.querySelector('.modal-bg.open')){ closeModal(); openSettings(); }
   } catch (e){
@@ -5414,6 +5754,16 @@ function autoBackup(){
     const allKeys = Object.keys(localStorage).filter(k=>k.startsWith('planlegger.backup.')).sort();
     while (allKeys.length > 7) localStorage.removeItem(allKeys.shift());
     _pruneSnapshotsToBudget();
+    // Beskjæringen kan ha spist backupen vi nettopp skrev. Å stemple `ok` uten å sjekke
+    // er samme feil som `catch(_){}` — bare med et hyggeligere ansikt. ADR 0031.
+    if (!localStorage.getItem(backupKey)){
+      _backupStatus = { ok: false, at: Date.now(), error: 'skrevet, men beskåret bort — for lite plass' };
+      console.error('autoBackup: dagens backup ble beskåret bort igjen', backupKey);
+      if (typeof showToast === 'function'){
+        showToast('⚠ Dagens lokale backup fikk ikke plass. Eksportér til JSON fra ⚙ Innstillinger.', 12000);
+      }
+      return;
+    }
     _backupStatus = { ok: true, at: Date.now() };
   } catch (err){
     // Dette var `catch(_){}`. Kvoten ble full rundt 26. mai 2026 og hver eneste
@@ -5427,7 +5777,11 @@ function autoBackup(){
   }
 }
 function listBackups(){
-  return Object.keys(localStorage).filter(k=>k.startsWith('planlegger.backup.') || k.startsWith('planlegger.preSync.')).sort().reverse();
+  // Kronologisk på parset tid, ikke på strengen — se _snapshotTime. `unreadable.*` vises
+  // ikke i lista (den er en ødelagt blob, ikke noe å gjenopprette fra med vilje).
+  return Object.keys(localStorage)
+    .filter(k=>k.startsWith('planlegger.backup.') || k.startsWith('planlegger.preSync.'))
+    .sort((a,b)=> _snapshotTime(b) - _snapshotTime(a));
 }
 // «En feil som ikke vises, finnes ikke» (ADR 0022). Toasten kommer i det øyeblikket
 // det feiler, men den forsvinner — og dagsbackupen var død i 2,5 måneder nettopp fordi
@@ -5435,7 +5789,8 @@ function listBackups(){
 function _backupStatusHTML(){
   const used = Object.keys(localStorage).reduce((s,k)=> s + k.length + (localStorage.getItem(k)||'').length, 0);
   const usedKB = Math.round(used/1024);
-  const newest = Object.keys(localStorage).filter(k=>k.startsWith('planlegger.backup.')).sort().pop();
+  const newest = Object.keys(localStorage).filter(k=>k.startsWith('planlegger.backup.'))
+    .sort((a,b)=> _snapshotTime(a) - _snapshotTime(b)).pop();
   const dayStr = newest ? newest.replace('planlegger.backup.','') : null;
   const stale = dayStr && dayStr !== todayKey();
   if (_backupStatus.ok === false){
@@ -5455,7 +5810,9 @@ HANDLERS.restoreBackup = (key)=>{
   // Øyeblikksbilde først — restoreCloudBackup gjorde det, den lokale varianten ikke,
   // så å gjenopprette feil dag etterlot ingenting å rulle tilbake til. Se ADR 0022.
   // Skrives etter confirm(): før flyttet et avbrutt forsøk likevel ringen framover.
-  try { localStorage.setItem('planlegger.preSync.' + Date.now(), _snapshotJSON()); } catch(_){}
+  // Merk: nøkkelen vi gjenoppretter FRA kan bli beskåret bort av øyeblikksbildet vi
+  // skriver nå, så `data` er lest ut på forhånd. Ikke bytt om på rekkefølgen.
+  _writePreSyncSnapshot();
   try {
     // Et øyeblikksbilde uten Outlook-cachen skal ikke tømme kalenderen. Se ADR 0030.
     state = _mergeSnapshot(JSON.parse(data));

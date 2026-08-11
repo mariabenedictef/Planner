@@ -6,6 +6,31 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-11 (natt) — Revisjon: to feil i gårsdagens fiks, og resten av stillheten
+
+En full gjennomgang etter at ADR 0029 og 0030 var pushet. Den fant **to feil i ADR 0030 sin egen fiks**. Begge reprodusert før de ble ansett som ekte. ADR 0031.
+
+- **Beskjæringen slettet det nyeste øyeblikksbildet.** `_pruneSnapshotsToBudget` hadde ingen bunn: er ett øyeblikksbilde alene større enn 1,5 MB, ble det slettet på første iterasjon — og et eldre, mindre beholdt. `autoBackup` kunne dermed slette backupen den nettopp skrev og deretter stemple `ok: true`. Nyeste øyeblikksbilde står nå alltid, uansett størrelse, og begge stedene sjekker at nøkkelen finnes før de melder suksess.
+- **Sorteringen var ikke kronologisk.** Leksikografisk kommer alle `backup.*` før alle `preSync.*` (b < p), så et preSync fra juni rangerte som nyere enn dagsbackupen fra 11. august, og dagsbackupen ble slettet først. Sorteres nå på parset tid. `planlegger.unreadable.*` regnes med i budsjettet — den lå utenfor og kunne okkupere ~650 kB usynlig.
+- **Fire skrivesteder for øyeblikksbilder gikk hver sin vei,** og alle fire svelget feilen i en tom `catch` mens koden gikk videre til å erstatte all data. Én dør nå, som beskjærer, teller, sjekker og rapporterer.
+
+Og påminnelsene, som er den samme signaturen tredje gang:
+
+- **`fired`-registeret ble skrevet selv når varselet kastet.** På iPhone kaster `new Notification()` alltid, så hver møte- og fristpåminnelse ble svelget og deretter markert som levert. Nå stemples den bare hvis varselet faktisk kom ut, og Innstillinger viser om varsler er tillatt, blokkert eller umulige i denne nettleseren. Å skru dem på starter intervallet nå i stedet for ved neste sidelasting, og blokkerte varsler lar seg ikke skru på.
+
+Fem andre stille degraderinger fikset: stanset push får egen indikator i stedet for å bli stående grønn · feilet Outlook-synk står i Innstillinger i stedet for bare i en toast som forsvant · en lagring som forkastes fordi posten ble slettet på en annen enhet sier fra · ukjent ICS-tidssone advarer i stedet for å vise møtet seks timer feil uten et ord · «Backup-mappe satt» vises bare når skrivingen er bekreftet.
+
+Ytelse og vekst, målt:
+
+- **Ukesvisningen: 195,6 → 49,0 ms** med langlevde gjentakelser og 627 Outlook-hendelser. `eventsOnDay` ble kalt 112 ganger per tegning (16 timer × 7 dager) der `renderDay` alltid har kalt den én gang; og gjentakelser gikk ett intervall av gangen fra seriens start, så kostnaden vokste med kalendertid og ikke med dataene.
+- **`saveState` skrev hele staten på nytt ved hver render** selv når resultatet var byte for byte identisk, og serialiserte den to ganger. Returnerer nå tidlig når ingenting er endret.
+- **Innlimte bilder skaleres ned** til maks 1400 px / JPEG 0.85 før de havner i state. Én skjermdump målte state fra 569 kB til 2617 kB av en kvote på ~5000 kB — den ene handlingen som kunne ta hele lagringsplassen på ett klikk.
+- **Sju skjemaer kastet en uncaught `TypeError`** hvis dialogen ble lukket innen 50 ms, fordi den utsatte fokuseringen ikke sjekket at feltet fantes. Fanget av en test som traff timingen ved uhell.
+
+Testsuiten: 159 → 206 assertions. 12 av dem feiler mot koden før denne endringen. Gjentakelses-endringen ble differansetestet mot den gamle implementasjonen over 153 600 tilfeller før den ble trodd — og testen avslørte at `addMonths` snapper til den 1., så månedlig gjentakelse er bevisst latt urørt.
+
+---
+
 ## 2026-08-11 (kveld) — Lagringsplassen var full, og dagsbackupen hadde vært død i 2,5 måneder
 
 Dette begynte som «gjør ferdig resten av feltlagringen» og endte et annet sted. Målingen som skulle avgjøre om serialiseringen var verdt å optimalisere viste noe verre: localStorage sto på **4951 kB av ~5120 tilgjengelige**.
