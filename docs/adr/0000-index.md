@@ -35,6 +35,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0029](0029-render-preserves-focus.md) | `render()` bevarer fokuserte felt; redigeringer utenfor state lagres først | Accepted (avløser forkastet alternativ i 0023) |
 | [0030](0030-snapshots-protect-user-data-not-cache.md) | Øyeblikksbilder utelater Outlook-cachen; ringene beskjæres på bytes | Accepted (utvider 0022) |
 | [0031](0031-audit-fixes-newest-snapshot-floor-and-loud-failures.md) | Gulv for nyeste øyeblikksbilde, én dør for øyeblikksbilder, stempling bare av det som skjedde | Accepted (retter 0030, utvider 0022) |
+| [0032](0032-outlook-cache-is-device-local.md) | Outlook-cachen er enhetslokal (egen nøkkel, ute av sky-blobben); gjentakelser bevarer dagen i måneden | Accepted (fullfører 0030/0031, retter 0025 sin andre kodesti) |
 
 ## How to add a new ADR
 
