@@ -28,9 +28,10 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0022](0022-state-never-degrades-silently.md) | Lasting og lagring av state skal aldri degradere stille | Accepted |
 | [0023](0023-inputs-commit-on-input-not-blur.md) | Felt lagrer på `input` (strupet); vi stempler ikke suksess vi ikke kan bekrefte | Accepted |
 | [0024](0024-list-view-removed.md) | List-visningen fjernet | Accepted |
-| [0025](0025-rrule-support-boundary.md) | Hva RRULE-ekspansjonen støtter — og hva den bevisst ikke støtter | Accepted |
+| [0025](0025-rrule-support-boundary.md) | Hva RRULE-ekspansjonen støtter — og hva den bevisst ikke støtter | Accepted (TZID + sommertid superseded by 0028) |
 | [0026](0026-wikilink-autocomplete.md) | Wikilink-autocomplete skriver kildeformat, ikke markup | Accepted |
 | [0027](0027-multiday-row-segments.md) | Flerdagsbar segmenteres per uke-rad, med etikett på hvert segment | Accepted (amends 0014) |
+| [0028](0028-ics-timezones-per-occurrence.md) | ICS-tider konverteres per forekomst, med TZID | Accepted (avgrenser 0025) |
 
 ## How to add a new ADR
 

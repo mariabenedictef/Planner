@@ -3,6 +3,12 @@
 **Status:** Accepted
 **Date:** 2026-08-10
 
+> **Oppdatering 2026-08-10 (senere samme dag):** `TZID` og sommertid per forekomst er
+> **implementert** — se [ADR 0028](0028-ics-timezones-per-occurrence.md). Begrunnelsen for
+> å utsette dem her var at Microsoft Graph ville løse dem; Maria bekreftet samme dag at den
+> tilgangen ikke kommer, så avveiningen falt bort. Resten av denne ADR-en står: `BYSETPOS`
+> og `RECURRENCE-ID`-overstyringer er fortsatt ikke støttet.
+
 ## Context
 
 Helsesjekken 2026-08-10 fant seks bekreftede feil i ICS/RRULE-ekspansjonen. Alle viste gale datoer eller tider *uten feilmelding* — kalenderen så riktig ut og var feil. Verifisert med håndskrevne ICS-fixtures mot `parseICS`:
