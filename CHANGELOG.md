@@ -6,6 +6,17 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-11 — ICS-URL-feltet mister ikke lenger det du limer inn
+
+Outlook-synken hadde stått stille siden 23. mai. To uavhengige årsaker, begge funnet under feilsøkingen:
+
+- **Feltet lagret bare på `blur`.** Esc lukker Innstillinger ved å fjerne feltet fra DOM-en, og fjerning utløser ikke `blur` — så en innlimt URL forsvant stille. «Lukk» og «Oppdater nå» flytter fokus først og lagret riktig, så feltet virket trygt i vanlig bruk. Nå strupet på `input` som resten av feltene, med sammenligning mot gjeldende verdi før lagring. ADR 0023, avsnittet «Etterslep».
+- **URL-en var borte både lokalt og i skyen,** så ingen synk kunne gjenopprette den. Den skal peke på Cloudflare-proxyen, ikke på `outlook.office365.com` direkte — Outlook sender ingen CORS-header, så en `fetch` fra nettleseren blir blokkert uansett hvor riktig URL-en er. Ingen kodeendring; verdt å skrive ned fordi feilmeldingen («Failed to fetch») ikke sier det.
+
+Etter at proxy-URL-en var satt: 627 hendelser hentet, mot 555 fra mai.
+
+---
+
 ## 2026-08-10 (natt) — TZID og sommertid: Outlook-tider er riktige nå
 
 Helsesjekken parkerte disse to eksplisitt i påvente av Graph-avgjørelsen. Maria avgjorde den samme dag — tilgangen kommer ikke — så de var ikke parkert lenger, bare ufikset. ADR 0028.

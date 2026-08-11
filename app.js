@@ -3871,7 +3871,23 @@ function openSettings(){
     </div>
     <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
   document.getElementById('imp').addEventListener('change', HANDLERS.importData);
-  document.getElementById('ics-url').addEventListener('blur', e=>{ state.sync.icsUrl = e.target.value.trim(); saveState(); });
+  // ADR 0023 gjaldt dette feltet også, men det ble oversett: her lagret bare `blur`.
+  // Å lukke Innstillinger med Esc fjerner feltet fra DOM-en uten å utløse blur, så en
+  // innlimt ICS-URL forsvant stille. Strupet på `input`, ikke debounce'et — samme
+  // begrunnelse som dag-notatet: en debounce som restarter commiter aldri mens du skriver.
+  {
+    const icsInput = document.getElementById('ics-url');
+    let _icsTimer = null;
+    const commitIcsUrl = ()=>{
+      const v = icsInput.value.trim();
+      if (v !== state.sync.icsUrl){ state.sync.icsUrl = v; saveState(); }
+    };
+    icsInput.addEventListener('input', ()=>{
+      if (_icsTimer) return;
+      _icsTimer = setTimeout(()=>{ _icsTimer = null; commitIcsUrl(); }, 400);
+    });
+    icsInput.addEventListener('blur', commitIcsUrl);
+  }
   // Populate backup folder status (async — handle is in IndexedDB)
   getBackupDirHandle().then(async h => {
     const status = document.getElementById('backup-dir-status');
