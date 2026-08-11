@@ -6,6 +6,25 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-11 (sen natt) — De åtte gjenstående punktene, inkludert to som ikke var avveininger
+
+Maria ba om at alt utestående ble tatt. To av de fire «bevisste utsettelsene» viste seg å ikke være avveininger i det hele tatt. ADR 0032.
+
+- **Månedlig gjentakelse var samme feil i den andre kodestien.** `recurringInstanceOnDay` brukte `addMonths`, som snapper til den 1., så en serie fra 31. januar lå på den 1. for alltid. Kommentaren over `addMonthsKeepDay` i samme fil sier rett ut at nettopp dette ble rettet for ICS-serier i ADR 0025 — den manuelle stien ble bare aldri rettet. ADR 0031 kalte det et designvalg; det var en glemt instans av et avgjort mønster. Nå: 31/1 → 28/2 → 31/3 → 30/4. Kalenderen din hadde null manuelle gjentakende hendelser, så ingenting flyttet seg.
+- **5-årstaket fantes bare for å bremse en loop som ikke lenger stepper.** En ukentlig hendelse laget i dag sluttet å vises i 2031 uten et ord. Horisonten er nå 25 år, som en navngitt konstant.
+- **Outlook-cachen har fått sin egen nøkkel** (`planlegger.outlook.v1`) og er ute av både hovednøkkelen og sky-blobben. Den er enhetslokal — hver enhet henter ICS-feeden selv — så den hørte ikke hjemme noen av stedene. Hovednøkkelen: 652 kB → ~35 kB. Sky-overføring: ~39 MB/time → ~2 MB/time. Migreringen skriver den nye nøkkelen ved første load; pull og sky-gjenoppretting beholder den lokale cachen i stedet for å tømme kalenderen.
+- **Pollingen roer seg:** pause når fanen er skjult, umiddelbart pull ved fokus, og dobling 60 s → 8 min når ingenting endrer seg. Før pollet den hvert minutt døgnet rundt, også mens PC-en sto låst.
+- **Fullførte oppgaver:** Innstillinger viser nå hvor plassen går (Outlook-cache / oppgaver / prosjekter / dagsnotater), og tilbyr «Rydd bort» når 25 eller flere er fullført — med øyeblikksbilde først, så det kan angres. 82 av dine 108 oppgaver var fullført. Ingen automatisk sletting; det er datatap.
+- **ICS-ekspansjonen forkaster før den konverterer.** En gammel daglig serie i feeden lagde ~4200 forekomster og kastet ~3900 — etter å ha tidssone-konvertert hver av dem.
+- **Mønster-sveipet i sjekklista fant to FLERE forekomster av `addMonths`-feilen** rett før push: en gjentakende oppgave med frist den 25. hoppet til den 1. neste måned første gang du krysset den av, og ble liggende der. Tredje og fjerde kodesti med samme feil. Ingen av oppgavene dine er gjentakende, så ingenting flyttet seg.
+- **De små stille punktene:** mikrofonknappen, mappevalget, det uvoktede `fired`-registeret som kunne kaste hvert minutt, to `.then()` uten `.catch()`, en sluttdato før startdato som ble blanket i stillhet, og «Lagre» som ikke gjorde noe uten tittel.
+
+Testsuiten: 220 → 241 assertions. **15 feiler mot forrige commit**, og en sekstende — det ødelagte `fired`-registeret — **krasjer** den gamle koden, som er selve funnet. Gjentakelses-endringen er verifisert mot en referanse-implementasjon over 154 000 tilfeller.
+
+Underveis innførte og fanget jeg én feil i samme runde: cachen sluttet å bli lagret, fordi den var utenfor sammenligningskroppen og `saveState` dermed leste en Outlook-synk som «ingenting er endret». Testen tok den.
+
+---
+
 ## 2026-08-11 (natt) — Revisjon: to feil i gårsdagens fiks, og resten av stillheten
 
 En full gjennomgang etter at ADR 0029 og 0030 var pushet. Den fant **to feil i ADR 0030 sin egen fiks**. Begge reprodusert før de ble ansett som ekte. ADR 0031.

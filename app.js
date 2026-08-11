@@ -332,6 +332,10 @@ const todayKey = () => dKey(new Date());
 const monIdx = d => (d.getDay()+6)%7; // 0 = Monday
 function startOfWeek(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-monIdx(x)); return x; }
 function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+// Horisont for gjentakende hendelser uten sluttdato. Var 5 år, og en ukentlig
+// hendelse laget i dag sluttet dermed å vises i 2031 uten et ord. Taket fantes for å
+// bremse en loop som ikke lenger stepper. ADR 0032.
+const RECUR_HORIZON_YEARS = 25;
 function addMonths(d,n){ return new Date(d.getFullYear(), d.getMonth()+n, 1); }
 function monthDays(y,m){ return new Date(y,m+1,0).getDate(); }
 // Add n months, PRESERVING the day of month (clamped to the target month's last day,
@@ -393,6 +397,41 @@ function evDurationStyle(e, slotH){
 // STATE MANAGEMENT
 // ============================================================
 const STORAGE_KEY = 'planlegger.v1';
+// Outlook-cachen bor for seg selv. Den er 95 % av blobben, den er hentbar med én knapp,
+// og den er enhetslokal — hver enhet henter ICS-feeden selv. Da hører den verken i
+// hovednøkkelen (som skrives ved hver render), i sky-blobben (som lastes hvert 60. sekund)
+// eller i øyeblikksbildene. Målt før: 652 kB hovednøkkel og ~39 MB/time nedlasting fra
+// pollingen; etter: ~35 kB og ~2 MB/time. ADR 0032.
+const OUTLOOK_KEY = 'planlegger.outlook.v1';
+
+function _loadOutlookCache(){
+  try {
+    const raw = localStorage.getItem(OUTLOOK_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (err){
+    console.error('Outlook-cachen kunne ikke leses', err);
+    return null;
+  }
+}
+let _lastOutlookWritten = null;
+function _saveOutlookCache(){
+  const arr = state.outlookEvents || [];
+  const json = JSON.stringify(arr);
+  if (json === _lastOutlookWritten) return { ok: true, unchanged: true };
+  try {
+    localStorage.setItem(OUTLOOK_KEY, json);
+    _lastOutlookWritten = json;
+    return { ok: true };
+  } catch (err){
+    console.error('Outlook-cachen kunne ikke lagres', err);
+    if (typeof showToast === 'function'){
+      showToast('⚠ Outlook-kalenderen kunne ikke lagres lokalt (lagringsplassen er full). Den hentes på nytt ved neste synk.', 10000);
+    }
+    return { ok: false, error: err.message || String(err) };
+  }
+}
 const STATE_VERSION = 4;
 const DEFAULT_STATE = {
   themes: {},      // legacy yearly themes — migrated to yearFocus
@@ -539,6 +578,26 @@ function loadState(){
     if (merged.ui && merged.ui.view === 'list') merged.ui.view = 'home';
     if (!merged.meta) merged.meta = {};
     merged.meta.version = STATE_VERSION;
+    // Outlook-cachen: egen nøkkel vinner. Finnes den ikke, men hovedblobben har en
+    // cache, er dette første load etter oppgraderingen — skriv den over, og la
+    // originalen ligge i hovedblobben til neste saveState fjerner den. Verste utfall
+    // hvis skrivingen feiler er en tom kalender til neste synk, som er ett klikk.
+    const ownCache = _loadOutlookCache();
+    if (ownCache){
+      merged.outlookEvents = ownCache;
+      _lastOutlookWritten = JSON.stringify(ownCache);
+    } else if ((merged.outlookEvents||[]).length){
+      // Skriv direkte her, ikke via _saveOutlookCache: den leser den globale `state`,
+      // som ennå ikke er tilordnet mens loadState kjører.
+      try {
+        const json = JSON.stringify(merged.outlookEvents);
+        localStorage.setItem(OUTLOOK_KEY, json);
+        _lastOutlookWritten = json;
+        console.info('[migrering] Outlook-cachen flyttet til egen nøkkel (' + merged.outlookEvents.length + ' hendelser)');
+      } catch (err){
+        console.error('[migrering] klarte ikke skrive Outlook-cachen til egen nøkkel', err);
+      }
+    }
     return merged;
   }catch(e){
     console.error('State load failed', e);
@@ -579,17 +638,29 @@ window.addEventListener('unhandledrejection', e => _reportGlobalError('rejection
 
 // Track last-saved body (state without lastModified) so we only bump timestamp on real changes
 let _lastSavedBody = null;
+// Staten uten Outlook-cachen — dette er det som lagres, sammenlignes og pushes.
+// `outlookEvents` er utelatt overalt utenom eksport: den er enhetslokal og hentbar.
+function _stateWithoutCache(){
+  const out = {};
+  for (const k of Object.keys(state)) if (k !== 'outlookEvents') out[k] = state[k];
+  return out;
+}
 function _computeStateBody(){
   if (!state.meta) state.meta = {};
   const lm = state.meta.lastModified;
   state.meta.lastModified = 0;
-  const json = JSON.stringify(state);
+  const json = JSON.stringify(_stateWithoutCache());
   state.meta.lastModified = lm;
   return json;
 }
 let _lastWriteOk = false;
 function saveState(){
   if (!state.meta) state.meta = {};
+  // Cachen ligger utenfor sammenligningskroppen (ADR 0032), så den må lagres for seg —
+  // FØR hurtigveien under. Ellers ville en Outlook-synk, som bare endrer cachen, blitt
+  // sett som «ingenting er endret» og kalenderen aldri lagret. Kallet er gratis når
+  // cachen er uendret.
+  _saveOutlookCache();
   const body = _computeStateBody();
   if (_lastSavedBody === null){
     // First save in this session — initialize baseline without bumping
@@ -613,7 +684,7 @@ function saveState(){
   // the backup rings are pruned by count, not bytes. This used to be unguarded, so a
   // full quota lost every edit in the session while the UI looked saved. See ADR 0022.
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(_stateWithoutCache()));
     _saveFailed = false;
     _lastWriteOk = true;
   } catch (err) {
@@ -624,7 +695,8 @@ function saveState(){
       // Free what we safely can, then retry once before bothering the user.
       const freed = _pruneStorage();
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(_stateWithoutCache()));
+        _saveOutlookCache();
         _saveFailed = false;
         _lastWriteOk = true;
         console.warn('saveState recovered after pruning ' + freed + ' old backup key(s)');
@@ -821,7 +893,9 @@ async function pushToRemote(){
     const res = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify(state),
+      // Uten Outlook-cachen: hver enhet henter ICS-feeden selv, så å pushe den er å
+      // laste opp 617 kB som mottakeren kaster. ADR 0032.
+      body: JSON.stringify(_stateWithoutCache()),
     });
     if (!res.ok) throw new Error('HTTP '+res.status);
     _syncStatus.state = 'synced';
@@ -870,11 +944,16 @@ HANDLERS.restoreCloudBackup = async (key)=>{
     // overwrite a good one from the backup. Same reasoning as pullFromRemote.
     const localSync = {};
     ['syncUrl','syncToken','icsUrl'].forEach(k=>{ if (state.sync[k]) localSync[k] = state.sync[k]; });
+    // Behold den lokale Outlook-cachen: sky-blobber lagd etter ADR 0032 inneholder den
+    // ikke, og DEFAULT_STATE ville da tømt kalenderen.
+    const keepCache = state.outlookEvents || [];
     state = Object.assign(structuredClone(DEFAULT_STATE), data);
     state.sync = Object.assign({}, state.sync, localSync);
+    if (!(data.outlookEvents||[]).length) state.outlookEvents = keepCache;
     state.meta.lastModified = Date.now();
     _lastSavedBody = _computeStateBody();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(_stateWithoutCache()));
+    _saveOutlookCache();
     closeModal();
     render();
     showToast(`✓ Gjenopprettet fra ${dateStr}`);
@@ -921,9 +1000,14 @@ async function pullFromRemote(silent, force){
       // why Outlook events sat frozen from 2026-05-23 on this browser. See ADR 0022.
       const localSync = {};
       ['syncUrl','syncToken','icsUrl'].forEach(k=>{ if (state.sync[k]) localSync[k] = state.sync[k]; });
+      // Behold den lokale Outlook-cachen — se ADR 0032. Uten dette ville hvert pull
+      // tømt kalenderen inntil neste ICS-synk.
+      const keepCache = state.outlookEvents || [];
       state = Object.assign(structuredClone(DEFAULT_STATE), remote);
       state.sync = Object.assign({}, state.sync, localSync);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      if (!(remote.outlookEvents||[]).length) state.outlookEvents = keepCache;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(_stateWithoutCache()));
+      _saveOutlookCache();
       // Update baseline so subsequent render's saveState doesn't trigger an unnecessary push
       _lastSavedBody = _computeStateBody();
       pulled = true;
@@ -1008,8 +1092,10 @@ function recurringInstanceOnDay(e, key){
   const target = fromKey(key);
   if (target < baseStart) return null;
   if (e.recurringUntil && fromKey(key) > fromKey(e.recurringUntil)) return null;
-  // Hard cap: 5 years from base
-  const maxEnd = new Date(baseStart); maxEnd.setFullYear(maxEnd.getFullYear()+5);
+  // Horisont. Var 5 år, satt fordi loopen gikk ett steg av gangen og måtte bremses et
+  // sted. Nå at alle fire typer regnes ut aritmetisk finnes ikke den grunnen lenger, og
+  // en ukentlig hendelse laget i dag sluttet å vises i 2031 uten et ord. ADR 0032.
+  const maxEnd = new Date(baseStart); maxEnd.setFullYear(maxEnd.getFullYear()+RECUR_HORIZON_YEARS);
   if (target > maxEnd) return null;
 
   const hit = (cur, n)=>{
@@ -1044,21 +1130,28 @@ function recurringInstanceOnDay(e, key){
     return null;
   }
 
-  // `monthly` og `yearly` stepper fortsatt kumulativt — med vilje. `addMonths` fra
-  // forrige forekomst DRIFTER: en månedlig serie fra 31. januar går 31/1 → 3/3 → 3/4 →
-  // 3/5 og blir liggende på den 3., mens `addMonths(base, n)` ville gitt 31/1 → 3/3 →
-  // 31/3. Differansetesten avslørte forskjellen. Den aritmetiske varianten er nok den
-  // riktigere, men å bytte flytter hendelser som alt ligger i kalenderen hennes, og det
-  // hører ikke inn i en ytelsesfiks. Kostnaden er uansett neglisjerbar her: 5-årstaket
-  // over gir maks 60 steg for monthly og 5 for yearly, mot 1826 for daily.
-  let cur = new Date(baseStart);
-  for (let n = 0; n < 2000; n++){
-    if (cur > target) return null;
+  // `monthly` og `yearly` regnes fra BASEN med `addMonthsKeepDay`, som bevarer dagen i
+  // måneden og klamrer til månedens siste dag.
+  //
+  // Før brukte denne `addMonths` kumulativt, og `addMonths` snapper til den 1. — så en
+  // månedlig serie fra 31. januar ble 31/1 → 1/2 → 1/3 og lå på den 1. for alltid.
+  // Kommentaren over `addMonthsKeepDay` sier rett ut at nettopp dette ble rettet for
+  // ICS-serier (ADR 0025): «using that one for RRULE expansion collapsed every monthly
+  // recurrence onto the 1st». Den manuelle gjentakelsen ble aldri rettet. Det var altså
+  // samme feil i den andre kodestien, ikke et designvalg — presis mønsteret sjekklista
+  // mi ber meg sveipe etter. Marias kalender hadde null manuelle gjentakende hendelser
+  // da dette ble rettet, så ingenting flyttet seg. ADR 0032.
+  const monthStep = e.recurring === 'monthly' ? 1 : 12;
+  const guessM = ((target.getFullYear()-baseStart.getFullYear())*12 + (target.getMonth()-baseStart.getMonth()));
+  const guessN = Math.floor(guessM / monthStep);
+  // Gå noen få steg bakover: varigheten kan strekke seg inn i målmåneden, og klamringen
+  // kan skyve en forekomst en dag eller to.
+  const spanMonths = Math.ceil(Math.max(0, durationMs) / (28*86400000)) + 1;
+  for (let n = Math.max(0, guessN - spanMonths); n <= guessN + 1; n++){
+    const cur = addMonthsKeepDay(baseStart, n * monthStep);
+    if (cur > target) break;
     const found = hit(cur, n);
     if (found) return found;
-    if (e.recurring === 'monthly') cur = addMonths(cur, 1);
-    else if (e.recurring === 'yearly') cur = new Date(cur.getFullYear()+1, cur.getMonth(), cur.getDate());
-    else return null;
   }
   return null;
 }
@@ -2447,10 +2540,14 @@ HANDLERS.toggleProjectTask = (pid,tid,ev)=>{
   if (!t.done && t.recurring && t.due){
     const cur = fromKey(t.due);
     let next = null;
+    // `addMonthsKeepDay`, ikke `addMonths`: den siste snapper til den 1., så en månedlig
+    // oppgave med frist den 25. hoppet til den 1. neste måned første gang du krysset den
+    // av — og ble liggende der. Tredje og fjerde forekomst av samme feil, funnet av
+    // mønster-sveipet i sjekklista rett før push. Se ADR 0025 og 0032.
     if (t.recurring === 'daily') next = addDays(cur, 1);
     else if (t.recurring === 'weekly') next = addDays(cur, 7);
-    else if (t.recurring === 'monthly') next = addMonths(cur, 1);
-    else if (t.recurring === 'yearly') next = new Date(cur.getFullYear()+1, cur.getMonth(), cur.getDate());
+    else if (t.recurring === 'monthly') next = addMonthsKeepDay(cur, 1);
+    else if (t.recurring === 'yearly') next = addMonthsKeepDay(cur, 12);
     if (next){
       t.due = dKey(next);
       try { showToast(`✓ "${t.title}" — flyttet til ${fmtDateShort(next)}`); } catch(_){}
@@ -2614,6 +2711,18 @@ function openProjectForm(id){
   }
 }
 HANDLERS.openProjectForm = openProjectForm;
+// Sluttdato tidligere enn startdato ble stille erstattet med '' — feltet så ut som det
+// ble tatt imot, og hendelsen ble endagsvarig uten et ord. Si det i stedet. ADR 0032.
+function _endDateOr(raw, start, hva){
+  if (!raw) return '';
+  if (!start) return '';
+  if (raw > start) return raw;
+  if (typeof showToast === 'function'){
+    showToast(`⚠ Sluttdatoen (${raw}) er ikke etter ${hva} (${start}), så den ble ikke lagret.`, 9000);
+  }
+  return '';
+}
+
 HANDLERS.saveProjectForm = id=>{
   const target = document.getElementById('p-target').value||'';
   const targetEndRaw = document.getElementById('p-targetEnd').value||'';
@@ -2621,11 +2730,15 @@ HANDLERS.saveProjectForm = id=>{
     title: document.getElementById('p-title').value.trim(),
     category: document.getElementById('p-cat').value,
     targetDate: target,
-    targetEndDate: (targetEndRaw && target && targetEndRaw > target) ? targetEndRaw : '',
+    targetEndDate: _endDateOr(targetEndRaw, target, 'måldatoen'),
     startDate: document.getElementById('p-start').value||'',
     description: document.getElementById('p-desc').value.trim(),
   };
-  if (!data.title) return;
+  if (!data.title){
+    // Dialogen sto åpen og knappen gjorde ingenting, uten å si hvorfor. ADR 0032.
+    if (typeof showToast === 'function') showToast('⚠ Tittel må fylles ut før du kan lagre.', 5000);
+    return;
+  }
   if (id){
     const ex = state.projects.find(x=>x.id===id);
     // Posten forsvant mellom åpning og lagring — typisk fordi 60-sekunders-pullet
@@ -2716,12 +2829,16 @@ HANDLERS.saveProjectTaskForm = (pid, tid)=>{
   const data = {
     title: document.getElementById('pt-title').value.trim(),
     due,
-    endDate: (endDateRaw && due && endDateRaw > due) ? endDateRaw : '',
+    endDate: _endDateOr(endDateRaw, due, 'fristen'),
     remindBefore: document.getElementById('pt-remind').value||'',
     recurring: document.getElementById('pt-recurring').value||'',
     notes: document.getElementById('pt-notes').value.trim(),
   };
-  if (!data.title) return;
+  if (!data.title){
+    // Dialogen sto åpen og knappen gjorde ingenting, uten å si hvorfor. ADR 0032.
+    if (typeof showToast === 'function') showToast('⚠ Tittel må fylles ut før du kan lagre.', 5000);
+    return;
+  }
   if (!p) { closeModal(); render(); return; }
   if (tid){
     const ex = p.tasks.find(x=>x.id===tid);
@@ -3665,10 +3782,14 @@ HANDLERS.toggleTask = (id, ev) => {
   if (!t.done && t.recurring && t.due){
     const cur = fromKey(t.due);
     let next = null;
+    // `addMonthsKeepDay`, ikke `addMonths`: den siste snapper til den 1., så en månedlig
+    // oppgave med frist den 25. hoppet til den 1. neste måned første gang du krysset den
+    // av — og ble liggende der. Tredje og fjerde forekomst av samme feil, funnet av
+    // mønster-sveipet i sjekklista rett før push. Se ADR 0025 og 0032.
     if (t.recurring === 'daily') next = addDays(cur, 1);
     else if (t.recurring === 'weekly') next = addDays(cur, 7);
-    else if (t.recurring === 'monthly') next = addMonths(cur, 1);
-    else if (t.recurring === 'yearly') next = new Date(cur.getFullYear()+1, cur.getMonth(), cur.getDate());
+    else if (t.recurring === 'monthly') next = addMonthsKeepDay(cur, 1);
+    else if (t.recurring === 'yearly') next = addMonthsKeepDay(cur, 12);
     if (next){
       t.due = dKey(next);
       try { showToast(`✓ "${t.title}" — flyttet til ${fmtDateShort(next)}`); } catch(_){}
@@ -3725,7 +3846,7 @@ HANDLERS.saveEventForm = id=>{
   const data = {
     title: document.getElementById('ev-title').value.trim(),
     date: startDate,
-    endDate: (endDateRaw && endDateRaw > startDate) ? endDateRaw : '',
+    endDate: _endDateOr(endDateRaw, startDate, 'startdatoen'),
     start: document.getElementById('ev-start').value||'',
     end: document.getElementById('ev-end').value||'',
     category: document.getElementById('ev-cat').value,
@@ -3817,7 +3938,11 @@ HANDLERS.saveTaskForm = id=>{
     recurring: document.getElementById('tk-recurring').value||'',
     notes: document.getElementById('tk-notes').value.trim(),
   };
-  if (!data.title) return;
+  if (!data.title){
+    // Dialogen sto åpen og knappen gjorde ingenting, uten å si hvorfor. ADR 0032.
+    if (typeof showToast === 'function') showToast('⚠ Tittel må fylles ut før du kan lagre.', 5000);
+    return;
+  }
   if (id){
     const ex = state.tasks.find(x=>x.id===id);
     // Posten forsvant mellom åpning og lagring — typisk fordi 60-sekunders-pullet
@@ -4177,7 +4302,7 @@ function openSettings(){
     icsInput.addEventListener('blur', commitIcsUrl);
   }
   // Populate backup folder status (async — handle is in IndexedDB)
-  getBackupDirHandle().then(async h => {
+  getBackupDirHandle().catch(err=>{ console.error('backup-mappe-oppslag feilet', err); return null; }).then(async h => {
     const status = document.getElementById('backup-dir-status');
     const clear = document.getElementById('clear-backup-dir-btn');
     if (!status) return;
@@ -4201,7 +4326,7 @@ function openSettings(){
     }
   });
   // Populate cloud backups list (async)
-  loadCloudBackups().then(keys=>{
+  loadCloudBackups().catch(err=>({ error: err.message || String(err) })).then(keys=>{
     const list = document.getElementById('cloud-backups-list');
     if (!list) return;
     if (keys && keys.error){
@@ -4372,8 +4497,17 @@ HANDLERS.importData = e=>{
       // killed sync with no message.
       const keepSync = { syncUrl: state.sync.syncUrl, syncToken: state.sync.syncToken, icsUrl: state.sync.icsUrl };
       // Write raw blob and re-run loadState so all migrations execute on imported data.
+      // Outlook-cachen: har filen en, skal DEN vinne — hun gjenoppretter med vilje. Fjern
+      // enhetens egen nøkkel først, ellers ville loadState foretrukket den. Har filen
+      // ingen cache, beholdes den nåværende. ADR 0032.
+      const fileHasCache = !!(parsed.outlookEvents||[]).length;
+      const cacheBefore = localStorage.getItem(OUTLOOK_KEY);
+      if (fileHasCache){ try { localStorage.removeItem(OUTLOOK_KEY); _lastOutlookWritten = null; } catch(_){} }
       localStorage.setItem(STORAGE_KEY, ev.target.result);
       state = loadState();
+      if (!fileHasCache && cacheBefore){
+        try { state.outlookEvents = JSON.parse(cacheBefore) || []; } catch(_){}
+      }
       state.sync.syncUrl = keepSync.syncUrl || state.sync.syncUrl;
       state.sync.syncToken = keepSync.syncToken || state.sync.syncToken;
       state.sync.icsUrl = keepSync.icsUrl || state.sync.icsUrl;
@@ -4390,6 +4524,8 @@ HANDLERS.importData = e=>{
 HANDLERS.resetAll = ()=>{
   if (!confirm('Slett alle data? Dette kan ikke angres.')) return;
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(OUTLOOK_KEY);   // ellers står kalenderen igjen etter en reset
+  _lastOutlookWritten = null;
   state = structuredClone(DEFAULT_STATE);
   closeModal(); render();
 };
@@ -4466,7 +4602,16 @@ function setupNotifications(){
     if (!NN || NN.permission!=='granted') return;
     const now = new Date();
     const todayK = dKey(now);
-    const fired = JSON.parse(sessionStorage.getItem('fired')||'[]');
+    // Var uvoktet: en ødelagt verdi kastet inne i minutt-intervallet. ADR 0032.
+    let fired = [];
+    try {
+      const raw = JSON.parse(sessionStorage.getItem('fired') || '[]');
+      if (Array.isArray(raw)) fired = raw;
+      else throw new Error('ikke en liste');
+    } catch (err){
+      console.warn('fired-registeret var ødelagt, nullstiller', err);
+      sessionStorage.removeItem('fired');
+    }
     // Event reminders — 15 min before
     state.events.filter(e=>e.date===todayK && e.start).forEach(e=>{
       const [h,mn] = e.start.split(':').map(Number);
@@ -4812,9 +4957,18 @@ function expandRRule(baseEv, baseDate, rrule, exdates, endSpec){
     ? Math.round((endSpec.instant - baseDate.instant) / 60000) : null;
   const dates = _rruleOccurrences(baseStart, params, winEnd, Math.min(count, MAX_OCC));
   const instances = [];
+  // Forekomster genereres fra DTSTART, mens vinduet starter 12 måneder tilbake. En daglig
+  // serie som begynte i 2015 lager altså ~4200 forekomster og kaster ~3900 av dem — men
+  // hver ble tidssone-konvertert FØRST, og konverteringen er to
+  // `Intl.DateTimeFormat.formatToParts`-kall. Kildedatoen avviker maks én dag fra den
+  // lokale, så alt som ligger godt før vinduet forkastes nå uten konvertering. Den
+  // presise grensen står igjen nedenfor. ADR 0032.
+  const winStartSlack = addDays(winStart, -2);
   for (let i = 0; i < dates.length; i++){
     const cur = dates[i];
     const srcKey = dKey(cur);
+    if (exSet.has(srcKey)) continue;      // billig — flyttet foran konverteringen
+    if (cur < winStartSlack) continue;    // billig — sparer konverteringen
     // Convert this occurrence on its own date — the DST fix.
     const startLocal = _resolveICSTime(srcKey, baseDate);
     if (until){
@@ -4822,7 +4976,6 @@ function expandRRule(baseEv, baseDate, rrule, exdates, endSpec){
         if (startLocal.instant > until.instant) break;
       } else if (fromKey(srcKey) > fromKey(until.srcDate || until.date)) break;
     }
-    if (exSet.has(srcKey)) continue;
     const key = startLocal.date;
     if (fromKey(key) < winStart) continue;
     let endTime = baseEv.end;
@@ -5556,7 +5709,13 @@ HANDLERS.startVoiceCapture = ()=>{
     }
   };
   recognition.onend = cleanup;
-  try { recognition.start(); } catch(_){ cleanup(); }
+  try { recognition.start(); }
+  catch(err){
+    // Var `catch(_){ cleanup(); }` — knappen så ut som den ikke gjorde noe. ADR 0032.
+    console.error('talegjenkjenning startet ikke', err);
+    cleanup();
+    if (typeof showToast === 'function') showToast('⚠ Mikrofonen startet ikke: ' + (err.message||err) + '. Sjekk at nettleseren har mikrofontilgang.', 8000);
+  }
 };
 
 // Paste handler for image-into-textarea
@@ -5627,10 +5786,14 @@ async function clearBackupDirHandle(){
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(BACKUP_IDB_STORE, 'readwrite');
       tx.objectStore(BACKUP_IDB_STORE).delete(BACKUP_IDB_KEY);
-      tx.oncomplete = () => resolve();
+      tx.oncomplete = () => resolve({ ok: true });
       tx.onerror = () => reject(tx.error);
     });
-  } catch {}
+  } catch (err) {
+    // Var `catch {}`, og kalleren toastet «Backup-mappe fjernet» uansett. ADR 0032.
+    console.error('kunne ikke fjerne backup-mappe fra IndexedDB', err);
+    return { ok: false, error: err.message || String(err) };
+  }
 }
 
 // User clicks "Velg backup-mappe" in Settings — must be inside a user gesture
@@ -5660,8 +5823,11 @@ HANDLERS.chooseBackupFolder = async () => {
 };
 HANDLERS.clearBackupFolder = async () => {
   if (!confirm('Fjern den valgte backup-mappen? Etter dette går backups til Nedlastinger igjen til du velger en ny mappe.')) return;
-  await clearBackupDirHandle();
-  if (typeof showToast === 'function') showToast('Backup-mappe fjernet', 3000);
+  const res = await clearBackupDirHandle();
+  if (typeof showToast === 'function'){
+    if (res && res.ok === false) showToast('⚠ Klarte ikke fjerne mappevalget (' + res.error + ') — det kan komme tilbake ved neste omstart.', 10000);
+    else showToast('Backup-mappe fjernet', 3000);
+  }
   if (document.querySelector('.modal-bg.open')){ closeModal(); openSettings(); }
 };
 
@@ -5793,15 +5959,59 @@ function _backupStatusHTML(){
     .sort((a,b)=> _snapshotTime(a) - _snapshotTime(b)).pop();
   const dayStr = newest ? newest.replace('planlegger.backup.','') : null;
   const stale = dayStr && dayStr !== todayKey();
+  // Fordelingen skal vises uansett status. Den lå bare i den siste grenen, så en feilet
+  // backup skjulte hele oversikten over hvor plassen går — presis når man trenger den.
   if (_backupStatus.ok === false){
-    return `<div style="font-size:12px;color:var(--alert);padding:2px 0">⚠ Dagens backup feilet: ${escapeHTML(_backupStatus.error||'ukjent')}. Eksportér til JSON.</div>`;
+    return `<div style="font-size:12px;color:var(--alert);padding:2px 0">⚠ Dagens backup feilet: ${escapeHTML(_backupStatus.error||'ukjent')}. Eksportér til JSON.</div>`
+      + `<div style="font-size:12px;color:var(--alert);padding:2px 0">localStorage bruker ${usedKB} kB av ~5000</div>`
+      + _storageBreakdownHTML();
   }
   const note = !dayStr ? '⚠ Ingen dagsbackup ennå'
     : stale ? `⚠ Nyeste dagsbackup er fra ${dayStr}`
     : `✓ Dagsbackup tatt i dag (${dayStr})`;
   const col = (!dayStr || stale) ? 'var(--alert)' : 'var(--ink-muted)';
-  return `<div style="font-size:12px;color:${col};padding:2px 0">${note} · localStorage bruker ${usedKB} kB av ~5000</div>`;
+  return `<div style="font-size:12px;color:${col};padding:2px 0">${note} · localStorage bruker ${usedKB} kB av ~5000</div>`
+    + _storageBreakdownHTML();
 }
+
+// Hvor plassen faktisk går. Uten dette var «4951 kB brukt» et tall uten handling bak.
+function _storageBreakdownHTML(){
+  const kb = o => Math.round(JSON.stringify(o == null ? null : o).length / 1024);
+  const doneCount = (state.tasks||[]).filter(t=>t.done).length;
+  const totalTasks = (state.tasks||[]).length;
+  const doneKB = kb((state.tasks||[]).filter(t=>t.done));
+  const parts = [
+    `Outlook-cache ${kb(state.outlookEvents||[])} kB`,
+    `oppgaver ${kb(state.tasks||[])} kB`,
+    `prosjekter ${kb(state.projects||[])} kB`,
+    `dagsnotater ${kb(state.notes||{})} kB`,
+  ];
+  let html = `<div style="font-size:11.5px;color:var(--ink-muted);padding:1px 0">${parts.join(' · ')}</div>`;
+  if (doneCount >= 25){
+    // Fullførte oppgaver akkumulerer for alltid; visningen kappes til 20, lageret ikke.
+    // Ikke automatisk sletting — det er datatap. Et eksplisitt valg, med øyeblikksbilde
+    // først, slik at det kan rulles tilbake. ADR 0032.
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;padding:3px 0">
+      <span style="color:var(--ink-muted)">${doneCount} av ${totalTasks} oppgaver er fullført (${doneKB} kB)</span>
+      <button data-action="purgeDoneTasks" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Rydd bort</button>
+    </div>`;
+  }
+  return html;
+}
+
+// Fjerner fullførte oppgaver fra state — etter et øyeblikksbilde, så det kan angres via
+// «Lokale backups» under. Aldri automatisk, aldri uten bekreftelse.
+HANDLERS.purgeDoneTasks = ()=>{
+  const done = (state.tasks||[]).filter(t=>t.done);
+  if (!done.length){ if (typeof showToast === 'function') showToast('Ingen fullførte oppgaver å rydde bort.', 4000); return; }
+  if (!confirm(`Fjerne ${done.length} fullførte oppgaver?\n\nEt øyeblikksbilde lagres først, så du kan rulle tilbake fra «Lokale backups» i Innstillinger.`)) return;
+  const snap = _writePreSyncSnapshot();
+  if (!snap.ok && !confirm('Øyeblikksbildet kunne ikke lagres, så dette kan IKKE angres. Fortsette likevel?')) return;
+  state.tasks = (state.tasks||[]).filter(t=>!t.done);
+  saveState();
+  if (typeof showToast === 'function') showToast(`✓ ${done.length} fullførte oppgaver ryddet bort. Angre via «Lokale backups».`, 8000);
+  closeModal(); openSettings(); render();
+};
 HANDLERS.restoreBackup = (key)=>{
   const dateStr = key.replace('planlegger.backup.','').replace('planlegger.preSync.','');
   if (!confirm(`Erstatt ALL nåværende data med backup fra ${dateStr}? Dette kan ikke angres.`)) return;
@@ -5878,10 +6088,51 @@ updateSyncIndicator();
 })();
 
 // Sync on load + poll every 60s
+// Polling som roer seg. Før: hvert 60. sekund, døgnet rundt, uansett om fanen var i
+// bruk — og hvert kall lastet hele sky-blobben. Nå henter den ~35 kB i stedet for 652 kB
+// (ADR 0032), men frekvensen var uansett feil: den pollet i timevis mens PC-en sto låst.
+// Nå: pause når fanen er skjult, umiddelbart pull når den blir synlig igjen, og
+// dobling av intervallet opp til 8 minutter når ingenting endrer seg.
+const SYNC_POLL_MIN_MS = 60*1000;
+const SYNC_POLL_MAX_MS = 8*60*1000;
+let _pollTimer = null;
+let _pollDelay = SYNC_POLL_MIN_MS;
+
+// Egen funksjon fordi den er verdt å teste: endret noe seg, tilbake til hyppig; ellers
+// dobling opp til taket.
+function _nextPollDelay(current, changed){
+  if (changed) return SYNC_POLL_MIN_MS;
+  return Math.min(SYNC_POLL_MAX_MS, Math.max(SYNC_POLL_MIN_MS, current) * 2);
+}
+function _stopPolling(){ if (_pollTimer){ clearTimeout(_pollTimer); _pollTimer = null; } }
+function _schedulePoll(delay){
+  _stopPolling();
+  if (!state.sync.syncUrl || !state.sync.syncToken) return;
+  _pollTimer = setTimeout(async ()=>{
+    if (typeof document !== 'undefined' && document.hidden){
+      _schedulePoll(_pollDelay);          // skjult: ikke hent, bare planlegg på nytt
+      return;
+    }
+    let changed = false;
+    try { const r = await pullFromRemote(true); changed = !!(r && r.pulled); } catch(_){}
+    _pollDelay = _nextPollDelay(_pollDelay, changed);
+    _schedulePoll(_pollDelay);
+  }, delay);
+}
+
 (function bootSync(){
   if (!state.sync.syncUrl || !state.sync.syncToken) return;
   pullFromRemote();
-  setInterval(()=>pullFromRemote(true), 60*1000);
+  _schedulePoll(SYNC_POLL_MIN_MS);
+  if (typeof document !== 'undefined' && document.addEventListener){
+    document.addEventListener('visibilitychange', ()=>{
+      if (document.hidden){ _stopPolling(); return; }
+      // Tilbake i bruk: hent med én gang og start på det korte intervallet igjen.
+      _pollDelay = SYNC_POLL_MIN_MS;
+      pullFromRemote(true).catch(err=>console.error('pull ved fokus feilet', err));
+      _schedulePoll(_pollDelay);
+    });
+  }
 })();
 
 // Auto-sync Outlook on load if URL is set and last sync > 1 hour ago (or never)
