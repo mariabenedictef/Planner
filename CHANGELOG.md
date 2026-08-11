@@ -6,6 +6,21 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-10 (natt) — TZID og sommertid: Outlook-tider er riktige nå
+
+Helsesjekken parkerte disse to eksplisitt i påvente av Graph-avgjørelsen. Maria avgjorde den samme dag — tilgangen kommer ikke — så de var ikke parkert lenger, bare ufikset. ADR 0028.
+
+- **TZID ble ignorert.** `parseICSDate` fikk bare verdien til høyre for kolon; TZID står i parameterlista på venstre side (`DTSTART;TZID="Eastern Standard Time":20260115T140000`), og den siden ble kastet. Et møte satt opp fra New York ble vist 14:00 i stedet for 20:00. TZID leses nå av, mappes fra Windows-sonenavn til IANA (~53 soner), og tiden konverteres. Ukjent sonenavn degraderer til flytende tid — altså presis oppførselen vi hadde før, ingenting blir verre.
+- **Sommertid arvet basetidens klokke.** `expandRRule` kopierte `{...baseEv}` per forekomst, og `baseEv.start` var en ferdig konvertert lokal streng. En ukentlig 07:00Z-serie fra 12. oktober ble 09:00 hele veien — riktig til 19. oktober, **én time feil fra 26. oktober og resten av serien**. Feilen dukket opp av seg selv ved tidsomstillingen, uten at noe ble endret. Hver forekomst konverteres nå på sin egen dato.
+- **En tredje feil som fulgte av de to, som ingen hadde beskrevet:** forekomst-datoene ble regnet ut fra basehendelsens *lokale* dato. Et 07:00-møte hver tirsdag i Tokyo er mandag kveld i Oslo, så `BYDAY=TU` mot en lokal mandag traff ikke. Serier enumereres nå på **kilde-kalenderen** og konverteres etterpå.
+- **Sluttiden utledes fra varighet i minutter** i stedet for å kopiere en klokkestreng, så en forekomst som ligger på hver side av en omstilling får riktig lengde.
+- **Ingen nytt bibliotek og ingen byggesteg.** `Intl.DateTimeFormat` med `timeZone` har hele sonedatabasen innebygd og oppdateres med nettleseren. Veien fra veggklokke i en sone til øyeblikk trenger to pass, fordi offseten man trenger avhenger av øyeblikket man leter etter — det andre passet er det som gjør timene rundt en omstilling riktige.
+- **Nye tester, permanent lagret:** `tests/ics.mjs` (61 assertions) og `tests/run.mjs` (118) ligger nå i prosjektmappa i stedet for å bli bygget på nytt hver økt. ICS-suiten **nekter å kjøre uten `TZ=Europe/Oslo`** — parserens utdata avhenger per design av nettleserens sone, så en kjøring i UTC ville passert tomt og bevist ingenting.
+  - Skarpeste testen: en ukentlig 09:00-avtale fra New York, gjennom begge omstillingene. 19. okt → 15:00, 26. okt → **14:00** (EU har byttet, USA ikke — differansen er 5 timer den uka), 2. nov → 15:00 igjen. Den ville feilet på alle tre måter feilen kunne feile.
+  - Pluss: Tokyo-serie som lander 00:00 lokalt på riktige datoer, møte som krysser midnatt lokalt, `DURATION` uten `DTEND`, flerdags gjentakende, EXDATE og UNTIL med kilde-datoer, ukjent TZID, heldags uberørt, og seks regresjonstester for det helsesjekken fikset (MONTHLY-klamring, BYDAY, 2016-serie uten COUNT, VALARM, manglende SUMMARY, CANCELLED).
+- **Fortsatt ikke støttet:** `RECURRENCE-ID`-overstyringer. Flytter du én forekomst i en serie i Outlook, viser planleggeren den på opprinnelig tid. Det er nå den største gjenstående ICS-mangelen (ADR 0025 står ved lag på det punktet).
+- **Verifisert:** `node -c` grønn · 91 unike HANDLERS, 0 duplikater · 0 bare-HANDLERS-kall · 0 `data-action`/`act()` uten handler · 0 døde handlere · 0 NUL-/CR-bytes · hovedsuiten 118/118 i **både** UTC og Europe/Oslo · ICS-suiten 61/61 i Europe/Oslo.
+
 ## 2026-08-10 (sen kveld) — Wikilink-autocomplete + flerdagsbar over uke-skillet + strukturgjennomgang
 
 Bygget oppå helsesjekken nedenfor. ADR-numrene her er 0026/0027 fordi 0021–0025 alt var brukt — se prosessnoten nederst i innslaget.

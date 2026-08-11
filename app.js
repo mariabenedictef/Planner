@@ -4110,16 +4110,170 @@ function setupNotifications(){
 // ============================================================
 function unfoldICS(text){ return text.replace(/\r?\n[ \t]/g,''); }
 function unescapeICS(s){ return s.replace(/\\n/gi,'\n').replace(/\\,/g,',').replace(/\\;/g,';').replace(/\\\\/g,'\\'); }
-function parseICSDate(str){
-  const m = str.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?/);
+// ----- Tidssoner i ICS (ADR 0028) -----
+// Outlook publiserer TZID med Windows-navn («W. Europe Standard Time»), ikke IANA.
+// Denne tabellen dekker sonene som realistisk kan dukke opp i Marias kalender.
+// Et navn som ikke står her, men inneholder «/», prøves som IANA. Alt annet — og alt
+// runtime avviser — degraderes til flytende tid, som er oppførselen vi hadde før.
+const _WINDOWS_TZ = {
+  'utc': 'UTC',
+  'gmt standard time': 'Europe/London',
+  'greenwich standard time': 'Atlantic/Reykjavik',
+  'w. europe standard time': 'Europe/Berlin',
+  'central europe standard time': 'Europe/Budapest',
+  'central european standard time': 'Europe/Warsaw',
+  'romance standard time': 'Europe/Paris',
+  'e. europe standard time': 'Europe/Chisinau',
+  'gtb standard time': 'Europe/Bucharest',
+  'fle standard time': 'Europe/Kiev',
+  'turkey standard time': 'Europe/Istanbul',
+  'russian standard time': 'Europe/Moscow',
+  'israel standard time': 'Asia/Jerusalem',
+  'egypt standard time': 'Africa/Cairo',
+  'south africa standard time': 'Africa/Johannesburg',
+  'w. central africa standard time': 'Africa/Lagos',
+  'arabian standard time': 'Asia/Dubai',
+  'arab standard time': 'Asia/Riyadh',
+  'iran standard time': 'Asia/Tehran',
+  'pakistan standard time': 'Asia/Karachi',
+  'india standard time': 'Asia/Kolkata',
+  'sri lanka standard time': 'Asia/Colombo',
+  'bangladesh standard time': 'Asia/Dhaka',
+  'se asia standard time': 'Asia/Bangkok',
+  'singapore standard time': 'Asia/Singapore',
+  'china standard time': 'Asia/Shanghai',
+  'taipei standard time': 'Asia/Taipei',
+  'tokyo standard time': 'Asia/Tokyo',
+  'korea standard time': 'Asia/Seoul',
+  'w. australia standard time': 'Australia/Perth',
+  'aus central standard time': 'Australia/Darwin',
+  'cen. australia standard time': 'Australia/Adelaide',
+  'aus eastern standard time': 'Australia/Sydney',
+  'e. australia standard time': 'Australia/Brisbane',
+  'tasmania standard time': 'Australia/Hobart',
+  'new zealand standard time': 'Pacific/Auckland',
+  'eastern standard time': 'America/New_York',
+  'us eastern standard time': 'America/Indiana/Indianapolis',
+  'central standard time': 'America/Chicago',
+  'central standard time (mexico)': 'America/Mexico_City',
+  'mountain standard time': 'America/Denver',
+  'us mountain standard time': 'America/Phoenix',
+  'pacific standard time': 'America/Los_Angeles',
+  'alaskan standard time': 'America/Anchorage',
+  'hawaiian standard time': 'Pacific/Honolulu',
+  'atlantic standard time': 'America/Halifax',
+  'newfoundland standard time': 'America/St_Johns',
+  'sa pacific standard time': 'America/Bogota',
+  'sa western standard time': 'America/La_Paz',
+  'sa eastern standard time': 'America/Cayenne',
+  'e. south america standard time': 'America/Sao_Paulo',
+  'argentina standard time': 'America/Argentina/Buenos_Aires',
+  'pacific sa standard time': 'America/Santiago',
+};
+
+// Intl.DateTimeFormat is expensive to construct; one per zone is plenty.
+const _tzFmtCache = Object.create(null);
+function _tzFormatter(zone){
+  if (zone in _tzFmtCache) return _tzFmtCache[zone];
+  let fmt = null;
+  try {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+  } catch (e) { fmt = null; }        // unknown zone → caller degrades to floating
+  _tzFmtCache[zone] = fmt;
+  return fmt;
+}
+
+// TZID value → IANA zone name we can actually use, or null.
+function _icsZone(tzid){
+  let raw = String(tzid || '').trim().replace(/^"|"$/g, '');
+  if (!raw) return null;
+  // Outlook sometimes prefixes a registry id: "(UTC+01:00) W. Europe Standard Time"
+  raw = raw.replace(/^\([^)]*\)\s*/, '');
+  const mapped = _WINDOWS_TZ[raw.toLowerCase()];
+  const candidate = mapped || (raw.indexOf('/') > -1 ? raw : null);
+  if (!candidate) return null;
+  return _tzFormatter(candidate) ? candidate : null;
+}
+
+// Offset of `zone` from UTC at a given instant, in ms. Read the zone's wall clock at
+// that instant, then treat it as if it were UTC — the difference is the offset.
+function _tzOffsetMs(instantMs, zone){
+  const fmt = _tzFormatter(zone);
+  if (!fmt) return 0;
+  const parts = fmt.formatToParts(new Date(instantMs));
+  const get = (type)=>{
+    const p = parts.find(x => x.type === type);
+    return p ? parseInt(p.value, 10) : 0;
+  };
+  let hour = get('hour');
+  if (hour === 24) hour = 0;         // some engines render midnight as 24
+  const asUTC = Date.UTC(get('year'), get('month') - 1, get('day'), hour, get('minute'), get('second'));
+  return asUTC - instantMs;
+}
+
+// A wall-clock time in `zone` → the UTC instant it denotes. Two passes, because the
+// offset we need depends on the instant we're trying to find: guess with the offset at
+// the naive instant, then re-check with the offset at the corrected one. That second
+// pass is what makes the DST changeover hours come out right.
+function _zonedWallToUTC(y, mo, d, h, mi, zone){
+  const naive = Date.UTC(y, mo - 1, d, h, mi);
+  const off1 = _tzOffsetMs(naive, zone);
+  const utc = naive - off1;
+  const off2 = _tzOffsetMs(utc, zone);
+  return off2 === off1 ? utc : naive - off2;
+}
+
+// An instant → date + clock time in the browser's own zone.
+function _localParts(instantMs){
+  const dt = new Date(instantMs);
+  return { date: dKey(dt), time: pad(dt.getHours()) + ':' + pad(dt.getMinutes()) };
+}
+
+// Resolve a source-calendar date against a parsed time spec, giving the local date and
+// clock time. Called once per DTSTART and once per recurrence occurrence — that is the
+// whole DST fix: every occurrence is converted on its own date instead of inheriting
+// the base occurrence's already-converted clock time.
+function _resolveICSTime(srcDateKey, spec){
+  if (!spec || spec.allDay || spec.mode === 'floating'){
+    return { date: srcDateKey, time: spec ? spec.srcTime : '', instant: null };
+  }
+  const [y, mo, d] = srcDateKey.split('-').map(Number);
+  const [h, mi] = spec.srcTime.split(':').map(Number);
+  const instant = spec.mode === 'utc'
+    ? Date.UTC(y, mo - 1, d, h, mi)
+    : _zonedWallToUTC(y, mo, d, h, mi, spec.zone);
+  const lp = _localParts(instant);
+  return { date: lp.date, time: lp.time, instant: instant };
+}
+
+// Parse an ICS date/date-time value. `tzid` is the TZID parameter from the property's
+// own parameter list, if it had one.
+//
+// Returns both views of the same moment, and they are not interchangeable:
+//   srcDate / srcTime — the source calendar's own date and wall clock, exactly as written
+//   date / time       — the same moment in the browser's local zone
+// Recurrence rules must be enumerated on SOURCE dates (a weekly Tokyo meeting is weekly
+// in Tokyo, and its local date can be the day before), then each occurrence converted.
+function parseICSDate(str, tzid){
+  const m = String(str||'').match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?/);
   if (!m) return null;
   const [, y, mo, d, h, mi, , z] = m;
-  if (!h) return { date:`${y}-${mo}-${d}`, time:'', allDay:true };
-  if (z){
-    const utc = new Date(Date.UTC(+y, +mo-1, +d, +h, +mi));
-    return { date: dKey(utc), time: pad(utc.getHours())+':'+pad(utc.getMinutes()), allDay:false };
+  const srcDate = `${y}-${mo}-${d}`;
+  if (!h){
+    return { date: srcDate, time: '', allDay: true, srcDate, srcTime: '',
+             mode: 'allday', zone: null, instant: null };
   }
-  return { date:`${y}-${mo}-${d}`, time:`${h}:${mi}`, allDay:false };
+  const zone = z ? null : _icsZone(tzid);
+  // No Z and no usable TZID → floating: the wall clock is taken at face value, which is
+  // what every version before ADR 0028 did with every timed event.
+  const mode = z ? 'utc' : (zone ? 'zoned' : 'floating');
+  const spec = { allDay: false, srcDate, srcTime: `${h}:${mi}`, mode, zone };
+  const resolved = _resolveICSTime(srcDate, spec);
+  return { ...spec, date: resolved.date, time: resolved.time, instant: resolved.instant };
 }
 
 // ISO 8601 duration → minutes (DURATION:PT1H30M, P1D, P1W). Outlook normally sends
@@ -4136,8 +4290,10 @@ function parseICSDuration(str){
 // Chronological occurrence dates for an RRULE, from DTSTART up to winEnd.
 // Occurrences are computed from baseStart each time (not iteratively) so day-of-month
 // and BYDAY don't drift. Supported: FREQ DAILY/WEEKLY/MONTHLY/YEARLY, INTERVAL,
-// COUNT, UNTIL, BYDAY (weekly + monthly with ordinals). Not supported: TZID,
-// per-occurrence DST, BYSETPOS, RECURRENCE-ID overrides — see ADR 0025.
+// COUNT, UNTIL, BYDAY (weekly + monthly with ordinals), TZID and per-occurrence DST
+// (ADR 0028). Not supported: BYSETPOS, RECURRENCE-ID overrides — see ADR 0025.
+// The dates handed in and out of this function are SOURCE-calendar dates; conversion to
+// local time happens per occurrence in expandRRule.
 function _rruleOccurrences(baseStart, params, winEnd, maxOcc){
   const freq = params.FREQ;
   const interval = Math.max(1, parseInt(params.INTERVAL||'1') || 1);
@@ -4206,7 +4362,7 @@ function _rruleOccurrences(baseStart, params, winEnd, maxOcc){
   return out;
 }
 
-function expandRRule(baseEv, baseDate, rrule, exdates){
+function expandRRule(baseEv, baseDate, rrule, exdates, endSpec){
   const params = {};
   rrule.split(';').forEach(p=>{ const [k,v]=p.split('='); params[k]=v; });
   // COUNT is an occurrence limit counted from DTSTART. It used to default to 500 and
@@ -4219,25 +4375,51 @@ function expandRRule(baseEv, baseDate, rrule, exdates){
   // Window: 12 months back, 24 months forward
   const winStart = addMonths(new Date(), -12);
   const winEnd = addMonths(new Date(), 24);
-  const baseStart = fromKey(baseDate.date);
-  // Excluded occurrences (EXDATE). Matched on date, not time — see ADR 0025.
+  // Enumerate on the SOURCE calendar (ADR 0028). Using the local date here would shift
+  // the whole series by a day for zones far enough east or west.
+  const baseStart = fromKey(baseDate.srcDate || baseDate.date);
+  // Excluded occurrences (EXDATE). Matched on the source date, not time — see ADR 0025.
   const exSet = new Set();
-  (exdates || []).forEach(raw => String(raw).split(',').forEach(v => {
-    const p = parseICSDate(v.trim());
-    if (p) exSet.add(p.date);
-  }));
-  // Preserve multi-day duration across recurrences
-  const durationDays = baseEv.endDate ? Math.round((fromKey(baseEv.endDate)-baseStart)/86400000) : 0;
+  (exdates || []).forEach(entry => {
+    const raw = (entry && entry.value !== undefined) ? entry.value : entry;
+    const tz = (entry && entry.tz) || null;
+    String(raw).split(',').forEach(v => {
+      const p = parseICSDate(v.trim(), tz);
+      if (p) exSet.add(p.srcDate);
+    });
+  });
+  // Duration in whole days (multi-day events) and in minutes (so each occurrence's end
+  // time is derived from its own start instant instead of inheriting a converted clock).
+  const durationDays = baseEv.endDate
+    ? Math.round((fromKey(baseEv.endDate) - fromKey(baseEv.date)) / 86400000) : 0;
+  const durationMin = (baseDate.instant != null && endSpec && endSpec.instant != null)
+    ? Math.round((endSpec.instant - baseDate.instant) / 60000) : null;
   const dates = _rruleOccurrences(baseStart, params, winEnd, Math.min(count, MAX_OCC));
   const instances = [];
   for (let i = 0; i < dates.length; i++){
     const cur = dates[i];
-    if (until && fromKey(dKey(cur)) > fromKey(until.date)) break;
-    if (cur < winStart) continue;
-    const key = dKey(cur);
-    if (exSet.has(key)) continue;
-    const newEndDate = durationDays > 0 ? dKey(addDays(cur, durationDays)) : '';
-    instances.push({ ...baseEv, id: baseEv.id+'-'+i, date: key, endDate: newEndDate });
+    const srcKey = dKey(cur);
+    // Convert this occurrence on its own date — the DST fix.
+    const startLocal = _resolveICSTime(srcKey, baseDate);
+    if (until){
+      if (until.instant != null && startLocal.instant != null){
+        if (startLocal.instant > until.instant) break;
+      } else if (fromKey(srcKey) > fromKey(until.srcDate || until.date)) break;
+    }
+    if (exSet.has(srcKey)) continue;
+    const key = startLocal.date;
+    if (fromKey(key) < winStart) continue;
+    let endTime = baseEv.end;
+    let extraDay = 0;
+    if (durationMin != null && startLocal.instant != null){
+      const endLocal = _localParts(startLocal.instant + durationMin * 60000);
+      endTime = endLocal.time;
+      if (durationDays === 0 && endLocal.date > key) extraDay = 1;
+    }
+    const spanDays = durationDays > 0 ? durationDays : extraDay;
+    const newEndDate = spanDays > 0 ? dKey(addDays(fromKey(key), spanDays)) : '';
+    instances.push({ ...baseEv, id: baseEv.id+'-'+i, date: key,
+                     start: startLocal.time, end: endTime, endDate: newEndDate });
   }
   return instances;
 }
@@ -4257,8 +4439,8 @@ function parseICS(text){
     if (inAlarm) continue;
     if (line==='END:VEVENT'){
       if (cur && cur.dtstart && cur.status!=='CANCELLED'){
-        const startD = parseICSDate(cur.dtstart);
-        const endD = cur.dtend ? parseICSDate(cur.dtend) : null;
+        const startD = parseICSDate(cur.dtstart, cur.dtstartTz);
+        const endD = cur.dtend ? parseICSDate(cur.dtend, cur.dtendTz) : null;
         if (startD){
           // Compute endDate for multi-day events.
           // For all-day: DTEND is EXCLUSIVE per iCal spec, so subtract 1 day.
@@ -4303,7 +4485,7 @@ function parseICS(text){
             _ics: true,
           };
           if (cur.rrule){
-            try { events.push(...expandRRule(ev, startD, cur.rrule, cur.exdates)); }
+            try { events.push(...expandRRule(ev, startD, cur.rrule, cur.exdates, endD)); }
             catch(e){ console.error('RRULE expansion failed for', ev.title, e); events.push(ev); }
           } else {
             events.push(ev);
@@ -4318,8 +4500,14 @@ function parseICS(text){
     const lhs = line.substring(0, colonIdx);
     const rhs = line.substring(colonIdx+1);
     const propName = lhs.split(';')[0].toLowerCase();
-    if (propName==='dtstart') cur.dtstart = rhs;
-    else if (propName==='dtend') cur.dtend = rhs;
+    // TZID lives in the property's parameter list, so it has to be read off the LHS.
+    // Dropping it was the whole of bug B4 — see ADR 0028.
+    const tzidOf = (s)=>{
+      const m = String(s).match(/;TZID=("[^"]*"|[^;:]*)/i);
+      return m ? m[1] : null;
+    };
+    if (propName==='dtstart'){ cur.dtstart = rhs; cur.dtstartTz = tzidOf(lhs); }
+    else if (propName==='dtend'){ cur.dtend = rhs; cur.dtendTz = tzidOf(lhs); }
     else if (propName==='summary') cur.summary = unescapeICS(rhs);
     else if (propName==='description') cur.description = unescapeICS(rhs);
     else if (propName==='location') cur.location = unescapeICS(rhs);
@@ -4327,7 +4515,7 @@ function parseICS(text){
     else if (propName==='status') cur.status = rhs;
     else if (propName==='rrule') cur.rrule = rhs;
     else if (propName==='duration') cur.duration = rhs.trim();
-    else if (propName==='exdate') (cur.exdates = cur.exdates || []).push(rhs);
+    else if (propName==='exdate') (cur.exdates = cur.exdates || []).push({ value: rhs, tz: tzidOf(lhs) });
   }
   return events;
 }
