@@ -646,6 +646,62 @@ function _pruneStorage(){
 }
 
 // ============================================================
+// ØYEBLIKKSBILDER: beskytt det Maria har skrevet, ikke cachen (ADR 0030)
+// ============================================================
+// Outlook-hendelsene er hentbare — én knapp henter dem igjen. De var likevel 95 % av
+// hvert øyeblikksbilde: målt 2026-08-11 var hver snapshot 615 kB, mot ~35 kB uten dem.
+// Åtte av dem fylte localStorage til 4951 kB av ~5120 tilgjengelige, og da sluttet
+// dagsbackupen å virke. Ringene ble beskåret på ANTALL, aldri på bytes, så grensene
+// «5 preSync + 7 backup» var trygge da state var liten og en tidsinnstilt bombe etterpå.
+const SNAPSHOT_OMITS = ['outlookEvents'];
+const SNAPSHOT_BUDGET_BYTES = 1.5 * 1024 * 1024;
+
+function _snapshotJSON(){
+  const slim = {};
+  for (const k of Object.keys(state)){
+    if (!SNAPSHOT_OMITS.includes(k)) slim[k] = state[k];
+  }
+  slim._snapshotOmits = SNAPSHOT_OMITS;   // gjenopprettingen leser denne
+  return JSON.stringify(slim);
+}
+
+function _snapshotKeys(){
+  return Object.keys(localStorage)
+    .filter(k => k.startsWith('planlegger.backup.') || k.startsWith('planlegger.preSync.'))
+    .sort();                               // tidsstemplet navn ⇒ leksikografisk = kronologisk
+}
+
+// Beskjær nyeste-først til budsjettet. Antallsgrensene over er fortsatt hovedpolicy;
+// dette er nettet som fanger opp at state har vokst siden grensene ble satt.
+function _pruneSnapshotsToBudget(){
+  const keys = _snapshotKeys().reverse();   // nyeste først
+  let used = 0, dropped = 0;
+  for (const k of keys){
+    const v = localStorage.getItem(k);
+    const size = (v ? v.length : 0) + k.length;
+    if (used + size > SNAPSHOT_BUDGET_BYTES){
+      try { localStorage.removeItem(k); dropped++; } catch(_){}
+    } else {
+      used += size;
+    }
+  }
+  if (dropped) console.warn('[snapshots] beskar ' + dropped + ' gammelt øyeblikksbilde over budsjettet (' +
+    Math.round(used/1024) + ' kB beholdt)');
+  return dropped;
+}
+
+// Et øyeblikksbilde uten Outlook-cachen skal ikke tømme kalenderen ved gjenoppretting.
+function _mergeSnapshot(parsed){
+  const omitted = Array.isArray(parsed._snapshotOmits) ? parsed._snapshotOmits : [];
+  const carried = {};
+  for (const k of omitted) carried[k] = state[k];   // behold det som står nå
+  delete parsed._snapshotOmits;
+  const next = Object.assign(structuredClone(DEFAULT_STATE), parsed);
+  for (const k of omitted) if (carried[k] !== undefined) next[k] = carried[k];
+  return next;
+}
+
+// ============================================================
 // CROSS-DEVICE SYNC (Cloudflare KV)
 // ============================================================
 let _syncDebounceTimer = null;
@@ -718,9 +774,10 @@ HANDLERS.restoreCloudBackup = async (key)=>{
   // Save current as pre-sync snapshot
   try {
     const ts = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
-    localStorage.setItem('planlegger.preSync.'+ts, JSON.stringify(state));
+    localStorage.setItem('planlegger.preSync.'+ts, _snapshotJSON());
     const psKeys = Object.keys(localStorage).filter(k=>k.startsWith('planlegger.preSync.')).sort();
     while (psKeys.length > 5) localStorage.removeItem(psKeys.shift());
+    _pruneSnapshotsToBudget();
   } catch(_){}
   // Fetch backup
   try {
@@ -777,9 +834,10 @@ async function pullFromRemote(silent, force){
       if (localHasContent){
         try {
           const ts = new Date().toISOString().replace(/[:.]/g,'-').slice(0, 19);
-          localStorage.setItem('planlegger.preSync.' + ts, JSON.stringify(state));
+          localStorage.setItem('planlegger.preSync.' + ts, _snapshotJSON());
           const psKeys = Object.keys(localStorage).filter(k=>k.startsWith('planlegger.preSync.')).sort();
           while (psKeys.length > 5){ localStorage.removeItem(psKeys.shift()); }
+          _pruneSnapshotsToBudget();
         } catch(_){}
       }
       // Preserve local sync credentials — but only the ones we actually have. Copying
@@ -1065,19 +1123,92 @@ if (window.matchMedia){
   }); } catch(_){}
 }
 
+// ============================================================
+// RENDER-KONTRAKTEN: en render() skal ikke koste deg det du skriver (ADR 0029)
+// ============================================================
+// `render()` bytter ut hele `#view`. Å fjerne et fokusert element fra DOM-en utløser
+// ikke `blur` i noen nettleser, så et bakgrunns-pull kunne slette tekst midt i en
+// setning. ADR 0023 strupet lagringen som første forsvar — men strupingen mister
+// fortsatt de siste 400 ms, og den flytter markøren til slutten. Dette er andre laget:
+// feltet får tilbake verdien, markøren og fokuset etter tegningen.
+
+// Redigeringer som ennå ikke bor i state, og som må lagres FØR DOM-en byttes ut.
+// Innebygd tittelredigering registrerer seg her: det feltet er injisert imperativt,
+// ikke tegnet fra en mal, så det kan ikke gjenopprettes etterpå — bare lagres først.
+const _pendingCommits = new Set();
+function registerPendingCommit(fn){
+  _pendingCommits.add(fn);
+  return ()=> _pendingCommits.delete(fn);
+}
+
+let _rendering = false;
+
+function _captureFocus(){
+  const el = document.activeElement;
+  if (!el || el === document.body || !viewEl.contains(el)) return null;
+  const isField = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+  if (!isField) return null;
+  // Felt som er lagret av en pending commit rett før dette — ikke advar om dem.
+  if (el.dataset && el.dataset.transient) return null;
+  const type = (el.type || '').toLowerCase();
+  // Avkrysningsbokser, radio og filvelgere har ingen tekst å miste, og commiter
+  // umiddelbart via onchange. Å hoppe over dem holder advarselen under meningsfull.
+  if (type === 'checkbox' || type === 'radio' || type === 'file' || type === 'submit') return null;
+  if (!el.id){
+    // Gapet skal være synlig. ADR 0023 forkastet denne fiksen nettopp fordi felt man
+    // glemmer ser trygge ut; da må de si fra selv.
+    console.warn('[render] fokusert felt uten id — det du skriver her overlever ikke en render():',
+      el.tagName, el.className || '(ingen class)');
+    return null;
+  }
+  const snap = { id: el.id, editable: el.isContentEditable, scrollTop: el.scrollTop, start: null, end: null };
+  snap.value = el.isContentEditable ? el.innerHTML : el.value;
+  // selectionStart kaster på input-typene date/time/number — spør forsiktig.
+  try { snap.start = el.selectionStart; snap.end = el.selectionEnd; } catch(_){}
+  return snap;
+}
+
+function _restoreFocus(snap){
+  if (!snap) return false;
+  const el = document.getElementById(snap.id);
+  if (!el) return false;                       // feltet finnes ikke i den nye visningen
+  // Lokal skriving vinner over det tegningen la inn: brukeren står i feltet nå.
+  if (snap.editable) el.innerHTML = snap.value; else el.value = snap.value;
+  try { el.focus({ preventScroll: true }); } catch(_){ try { el.focus(); } catch(_){} }
+  if (snap.start != null && typeof el.setSelectionRange === 'function'){
+    try { el.setSelectionRange(snap.start, snap.end); } catch(_){}
+  }
+  el.scrollTop = snap.scrollTop;
+  return true;
+}
+
 function render(){
-  applyTheme();
-  renderTopbar();
-  const v = state.ui.view;
-  if (v==='home') renderHome();
-  else if (v==='projects') renderProjects();
-  else if (v==='todos') renderTodos();
-  else if (v==='overview') renderOverview();
-  else if (v==='month') renderMonth();
-  else if (v==='week') renderWeek();
-  else if (v==='day') renderDay();
-  else renderHome(); // fallback
-  saveState();
+  // Re-entrant kall — en pending commit kaller render() på slutten. Den ytre
+  // tegningen produserer fersk HTML uansett, så det indre kallet er overflødig.
+  if (_rendering) return;
+  _rendering = true;
+  try {
+    for (const fn of [..._pendingCommits]){
+      try { fn(); } catch (e){ console.warn('[render] pending commit feilet', e); }
+    }
+    _pendingCommits.clear();
+    const focus = _captureFocus();
+    applyTheme();
+    renderTopbar();
+    const v = state.ui.view;
+    if (v==='home') renderHome();
+    else if (v==='projects') renderProjects();
+    else if (v==='todos') renderTodos();
+    else if (v==='overview') renderOverview();
+    else if (v==='month') renderMonth();
+    else if (v==='week') renderWeek();
+    else if (v==='day') renderDay();
+    else renderHome(); // fallback
+    _restoreFocus(focus);
+    saveState();
+  } finally {
+    _rendering = false;
+  }
 }
 
 function renderTopbar(){
@@ -2827,6 +2958,9 @@ HANDLERS.inlineEditStart = (e, id, kind)=>{
   const input = document.createElement('input');
   input.type = 'text';
   input.value = original;
+  // Injisert imperativt, ikke tegnet fra en mal — kan ikke gjenopprettes etter en
+  // render(), bare lagres først. `transient` demper id-advarselen i _captureFocus.
+  input.dataset.transient = '1';
   input.style.cssText = 'flex:1;padding:4px 8px;border:1px solid var(--accent);border-radius:4px;font-size:13.5px;font-family:var(--font);width:100%';
   span.replaceWith(input);
   input.focus();
@@ -2836,6 +2970,7 @@ HANDLERS.inlineEditStart = (e, id, kind)=>{
   function commit(){
     if (committed) return;
     committed = true;
+    unregister();
     const newVal = input.value.trim();
     if (newVal && newVal !== original){
       if (kind === 'task'){
@@ -2851,7 +2986,12 @@ HANDLERS.inlineEditStart = (e, id, kind)=>{
     }
     render();
   }
-  function cancel(){ if (committed) return; committed = true; render(); }
+  function cancel(){ if (committed) return; committed = true; unregister(); render(); }
+
+  // En bakgrunns-render() fjerner dette feltet uten å utløse blur. Å lagre først er
+  // det eneste som virker her — Esc-avbryt beholdes, men et pull skal ikke oppføre
+  // seg som Esc. ADR 0029.
+  const unregister = registerPendingCommit(commit);
 
   input.addEventListener('keydown', ev=>{
     if (ev.key === 'Enter'){ ev.preventDefault(); commit(); }
@@ -3859,6 +3999,7 @@ function openSettings(){
         <div id="cloud-backups-list" class="text-muted-italic">Henter…</div>
       </div>
       <div class="sl flex-col-stretch"><span>Lokale backups (daglige + før-synk-øyeblikksbilder)</span>
+        ${_backupStatusHTML()}
         ${listBackups().length ? listBackups().map(k=>{
           const isPre = k.startsWith('planlegger.preSync.');
           const dateStr = k.replace('planlegger.backup.','').replace('planlegger.preSync.','');
@@ -4037,9 +4178,16 @@ HANDLERS.importData = e=>{
         + 'Et øyeblikksbilde av dagens data lagres først, så du kan rulle tilbake.')) return;
       // Snapshot before overwriting — pullFromRemote and restoreCloudBackup both do
       // this; import used to be the one destructive path without a way back.
+      _pruneSnapshotsToBudget();
       try {
-        localStorage.setItem('planlegger.preSync.' + Date.now(), JSON.stringify(state));
-      } catch(_){}
+        localStorage.setItem('planlegger.preSync.' + Date.now(), _snapshotJSON());
+      } catch (err){
+        // Ikke stille: dette er den ENE veien tilbake fra en import.
+        console.error('preSync-øyeblikksbilde før import feilet', err);
+        if (typeof showToast === 'function'){
+          showToast('⚠ Klarte ikke lagre øyeblikksbilde før import — du kan ikke rulle tilbake. Eksportér til JSON først hvis du vil være trygg.', 12000);
+        }
+      }
       // Preserve this device's sync credentials. The imported file's own sync block
       // used to win, so importing a backup taken before sync was set up silently
       // killed sync with no message.
@@ -5255,31 +5403,62 @@ async function autoWeeklyExport(){
 }
 
 // Auto-backup: once per day, save current state to localStorage. Keep last 7 days.
+let _backupStatus = { ok: null, at: 0, error: null };
 function autoBackup(){
   const todayK = todayKey();
   const backupKey = 'planlegger.backup.' + todayK;
+  if (localStorage.getItem(backupKey)) return;   // already backed up today
+  _pruneSnapshotsToBudget();                     // make room before, not after
   try {
-    if (localStorage.getItem(backupKey)) return; // already backed up today
-    localStorage.setItem(backupKey, JSON.stringify(state));
+    localStorage.setItem(backupKey, _snapshotJSON());
     const allKeys = Object.keys(localStorage).filter(k=>k.startsWith('planlegger.backup.')).sort();
-    while (allKeys.length > 7){
-      localStorage.removeItem(allKeys.shift());
+    while (allKeys.length > 7) localStorage.removeItem(allKeys.shift());
+    _pruneSnapshotsToBudget();
+    _backupStatus = { ok: true, at: Date.now() };
+  } catch (err){
+    // Dette var `catch(_){}`. Kvoten ble full rundt 26. mai 2026 og hver eneste
+    // dagsbackup siden har kastet i stillhet — 2,5 måneder uten lokal backup, uten
+    // et tegn noe sted. Nøyaktig samme signatur som ICS-URL-en. Se ADR 0022 og 0030.
+    _backupStatus = { ok: false, at: Date.now(), error: err.message || String(err) };
+    console.error('autoBackup failed', err);
+    if (typeof showToast === 'function'){
+      showToast('⚠ Klarte ikke lagre dagens lokale backup: lagringsplassen er full. Eksportér til JSON fra ⚙ Innstillinger.', 12000);
     }
-  } catch(_){} // localStorage might be full or unavailable
+  }
 }
 function listBackups(){
   return Object.keys(localStorage).filter(k=>k.startsWith('planlegger.backup.') || k.startsWith('planlegger.preSync.')).sort().reverse();
 }
+// «En feil som ikke vises, finnes ikke» (ADR 0022). Toasten kommer i det øyeblikket
+// det feiler, men den forsvinner — og dagsbackupen var død i 2,5 måneder nettopp fordi
+// ingenting viste tilstanden noe sted. Her står den.
+function _backupStatusHTML(){
+  const used = Object.keys(localStorage).reduce((s,k)=> s + k.length + (localStorage.getItem(k)||'').length, 0);
+  const usedKB = Math.round(used/1024);
+  const newest = Object.keys(localStorage).filter(k=>k.startsWith('planlegger.backup.')).sort().pop();
+  const dayStr = newest ? newest.replace('planlegger.backup.','') : null;
+  const stale = dayStr && dayStr !== todayKey();
+  if (_backupStatus.ok === false){
+    return `<div style="font-size:12px;color:var(--alert);padding:2px 0">⚠ Dagens backup feilet: ${escapeHTML(_backupStatus.error||'ukjent')}. Eksportér til JSON.</div>`;
+  }
+  const note = !dayStr ? '⚠ Ingen dagsbackup ennå'
+    : stale ? `⚠ Nyeste dagsbackup er fra ${dayStr}`
+    : `✓ Dagsbackup tatt i dag (${dayStr})`;
+  const col = (!dayStr || stale) ? 'var(--alert)' : 'var(--ink-muted)';
+  return `<div style="font-size:12px;color:${col};padding:2px 0">${note} · localStorage bruker ${usedKB} kB av ~5000</div>`;
+}
 HANDLERS.restoreBackup = (key)=>{
-  // Snapshot first — restoreCloudBackup does this, the local variant didn't, so
-  // restoring the wrong day left nothing to roll back to. See ADR 0022.
-  try { localStorage.setItem('planlegger.preSync.' + Date.now(), JSON.stringify(state)); } catch(_){}
-  const dateStr = key.replace('planlegger.backup.','');
+  const dateStr = key.replace('planlegger.backup.','').replace('planlegger.preSync.','');
   if (!confirm(`Erstatt ALL nåværende data med backup fra ${dateStr}? Dette kan ikke angres.`)) return;
   const data = localStorage.getItem(key);
   if (!data){ alert('Backup ikke funnet'); return; }
+  // Øyeblikksbilde først — restoreCloudBackup gjorde det, den lokale varianten ikke,
+  // så å gjenopprette feil dag etterlot ingenting å rulle tilbake til. Se ADR 0022.
+  // Skrives etter confirm(): før flyttet et avbrutt forsøk likevel ringen framover.
+  try { localStorage.setItem('planlegger.preSync.' + Date.now(), _snapshotJSON()); } catch(_){}
   try {
-    state = Object.assign(structuredClone(DEFAULT_STATE), JSON.parse(data));
+    // Et øyeblikksbilde uten Outlook-cachen skal ikke tømme kalenderen. Se ADR 0030.
+    state = _mergeSnapshot(JSON.parse(data));
     saveState();
     closeModal();
     render();
@@ -5315,6 +5494,9 @@ function autoArchivePastProjects(){
 })();
 
 // Boot
+// Rydd ringene før noe annet skriver: en full kvote her betyr at dagsbackupen,
+// ukesbackupen og hver saveState() feiler på rad. Se ADR 0030.
+_pruneSnapshotsToBudget();
 autoBackup();
 autoWeeklyExport();
 autoArchivePastProjects();

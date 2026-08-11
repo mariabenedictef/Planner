@@ -6,6 +6,32 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-11 (kveld) — Lagringsplassen var full, og dagsbackupen hadde vært død i 2,5 måneder
+
+Dette begynte som «gjør ferdig resten av feltlagringen» og endte et annet sted. Målingen som skulle avgjøre om serialiseringen var verdt å optimalisere viste noe verre: localStorage sto på **4951 kB av ~5120 tilgjengelige**.
+
+- **Øyeblikksbildene tok med Outlook-cachen.** `outlookEvents` var 95 % av hver blob — 615 kB per øyeblikksbilde, 8 av dem. De er hentbare med én knapp; å bruke plassen på dem er å bruke den på det minst verdifulle. Øyeblikksbildene er nå ~35 kB, og gjenoppretting beholder kalenderen som står. ADR 0030.
+- **Ringene ble beskåret på antall, aldri på bytes.** «5 preSync + 7 backup» var trygt da state var liten, og tillot 7,4 MB etterpå. Nå er det et byte-budsjett på 1,5 MB, sjekket ved boot og etter hver skriving. Frigjør ~3,7 MB ved første kjøring.
+- **`autoBackup` svelget feilen** i en tom `catch(_){}`. Kvoten ble full rundt 26. mai, og hver eneste dagsbackup siden har kastet i stillhet. Den nyeste lokale backupen var fra 26. mai. Ingenting sa fra noe sted. Tredje gang på to dager samme signatur: noe slutter å virke, og stillheten er identisk med at det virker.
+- **`restoreBackup` skrev øyeblikksbildet før `confirm()`** — å avbryte dialogen kastet det eldste øyeblikksbildet uten å ha gjort noe.
+
+Serialiseringen ble målt og **ikke** endret: 649 kB, 3,7 ms `JSON.stringify`, 12,1 ms per `saveState`, ≈3 % av hovedtråden ved sammenhengende skriving. Å flytte cachen ut av hovednøkkelen ville kuttet det til under 1 ms, men det er en formatendring med migrering. Tallene står i ADR 0030 så avgjørelsen kan tas på nytt uten å måle igjen.
+
+---
+
+## 2026-08-11 (kveld) — `render()` tar ikke lenger fra deg det du skriver
+
+ADR 0023 strupet lagringen som første forsvar mot at en bakgrunns-tegning spiser tekst. Den lot to ting stå, og sa det selv: strupingen mister opptil 400 ms, og markøren hopper til slutten. Begge er borte nå.
+
+- **Fokuserte felt gjenopprettes over en `render()`** — verdi, markørposisjon og fokus. Ett sted, rundt utsendelsen til visningsfunksjonene. ADR 0029.
+- **Innebygd tittelredigering lagres av tegningen** i stedet for å forsvinne. Feltet settes inn imperativt og finnes ikke i noen mal, så det kan ikke gjenopprettes — bare lagres først. `Escape` avbryter fortsatt; et pull skal ikke oppføre seg som `Escape`.
+- **Et fokusert felt uten `id` sier fra i konsollen,** og testsuiten enumererer hvert tekstfelt i alle sju visningene og feiler hvis noe mangler id. Det var innvendingen ADR 0023 forkastet fiksen på — at glemte felt ser trygge ut — og det er den assertionen som gjør den komplett.
+- **`render()` er re-entrans-trygg**, siden en pending commit kaller `render()` på slutten.
+
+Testsuiten: 124 → 159 assertions.
+
+---
+
 ## 2026-08-11 — ICS-URL-feltet mister ikke lenger det du limer inn
 
 Outlook-synken hadde stått stille siden 23. mai. To uavhengige årsaker, begge funnet under feilsøkingen:
