@@ -66,3 +66,17 @@ input.addEventListener('blur', commit);
 **Bruke `beforeunload` som sikkerhetsnett** — fanger tab-lukking, men ikke bakgrunns-render, som var den faktiske feilen.
 
 **Fjerne den ukentlige nedlastings-grenen helt** og kreve mappevalg. Ærligere, men tar bort det eneste som virker på iPhone.
+
+## Etterslep — `ics-url` ble oversett (2026-08-11)
+
+Beslutningen over ble anvendt på dag-notatet, notat-editoren, `pms-title`, `pl-url`, `pp-name` og tittel-redigering på To Do's — men **ikke** på ICS-URL-feltet i Innstillinger, som fortsatt bare lagret på `blur`.
+
+Tapsveien er en annen enn i A: Innstillinger overlever en bakgrunns-`render()`, men **Esc kaller `closeModal`, som fjerner feltet fra DOM-en — og fjerning utløser ikke `blur`.** Å klikke «Lukk» eller «Oppdater nå» flytter fokus først og lagret altså riktig, så feltet oppførte seg trygt i den vanlige flyten og mistet bare data i Esc-varianten. Det gjorde den vanskelig å oppdage.
+
+Konsekvensen var ikke hypotetisk: den ble funnet 2026-08-11 mens vi feilsøkte at Outlook-synken hadde stått stille siden 23. mai. Symptomet var villedende — 555 gamle hendelser lå der og så ut som data.
+
+Feltet bruker nå samme strupede `input`+`blur`-mønster som resten. `commitIcsUrl` sammenligner mot gjeldende verdi før `saveState()`, så et åpent Innstillinger-vindu ikke lenger pusher ved hvert blur uten endring.
+
+**Bevisst ikke endret:** `sync-url` og `sync-token` har ingen `blur`-lytter i det hele tatt — de lagres kun med «Lagre»-knappen. Eksplisitt lagring er et sammenhengende valg for et felt med en synlig knapp, og et token som lagres halvskrevet ved hvert tastetrykk er verre, ikke bedre. Forskjellen fra `ics-url` var at *det* feltet hadde en `blur`-lytter og dermed lovet en implisitt lagring det ikke holdt.
+
+**Prinsippet skjerpet:** når en beslutning som denne tas, skal den anvendes ved å søke opp *alle* forekomster av mønsteret i samme change-set, ikke bare de som utløste funnet. Revisjonen som fant dette var `grep -n "addEventListener('blur'"` — seks treff, ett uten `input`-makker.

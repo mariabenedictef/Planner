@@ -26,7 +26,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0020](0020-note-url-whitelist.md) | Notat-sanitizer bruker URL-whitelist, med unntak for innlimte raster-bilder | Accepted |
 | [0021](0021-sanitize-per-tag-not-whole-string.md) | Notat-saniteringen opererer per tag, aldri på hele strengen | Accepted (utvider 0020) |
 | [0022](0022-state-never-degrades-silently.md) | Lasting og lagring av state skal aldri degradere stille | Accepted |
-| [0023](0023-inputs-commit-on-input-not-blur.md) | Felt lagrer på `input` (strupet); vi stempler ikke suksess vi ikke kan bekrefte | Accepted |
+| [0023](0023-inputs-commit-on-input-not-blur.md) | Felt lagrer på `input` (strupet); vi stempler ikke suksess vi ikke kan bekrefte | Accepted (utvidet 2026-08-11: `ics-url` var oversett) |
 | [0024](0024-list-view-removed.md) | List-visningen fjernet | Accepted |
 | [0025](0025-rrule-support-boundary.md) | Hva RRULE-ekspansjonen støtter — og hva den bevisst ikke støtter | Accepted (TZID + sommertid superseded by 0028) |
 | [0026](0026-wikilink-autocomplete.md) | Wikilink-autocomplete skriver kildeformat, ikke markup | Accepted |
