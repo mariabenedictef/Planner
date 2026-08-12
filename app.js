@@ -1490,7 +1490,7 @@ function _homeUrgentHTML(urgent, todayK){
             const due = t.due ? fmtDateShort(fromKey(t.due)) : '—';
             const overdue = t.due && t.due < todayK;
             const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
-            const projTag = proj ? `<span class="proj-tag">· ${escapeHTML(proj.title)}</span>` : '';
+            const projTag = proj ? `<span class="proj-chip">${escapeHTML(proj.title)}</span>` : '';
             return `<div class="home-item urgent-item ${t.done?'done':''}" draggable="true" data-task-id="${t.id}">
               <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
               <input type="checkbox" ${t.done?'checked':''} data-action="noop" data-stop="1" onchange="HANDLERS.toggleTask('${t.id}',event)">
@@ -1516,7 +1516,7 @@ function _homeTodayTasksHTML(todayTasks, todayK){
             const click = isProj ? act('openProjectTaskForm', t._projectId, t.id) : (isMilestone ? act('openProject', t._projectId) : act('openTaskForm', t.id));
             const toggleHandler = isProj ? `HANDLERS.toggleProjectTask('${t._projectId}','${t.id}',event)` : (isMilestone ? `HANDLERS.toggleProjectMilestone('${t._projectId}','${t.id}')` : `HANDLERS.toggleTask('${t.id}',event)`);
             const icon = isMilestone ? '◆' : '';
-            const projTag = t._projectTitle ? `<span class="proj-tag">· ${escapeHTML(t._projectTitle)}</span>` : '';
+            const projTag = t._projectTitle ? `<span class="proj-chip">${escapeHTML(t._projectTitle)}</span>` : '';
             return `<div class="home-item ${t.done?'done':''}">
               <input type="checkbox" ${t.done?'checked':''} data-action="noop" data-stop="1" onchange="${toggleHandler}">
               <div class="hi-date">${icon||fmtDateShort(fromKey(t.due||todayK))}</div>
@@ -3039,7 +3039,10 @@ function todoRowHTML(t, projectsList){
   // Project-tag — clicking removes the tag (returns the task to an untagged state).
   // Title attribute documents the click behaviour.
   const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
-  const projTag = proj ? `<span class="proj-tag" data-action="untagTaskProject" data-args='["${t.id}"]' title="Klikk for å fjerne prosjekt-tag" style="color:var(--ink-muted);font-size:11.5px;margin-left:6px;font-style:italic;cursor:pointer">· ${escapeHTML(proj.title)}</span>` : '';
+  // Chip i stedet for «· tittel» i kursiv: taggen ER bæreren av prosjekt-tilhørigheten,
+  // og så lenge den så ut som en fotnote følte man behov for å skrive «Meox:» i tittelen
+  // i tillegg. ADR 0035.
+  const projTag = proj ? `<span class="proj-chip" data-action="untagTaskProject" data-args='["${t.id}"]' data-stop="1" title="Klikk for å fjerne prosjekt-tag">${escapeHTML(proj.title)}</span>` : '';
   const isPrivat = t.category === 'privat';
   const catColor = isPrivat ? 'var(--privat)' : 'var(--work)';
   const catTitle = isPrivat ? 'Kategori: Privat — klikk for Jobb' : 'Kategori: Jobb — klikk for Privat';
@@ -3737,7 +3740,7 @@ function taskRowHTML(t){
   }
   const prioPill = t.priority ? `<span class="pill prio-${t.priority}" style="margin-right:4px">${PRIO_BY_ID[t.priority]?.short||t.priority}</span>` : '';
   const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
-  const projTag = proj ? `<span class="proj-tag">· ${escapeHTML(proj.title)}</span>` : '';
+  const projTag = proj ? `<span class="proj-chip">${escapeHTML(proj.title)}</span>` : '';
   return `<li class="${t.done?'done':''}" draggable="true" ondragstart="HANDLERS.taskToTimeStart(event,'${t.id}','task')">
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
     <span class="tt" data-action="openTaskForm" data-args='["${t.id}"]'>${prioPill}${escapeHTML(t.title)}${projTag}</span>
@@ -6036,8 +6039,95 @@ function _storageBreakdownHTML(){
       <button data-action="purgeDoneTasks" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Rydd bort</button>
     </div>`;
   }
+  // Titler som gjentar prosjektnavnet. Raden vises bare når det finnes noe å gjøre. ADR 0035.
+  const dupes = findRedundantPrefixes().length;
+  if (dupes){
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;padding:3px 0">
+      <span style="color:var(--ink-muted)">${dupes} ${dupes===1?'tittel gjentar':'titler gjentar'} prosjektnavnet (taggen viser det alt)</span>
+      <button data-action="cleanProjectPrefixes" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Rydd opp</button>
+    </div>`;
+  }
   return html;
 }
+
+// ============================================================
+// REDUNDANT PROSJEKT-PREFIKS I TITLER (ADR 0035)
+// ============================================================
+// Prosjektnavnet skrives inn i tittelen selv om taggen alt viser det:
+// «Meox: Sende EOGF protokoll til signering». Dobbelt opp — og etter ADR 0033 spiser det
+// plassen på prosjektkortene, der titlene kappes.
+//
+// **Regelen er streng med vilje.** Målt på Marias egne data 2026-08-12: 8 titler hadde et
+// ledende «Ord:», og én av dem var «Shive: Lage en peer analyse» — tagget til prosjektet
+// *Dealflow*. «Shive» er et selskap i pipelinen, ikke prosjektnavnet, så å fjerne det
+// ville slettet informasjon. Derfor må prefikset matche det TAGGEDE prosjektets tittel,
+// på ordgrense: «Meox» → «Meox AS» ✓, «Shive» → «Dealflow» ✗.
+const PREFIX_MIN_LEN = 3;
+
+// Tittelen uten prefikset, eller null hvis den ikke kvalifiserer.
+function _stripProjectPrefix(title, projectTitle){
+  if (!title || !projectTitle) return null;
+  const m = /^\s*([^:]{2,60}?)\s*:\s*(.+)$/.exec(title);
+  if (!m) return null;
+  const prefix = m[1].trim();
+  const rest = m[2].trim();
+  if (prefix.length < PREFIX_MIN_LEN || !rest) return null;
+  const pt = projectTitle.trim().toLowerCase();
+  const px = prefix.toLowerCase();
+  if (!pt.startsWith(px)) return null;
+  // Ordgrense: «Meox» mot «Meox AS» er greit, «Me» mot «Meox AS» er det ikke.
+  const next = pt.charAt(px.length);
+  if (next && /[a-zæøåéèü0-9]/i.test(next)) return null;
+  return rest;
+}
+
+// Alle titler som ville blitt endret, med nok kilde til å gjøre endringen.
+function findRedundantPrefixes(){
+  const out = [];
+  (state.tasks||[]).forEach(t=>{
+    if (!t.projectId) return;
+    const p = (state.projects||[]).find(x=>x.id===t.projectId);
+    if (!p) return;
+    const stripped = _stripProjectPrefix(t.title, p.title);
+    if (stripped) out.push({ kind:'free', id:t.id, project:p.title, from:t.title, to:stripped });
+  });
+  (state.projects||[]).forEach(p=>(p.tasks||[]).forEach(t=>{
+    const stripped = _stripProjectPrefix(t.title, p.title);
+    if (stripped) out.push({ kind:'sub', id:t.id, projectId:p.id, project:p.title, from:t.title, to:stripped });
+  }));
+  return out;
+}
+
+// Aldri automatisk. Hun skal se hver enkelt endring før noe skjer.
+HANDLERS.cleanProjectPrefixes = ()=>{
+  const hits = findRedundantPrefixes();
+  if (!hits.length){
+    if (typeof showToast === 'function') showToast('Ingen titler gjentar prosjektnavnet.', 4000);
+    return;
+  }
+  const preview = hits.slice(0, 12).map(h=>`  «${h.from}»\n    → «${h.to}»   (${h.project})`).join('\n');
+  const more = hits.length > 12 ? `\n  … og ${hits.length - 12} flere` : '';
+  if (!confirm(`Fjerne prosjektnavnet fra ${hits.length} ${hits.length===1?'tittel':'titler'}?\n\n`
+    + `Taggen viser prosjektet allerede.\n\n${preview}${more}\n\n`
+    + `Et øyeblikksbilde lagres først, så du kan rulle tilbake fra «Lokale backups».`)) return;
+  const snap = _writePreSyncSnapshot();
+  if (!snap.ok && !confirm('Øyeblikksbildet kunne ikke lagres, så dette kan IKKE angres. Fortsette likevel?')) return;
+
+  let n = 0;
+  hits.forEach(h=>{
+    if (h.kind === 'free'){
+      const t = (state.tasks||[]).find(x=>x.id===h.id);
+      if (t && t.title === h.from){ t.title = h.to; n++; }
+    } else {
+      const p = (state.projects||[]).find(x=>x.id===h.projectId);
+      const t = p && (p.tasks||[]).find(x=>x.id===h.id);
+      if (t && t.title === h.from){ t.title = h.to; n++; }
+    }
+  });
+  saveState();
+  if (typeof showToast === 'function') showToast(`✓ Prosjektnavnet fjernet fra ${n} ${n===1?'tittel':'titler'}. Angre via «Lokale backups».`, 8000);
+  closeModal(); openSettings(); render();
+};
 
 // Fjerner fullførte oppgaver fra state — etter et øyeblikksbilde, så det kan angres via
 // «Lokale backups» under. Aldri automatisk, aldri uten bekreftelse.

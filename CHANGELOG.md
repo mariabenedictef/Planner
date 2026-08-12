@@ -6,6 +6,19 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-12 (kveld) — Prosjektnavnet trenger ikke stå i tittelen også
+
+Av 12 taggede To Do's hadde 8 prosjektnavnet skrevet inn i tittelen: «Meox: Sende EOGF protokoll til signering». Dobbelt opp — og etter ADR 0033 spiser prefikset plassen på prosjektkortene der titlene kappes. ADR 0035.
+
+- **Taggen er nå en chip** i stedet for «· Meox AS» i dempet kursiv. Den så ut som en fotnote, og det er antakelig derfor navnet ble skrevet i tittelen i tillegg. Samme utseende overalt taggen vises, og den kan fortsatt klikkes for å fjernes.
+- **En opprydding i Innstillinger** fjerner redundante prefikser, viser hver enkelt endring før den skjer, og tar øyeblikksbilde først. Raden dukker bare opp når det finnes noe å rydde.
+- **Regelen er streng med vilje, og dataene er grunnen.** «Shive: Lage en peer analyse» er tagget til *Dealflow* — «Shive» er et selskap i pipelinen, ikke prosjektnavnet. En regel som fjernet ledende «Ord:» ville slettet den informasjonen. Prefikset må matche det taggede prosjektets tittel på ordgrense: «Meox» → «Meox AS» ✓, «Shive» → «Dealflow» ✗.
+- **Ingen automatikk ved lagring.** Å strippe prefikset når du lagrer ville endret det du nettopp skrev, uten at du ba om det.
+
+Testsuiten: 271 → 296 assertions.
+
+---
+
 ## 2026-08-12 (kveld) — Fanen «Prosjekter» går alltid til startsiden
 
 `state.ui.openProjectId` er del av den lagrede ui-tilstanden, og `switchView` — det fanemenyen kaller — rørte den ikke. Sto du inne i et prosjekt, gjorde et klikk på «Prosjekter» ingenting: visningen var alt `projects`, så du ble tegnet tilbake inn i samme prosjektside. Og gikk du innom «Hjem» først, landet du inne i prosjektet igjen. Det fantes ingen vei til startsiden via fanen. ADR 0034.
