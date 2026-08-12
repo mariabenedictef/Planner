@@ -39,6 +39,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0033](0033-project-cards-show-todo-list.md) | Prosjektkortene viser To Do-lista (3, tidligste frist først); `projectTasksMerged` er én kilde for kort og side | Accepted (utvider 0017) |
 | [0034](0034-tabs-always-land-on-view-start.md) | Fanene lander alltid på startsiden i visningen (`switchView` nullstiller `openProjectId`); `openProject` er den ene døren inn | Accepted |
 | [0035](0035-project-tag-carries-the-project-name.md) | Taggen bærer prosjektnavnet; opprydding fjerner redundante «Prosjekt:»-prefikser, men bare når de matcher det taggede prosjektet | Accepted (utvider 0016/0017) |
+| [0036](0036-hash-routing-address-is-position.md) | Hash-ruting: adressen er posisjonen. Bare ekte navigasjonssteg lager historikk | Accepted (bygger på 0034) |
 
 ## How to add a new ADR
 
