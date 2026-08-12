@@ -95,6 +95,12 @@ HANDLERS.switchView = (view) => {
     state.ui.anchor = todayKey();
     if (view === 'overview') state.ui.overviewAnchor = todayKey();
   }
+  // Fanemenyen skal alltid lande på startsiden i en visning. `openProjectId` overlever
+  // både visningsbytte og sidelasting (den er med i den lagrede ui-tilstanden), så
+  // «Prosjekter» førte deg tilbake INN i prosjektet du sist hadde åpent — også etter en
+  // tur via Hjem. Fanene er de eneste kallstedene for switchView, og ingen av dem har
+  // grunn til å beholde et åpent prosjekt. ADR 0034.
+  state.ui.openProjectId = null;
   state.ui.view = view;
   if (document.querySelector('.modal-bg.open')) closeModal();
   render();
@@ -1847,12 +1853,12 @@ function renderProjects(){
 
   const pg = document.getElementById('pgrid');
   pg.innerHTML = active.map(projectCardHTML).join('') + `<div class="new-project-card" data-action="openProjectForm">+ Nytt prosjekt</div>`;
-  pg.querySelectorAll('.pcard').forEach(el=>el.onclick=()=>{ state.ui.openProjectId = el.dataset.id; render(); });
+  pg.querySelectorAll('.pcard').forEach(el=>el.onclick=()=>HANDLERS.openProject(el.dataset.id));
 
   if (archived.length){
     const pa = document.getElementById('pgrid-arch');
     pa.innerHTML = archived.map(projectCardHTML).join('');
-    pa.querySelectorAll('.pcard').forEach(el=>el.onclick=()=>{ state.ui.openProjectId = el.dataset.id; render(); });
+    pa.querySelectorAll('.pcard').forEach(el=>el.onclick=()=>HANDLERS.openProject(el.dataset.id));
   }
 }
 
@@ -4221,9 +4227,9 @@ function doSearch(filt){
     if (h.type==='event'){ HANDLERS.editEvent(h.ref.id); }
     else if (h.type==='outlook'){ HANDLERS.openOutlookEvent(h.ref.id); }
     else if (h.type==='task'){ openTaskForm(h.ref.id); }
-    else if (h.type==='project'){ state.ui.openProjectId=h.ref.id; state.ui.view='projects'; render(); }
+    else if (h.type==='project'){ HANDLERS.openProject(h.ref.id); }
     else if (h.type==='projectTask'){ openProjectTaskForm(h.project.id, h.ref.id); }
-    else if (h.type==='milestone' || h.type==='person'){ state.ui.openProjectId=h.project.id; state.ui.view='projects'; render(); }
+    else if (h.type==='milestone' || h.type==='person'){ HANDLERS.openProject(h.project.id); }
     else if (h.type==='note'){ state.ui.anchor = h.date; state.ui.view='day'; render(); }
   });
 }
@@ -5613,18 +5619,14 @@ HANDLERS.resolveWikilink = (target)=>{
   if (document.querySelector('.modal-bg.open')) closeModal();
   const proj = state.projects.find(p=>p.title.toLowerCase() === targetLower);
   if (proj){
-    state.ui.openProjectId = proj.id;
-    state.ui.view = 'projects';
-    render();
+    HANDLERS.openProject(proj.id);
     return;
   }
   // Partial match
   const partial = state.projects.find(p=>p.title.toLowerCase().includes(targetLower));
   if (partial){
     if (confirm(`Fant ikke nøyaktig "${target}". Mente du "${partial.title}"?`)){
-      state.ui.openProjectId = partial.id;
-      state.ui.view = 'projects';
-      render();
+      HANDLERS.openProject(partial.id);
       return;
     }
   }

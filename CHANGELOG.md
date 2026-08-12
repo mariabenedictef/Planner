@@ -6,6 +6,19 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-12 (kveld) — Fanen «Prosjekter» går alltid til startsiden
+
+`state.ui.openProjectId` er del av den lagrede ui-tilstanden, og `switchView` — det fanemenyen kaller — rørte den ikke. Sto du inne i et prosjekt, gjorde et klikk på «Prosjekter» ingenting: visningen var alt `projects`, så du ble tegnet tilbake inn i samme prosjektside. Og gikk du innom «Hjem» først, landet du inne i prosjektet igjen. Det fantes ingen vei til startsiden via fanen. ADR 0034.
+
+- **Fanene nullstiller nå posisjonen i visningen.** Ikke bare «Prosjekter» — en fane er en forespørsel om å komme til starten av en visning, uansett hvilken.
+- **`openProject` er nå faktisk den ene døren inn til en prosjektside.** Kommentaren over den har sagt det siden ADR 0018, men seks kallsteder satte tilstanden inline: kortklikk på aktive og arkiverte kort, to typer søketreff, og to wikilink-stier. Funnet av pattern-sveipet i sjekklista.
+- **Uendret:** `openProjectId` lagres fortsatt, så laster du siden mens du står i et prosjekt, kommer du tilbake dit. Det var ikke problemet.
+- **Regresjonstest med:** kalendervisningene nullstiller fortsatt ankeret til i dag, og «← Tilbake til prosjekter» virker som før.
+
+Testsuiten: 260 → 271 assertions. Fire feiler mot forrige commit.
+
+---
+
 ## 2026-08-12 — To Do-lista står på prosjektkortene
 
 Kortet viste før bare én linje: «Neste:» med nærmeste dato. Nå står de tre neste To Do'ene der, tidligste frist først, med «+N mer» hvis det er flere. ADR 0033.
