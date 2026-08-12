@@ -21,6 +21,7 @@ Under arbeidet dukket en eksisterende inkonsistens opp, og den er grunnen til at
 - **Samme sortering som prosjektsiden** (`_dateThenOrderCmp`): dato først, uten frist sist, deretter manuell rekkefølge. Ikke en egen sortering på kortet — da ville rekkefølgen sprikt mellom kort og side.
 - **Forfalt frist er rød og halvfet.** Det er den ene tilstanden som krever handling.
 - **Radene har ingen egen handling,** så et klikk hvor som helst på kortet åpner prosjektet som før.
+- **Ikke på arkiverte kort.** Verifisert på ekte data etter push: «Annual General Meeting 2026» viste tre røde forfalte frister fra juni og «Sommerfest Bluefront» én fra mai. Rødt varsel på noe som er bevisst lagt bort er støy, og tellerne sier fortsatt at noe gjenstår.
 - Titler kappes på én linje med ellipse, og datokolonnen har fast bredde, så titlene flukter fra rad til rad.
 
 **2. «Neste:»-linja vises ikke når den gjentar noe lista alt viser.** Delmål (`◆`) beholdes — de står ikke i To Do-lista. Måldatoen var allerede unntatt.
