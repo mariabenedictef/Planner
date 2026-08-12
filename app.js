@@ -75,12 +75,14 @@ HANDLERS.insertLink = () => {
 HANDLERS.openProject = (pid) => {
   state.ui.openProjectId = pid;
   state.ui.view = 'projects';
+  _syncHash(true);
   render();
 };
 
 // Back to project list (replaces inline state.ui.openProjectId=null;render())
 HANDLERS.backToProjects = () => {
   state.ui.openProjectId = null;
+  _syncHash(true);
   render();
 };
 
@@ -90,6 +92,74 @@ HANDLERS.backToProjects = () => {
 // Browsing within the view via the ‹ › arrows still works as before.
 // Requested by Maria 2026-06-08.
 const CALENDAR_VIEWS = ['day', 'week', 'month', 'overview'];
+
+// ============================================================
+// RUTING: adressen er hvor du er (ADR 0036)
+// ============================================================
+// Før bodde «hvor er jeg» bare i lagret state, og nettleserens tilbakeknapp gjorde
+// ingenting — eller forlot appen. Det ga to feil på rad (ADR 0034): fanen kunne ikke
+// komme seg ut av et åpent prosjekt, fordi posisjonen var en lagret verdi og ikke en
+// adresse. Nå er hash-en sannheten man kan navigere i, og state følger den.
+//
+// Norske segmenter, fordi URL-en er noe hun ser: #/prosjekter/p-meox, #/uke/2026-08-10.
+const ROUTE_BY_VIEW = { home:'hjem', projects:'prosjekter', todos:'todos', day:'dag', week:'uke', month:'maned', overview:'arsoversikt' };
+const VIEW_BY_ROUTE = Object.fromEntries(Object.entries(ROUTE_BY_VIEW).map(([v,r])=>[r,v]));
+const _isDateKey = s => /^\d{4}-\d{2}-\d{2}$/.test(s||'');
+
+// Ruten som beskriver dagens state.
+function _routeFromState(){
+  const v = state.ui.view || 'home';
+  const seg = ROUTE_BY_VIEW[v] || 'hjem';
+  if (v === 'projects' && state.ui.openProjectId) return `/prosjekter/${encodeURIComponent(state.ui.openProjectId)}`;
+  if (v === 'overview') return `/arsoversikt/${state.ui.overviewAnchor || todayKey()}`;
+  if (CALENDAR_VIEWS.includes(v)) return `/${seg}/${state.ui.anchor || todayKey()}`;
+  return `/${seg}`;
+}
+
+// Setter state fra en rute. Returnerer false hvis ruten ikke er gjenkjent, slik at en
+// ukjent adresse ikke stille lander deg et tilfeldig sted.
+function _applyRoute(route){
+  const parts = String(route||'').replace(/^#/, '').split('/').filter(Boolean).map(decodeURIComponent);
+  if (!parts.length) return false;
+  const view = VIEW_BY_ROUTE[parts[0].toLowerCase()];
+  if (!view) return false;
+  state.ui.view = view;
+  if (view === 'projects'){
+    const pid = parts[1];
+    // Ukjent eller slettet prosjekt ⇒ kortrutenettet, ikke en tom side.
+    state.ui.openProjectId = (pid && (state.projects||[]).some(p=>p.id===pid)) ? pid : null;
+  } else {
+    state.ui.openProjectId = null;
+    if (CALENDAR_VIEWS.includes(view) && _isDateKey(parts[1])){
+      if (view === 'overview') state.ui.overviewAnchor = parts[1];
+      else state.ui.anchor = parts[1];
+    }
+  }
+  return true;
+}
+
+// `push` gir en oppføring i historikken (brukerens egne navigasjonssteg).
+// Uten `push` bare speiles adressen, så et bakgrunns-pull ikke fyller historikken.
+function _syncHash(push){
+  const want = '#' + _routeFromState();
+  if (location.hash === want) return;
+  try {
+    if (push) location.hash = want;
+    else history.replaceState(null, '', location.pathname + location.search + want);
+  } catch(_){ /* history kan være utilgjengelig i noen innebygde visninger */ }
+}
+
+// Ingen undertrykkelses-flagg og ingen timere: en hash vi satte selv er per definisjon
+// lik ruten state alt beskriver, og da gjør vi ingenting. Det er robust der et flagg
+// med `setTimeout` ville vært skjørt.
+window.addEventListener('hashchange', ()=>{
+  const current = _routeFromState();
+  const next = (location.hash || '').replace(/^#/, '');
+  if (!next || next === current) return;
+  if (_applyRoute(next)) render();
+  else _syncHash(false);          // ukjent adresse: skriv tilbake den vi faktisk er på
+});
+
 HANDLERS.switchView = (view) => {
   if (CALENDAR_VIEWS.includes(view)) {
     state.ui.anchor = todayKey();
@@ -103,6 +173,7 @@ HANDLERS.switchView = (view) => {
   state.ui.openProjectId = null;
   state.ui.view = view;
   if (document.querySelector('.modal-bg.open')) closeModal();
+  _syncHash(true);        // brukerens eget navigasjonssteg ⇒ historikk-oppføring
   render();
 };
 
@@ -1408,6 +1479,10 @@ function render(){
     else if (v==='day') renderDay();
     else renderHome(); // fallback
     _restoreFocus(focus);
+    // Speil adressen mot tilstanden, uten historikk-oppføring: pilene i kalenderen og et
+    // bakgrunns-pull skal oppdatere URL-en, men ikke fylle tilbakeknappen med hvert
+    // enkelt ukebytte. De tre ekte navigasjonsstegene pusher selv. ADR 0036.
+    _syncHash(false);
     saveState();
   } finally {
     _rendering = false;
@@ -6198,6 +6273,14 @@ autoBackup();
 autoWeeklyExport();
 autoArchivePastProjects();
 applyTheme();
+// Adressen vinner over lagret posisjon ved oppstart, slik at et bokmerke eller en delt
+// lenke åpner det den peker på. Uten hash speiles den lagrede tilstanden inn i URL-en,
+// uten historikk-oppføring. Må skje FØR første render(). ADR 0036.
+(function bootRoute(){
+  const h = (location.hash || '').replace(/^#/, '');
+  if (h && !_applyRoute(h)) console.warn('[route] ukjent adresse, bruker lagret posisjon:', h);
+  _syncHash(false);
+})();
 render();
 setupNotifications();
 updateSyncIndicator();

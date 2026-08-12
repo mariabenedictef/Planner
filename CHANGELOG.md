@@ -6,6 +6,21 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-12 (sen kveld) — Adressen er hvor du er, så tilbakeknappen virker
+
+«Hvor er jeg» bodde bare i lagret state, og nettleserens tilbakeknapp gjorde ingenting — eller forlot appen. Nå står posisjonen i adressen. ADR 0036.
+
+- **Prosjektsider kan bokmerkes og deles:** `#/prosjekter/p-meox`. Norske segmenter, siden URL-en er noe du ser: `#/hjem`, `#/uke/2026-08-10`, `#/arsoversikt/2026-08-01`.
+- **Bare ekte navigasjonssteg lager historikk.** Fanebytte, åpne prosjekt og tilbake-knappen pusher. Pilene i kalenderen og et bakgrunns-pull speiler bare adressen — ellers ville hvert ukebytte og hvert 60-sekunders-pull fylt tilbakeknappen med støy.
+- **Adressen vinner ved oppstart,** så et bokmerke åpner det det peker på. Uten hash brukes lagret posisjon som før.
+- **Ukjent adresse lander deg ikke tilfeldig:** den avvises, og adressen rettes tilbake til der du faktisk er. Peker lenken på et slettet prosjekt, får du kortrutenettet, ikke en tom side.
+- **Dette lukker klassen bak ADR 0034,** ikke bare instansen. Da posisjonen var en lagret verdi, måtte hver navigasjonsvei huske å rydde den — og fanen «Prosjekter» hadde glemt det. Nå arver en ny vei riktig oppførsel av å bruke ruten.
+- **Utenfor URL-en med vilje:** filteret Alle/Jobb/Privat. Det er en preferanse, ikke en posisjon.
+
+Testsuiten: 296 → 323 assertions.
+
+---
+
 ## 2026-08-12 (kveld) — Prosjektnavnet trenger ikke stå i tittelen også
 
 Av 12 taggede To Do's hadde 8 prosjektnavnet skrevet inn i tittelen: «Meox: Sende EOGF protokoll til signering». Dobbelt opp — og etter ADR 0033 spiser prefikset plassen på prosjektkortene der titlene kappes. ADR 0035.
