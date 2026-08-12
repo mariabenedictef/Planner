@@ -1872,8 +1872,12 @@ function projectCardHTML(p){
   // bak «+N mer». Samme sortering som prosjektsiden (`_dateThenOrderCmp`), så rekkefølgen
   // er den samme begge steder: dato først, uten dato sist, deretter manuell rekkefølge.
   // Rader har ingen egen handling, så et klikk hvor som helst på kortet åpner prosjektet.
+  // Ikke på arkiverte kort. Verifisert på ekte data: «Annual General Meeting 2026» viste
+  // tre røde forfalte frister fra juni og «Sommerfest Bluefront» én fra mai — altså rødt
+  // varsel på noe hun bevisst har lagt bort. Tellerne står der fortsatt, så informasjonen
+  // om at noe gjenstår er ikke borte. ADR 0033.
   const CARD_TODO_LIMIT = 3;
-  const openTodos = merged.filter(t=>!t.done).sort(_dateThenOrderCmp);
+  const openTodos = p.archived ? [] : merged.filter(t=>!t.done).sort(_dateThenOrderCmp);
   const shownTodos = openTodos.slice(0, CARD_TODO_LIMIT);
   const restCount = openTodos.length - shownTodos.length;
   const todayK = todayKey();

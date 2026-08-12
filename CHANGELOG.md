@@ -15,9 +15,10 @@ Kortet viste før bare én linje: «Neste:» med nærmeste dato. Nå står de tr
 - **Tellerne endrer seg, og det er med vilje.** Kortet regnet før bare på prosjektets egne oppgaver mens prosjektsiden flettet begge kilder, så «1/4 oppgaver» kunne stå på et kort der siden viste seks. Nå bruker kort, side, tellere og fremdriftslinje samme kilde (`projectTasksMerged`). Ingen data er endret — kortet sluttet å underrapportere.
 - **«Neste:»-linja vises ikke lenger når den gjentar øverste rad i lista.** Delmål (◆) beholdes, siden de ikke står i To Do-lista.
 - **Verifisert visuelt** med skjermbilder i både lyst og mørkt tema, ikke bare i DOM-en. Kort med liste måler 253 px, uten 160 px.
+- **Arkiverte kort viser ikke lista.** Verifisert på ekte data: to arkiverte prosjekter fikk røde forfalte frister fra mai og juni — varsel på noe som er bevisst lagt bort. Tellerne står fortsatt der.
 - **Gjenstår:** kanban-visningen på prosjektsiden viser fortsatt bare prosjektets egne oppgaver. Det er nå det siste stedet som ikke bruker `projectTasksMerged`.
 
-Testsuiten: 241 → 258 assertions.
+Testsuiten: 241 → 260 assertions.
 
 ---
 
