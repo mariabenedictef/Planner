@@ -1379,6 +1379,59 @@ HANDLERS.closeModal = closeModal;
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
 // ============================================================
+// HURTIGTASTER (ADR 0038)
+// ============================================================
+// Søket lå bak et museklikk i en app hun er i daglig. «/» og Ctrl/Cmd+K åpner det, og
+// pilene + Enter gjør at man aldri trenger å flytte hånden til musa for å finne noe.
+let _searchHits = [];
+let _searchIndex = -1;
+
+function _searchRows(){ return [...document.querySelectorAll('#search-results .sr')]; }
+
+function _searchMove(delta){
+  const rows = _searchRows();
+  if (!rows.length) return;
+  _searchIndex = (_searchIndex + delta + rows.length) % rows.length;
+  rows.forEach((r,i)=> r.classList.toggle('active', i === _searchIndex));
+  const el = rows[_searchIndex];
+  if (el && el.scrollIntoView) el.scrollIntoView({ block:'nearest' });
+}
+
+function _searchActivate(i){
+  const h = _searchHits[i];
+  if (!h) return;
+  closeModal();
+  _searchOpenHit(h);
+}
+
+document.addEventListener('keydown', e=>{
+  const el = document.activeElement;
+  const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  const modalOpen = !!document.querySelector('.modal-bg.open');
+
+  // Ctrl/Cmd+K: åpner søket uansett hvor markøren står.
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')){
+    e.preventDefault();
+    if (!modalOpen) openSearch();
+    return;
+  }
+  // «/»: bare når du ikke skriver i et felt — ellers kunne du ikke skrevet skråstrek.
+  if (e.key === '/' && !typing && !modalOpen && !e.ctrlKey && !e.metaKey && !e.altKey){
+    e.preventDefault();
+    openSearch();
+    return;
+  }
+  if (!modalOpen || !document.getElementById('search-results')) return;
+  if (e.key === 'ArrowDown'){ e.preventDefault(); _searchMove(1); }
+  else if (e.key === 'ArrowUp'){ e.preventDefault(); _searchMove(-1); }
+  else if (e.key === 'Enter'){
+    // Ingen rad markert ⇒ åpne det øverste treffet. Enter gjorde ingenting før.
+    const i = _searchIndex >= 0 ? _searchIndex : 0;
+    if (_searchHits[i]){ e.preventDefault(); _searchActivate(i); }
+  }
+});
+
+// ============================================================
 // MAIN RENDER
 // ============================================================
 const viewEl = document.getElementById('view');
@@ -1603,6 +1656,54 @@ function _homeTodayTasksHTML(todayTasks, todayK){
   `;
 }
 
+// Uten frist (ADR 0038). Disse er usynlige i Dag, Uke og Måned — de har ingen dato å
+// vises på — så de forsvinner i praksis. Seksjonen vises bare når det finnes noen.
+function _homeNoDateHTML(items){
+  if (!items.length) return '';
+  const LIMIT = 8;
+  const shown = items.slice(0, LIMIT);
+  const rest = items.length - shown.length;
+  return `
+    <div class="home-section">
+      <h3>◦ Uten frist (${items.length})</h3>
+      <div class="home-list">
+        ${shown.map(t=>{
+          const isProj = t._kind === 'projectTask';
+          const click = isProj ? act('openProjectTaskForm', t._projectId, t.id) : act('openTaskForm', t.id);
+          const toggleHandler = isProj
+            ? `HANDLERS.toggleProjectTask('${t._projectId}','${t.id}',event)`
+            : `HANDLERS.toggleTask('${t.id}',event)`;
+          const projTag = t._projectTitle ? `<span class="proj-chip">${escapeHTML(t._projectTitle)}</span>` : '';
+          return `<div class="home-item">
+            <input type="checkbox" data-action="noop" data-stop="1" onchange="${toggleHandler}">
+            <div class="hi-date" style="color:var(--ink-muted)">–</div>
+            <div class="hi-title" ${click} style="cursor:pointer">${escapeHTML(t.title)}${projTag}</div>
+          </div>`;
+        }).join('')}
+        ${rest > 0 ? `<div class="home-item" style="cursor:default"><div class="hi-date"></div><div class="hi-title" style="color:var(--ink-muted);font-style:italic">+${rest} til uten frist</div></div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+// Alt som gjenstår og mangler dato: frie To Do's og prosjektenes egne oppgaver.
+function tasksWithoutDate(){
+  const out = [];
+  (state.tasks||[]).forEach(t=>{
+    if (t.done || t.due || !passesFilter(t)) return;
+    const p = t.projectId ? (state.projects||[]).find(x=>x.id===t.projectId) : null;
+    out.push({ ...t, _kind:'task', _projectTitle: p ? p.title : '' });
+  });
+  (state.projects||[]).forEach(p=>{
+    if (p.archived || !passesFilter(p)) return;
+    (p.tasks||[]).forEach(t=>{
+      if (t.done || t.due) return;
+      out.push({ ...t, _kind:'projectTask', _projectId:p.id, _projectTitle:p.title });
+    });
+  });
+  return out.sort((a,b)=> (a.order||0) - (b.order||0));
+}
+
 // Section 3: KALENDER — denne uka (7-column week view)
 function _homeWeekHTML(today){
   const wkStart = startOfWeek(today);
@@ -1771,10 +1872,13 @@ function renderHome(){
 
   viewEl.innerHTML = `
     <div class="home-greeting">${greeting}</div>
-    <div class="home-date">${I18N.weekdaysLong[monIdx(today)]} ${today.getDate()}. ${I18N.months[today.getMonth()]} ${y}${HOLIDAYS[todayK] ? ' · ' + HOLIDAYS[todayK] : ''}</div>
+    <div class="home-date">${I18N.weekdaysLong[monIdx(today)]} ${today.getDate()}. ${I18N.months[today.getMonth()]} ${y}${HOLIDAYS[todayK] ? ' · ' + HOLIDAYS[todayK] : ''}
+      <button data-action="openWeekReview" style="margin-left:10px;padding:2px 9px;font-size:11.5px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer">Ukesoppsummering</button>
+    </div>
     ${_homeQuickCaptureHTML()}
     ${_homeUrgentHTML(urgent, todayK)}
     ${_homeTodayTasksHTML(todayTasks, todayK)}
+    ${_homeNoDateHTML(tasksWithoutDate())}
     ${_homeActiveProjectsHTML(activeProjects)}
     ${_homeWeekHTML(today)}
   `;
@@ -2512,19 +2616,48 @@ HANDLERS.deleteProjectNote = (pid, nid)=>{
   render();
 };
 
+// ============================================================
+// «FERDIG» ÉN DØR: done, doneAt og status holdes i takt (ADR 0037)
+// ============================================================
+// Fire steder satte `t.done` direkte, og ingen av dem rørte `status` — så en oppgave med
+// `status:'doing'` som ble krysset av i lista lå fortsatt i «I gang» på kanban-brettet.
+// Og ingen sted registrerte NÅR noe ble gjort, så en ukesoppsummering var umulig å regne ut.
+// `doneAt` fylles fra nå av; oppgaver som var ferdige før dette har den ikke, og
+// oppsummeringen sier det i stedet for å late som lista er tom.
+function _setDone(t, done){
+  if (!t) return t;
+  t.done = !!done;
+  if (done){
+    t.doneAt = new Date().toISOString();
+    t.status = 'done';
+  } else {
+    delete t.doneAt;
+    if (t.status === 'done') t.status = 'todo';
+  }
+  return t;
+}
+
 function taskStatus(t){ return t.status || (t.done ? 'done' : 'todo'); }
 
 function renderProjectKanban(p){
-  if (!(p.tasks||[]).length) return `<div class="empty-state">Ingen oppgaver ennå</div>`;
+  // Leste før bare `p.tasks`, så taggede frie To Do's manglet på brettet — det siste stedet
+  // som ikke brukte `projectTasksMerged`. Dealflow-prosjektet hennes er en pipeline av
+  // selskaper som ligger som taggede To Do's, så brettet var tomt for nettopp den bruken
+  // det passer best til. `_origin` følger med, slik at klikk og drag treffer riktig lager.
+  // ADR 0037.
+  const all = projectTasksMerged(p);
+  if (!all.length) return `<div class="empty-state">Ingen oppgaver ennå</div>`;
   const today = todayKey();
   const cols = { todo:[], doing:[], done:[] };
-  p.tasks.forEach(t=>cols[taskStatus(t)].push(t));
+  all.forEach(t=>cols[taskStatus(t)].push(t));
   const colHTML = (label, key, items)=>{
     const cards = items.length === 0
       ? '<div style="padding:10px 4px;font-size:11.5px;color:var(--ink-muted);font-style:italic;text-align:center">ren boks</div>'
       : items.slice().sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>{
           const overdue = t.due && t.due < today && !t.done ? ' overdue' : '';
-          return `<div class="kcard ${t.done?'done':''}" draggable="true" data-id="${t.id}" ondragstart="HANDLERS.kanbanDragStart(event,'${t.id}')" ondragend="HANDLERS.kanbanDragEnd(event)" data-action="openProjectTaskForm" data-args='["${p.id}","${t.id}"]'>
+          const isFree = t._origin === 'free';
+          const open = isFree ? act('openTaskForm', t.id) : act('openProjectTaskForm', p.id, t.id);
+          return `<div class="kcard ${t.done?'done':''}" draggable="true" data-id="${t.id}" ondragstart="HANDLERS.kanbanDragStart(event,'${t.id}','${t._origin||'sub'}')" ondragend="HANDLERS.kanbanDragEnd(event)" ${open}>
             <div class="kcard-title">${escapeHTML(t.title)}</div>
             ${t.due ? `<div class="kcard-meta${overdue}">${fmtDateShort(fromKey(t.due))}${t.endDate&&t.endDate>t.due?'–'+fmtDateShort(fromKey(t.endDate)):''}${t.recurring?' · ↻':''}</div>` : ''}
           </div>`;
@@ -2541,8 +2674,10 @@ function renderProjectKanban(p){
   </div>`;
 }
 
-HANDLERS.kanbanDragStart = (e, id)=>{
-  e.dataTransfer.setData('text/plain', id);
+HANDLERS.kanbanDragStart = (e, id, origin)=>{
+  // Opprinnelsen må med: en tagget fri To Do bor i `state.tasks`, en undernoppgave i
+  // `p.tasks`. Uten den skrev slippet til feil lager — eller ingenting. ADR 0037.
+  e.dataTransfer.setData('text/plain', JSON.stringify({ id, origin: origin || 'sub' }));
   e.dataTransfer.effectAllowed = 'move';
   e.target.style.opacity = '.5';
 };
@@ -2557,12 +2692,16 @@ HANDLERS.kanbanLeave = (e)=>{ e.currentTarget.style.outline = ''; };
 HANDLERS.kanbanDrop = (e, pid, status)=>{
   e.preventDefault();
   e.currentTarget.style.outline = '';
-  const tid = e.dataTransfer.getData('text/plain');
-  const p = state.projects.find(x=>x.id===pid);
-  const t = p?.tasks.find(x=>x.id===tid);
+  const raw = e.dataTransfer.getData('text/plain');
+  let id = raw, origin = 'sub';
+  try { const parsed = JSON.parse(raw); if (parsed && parsed.id){ id = parsed.id; origin = parsed.origin || 'sub'; } }
+  catch(_){ /* en ren id er arv fra før ADR 0037 — behandles som undernoppgave */ }
+  const t = origin === 'free'
+    ? (state.tasks||[]).find(x=>x.id===id)
+    : (state.projects.find(x=>x.id===pid)?.tasks||[]).find(x=>x.id===id);
   if (!t) return;
   t.status = status;
-  t.done = (status === 'done');
+  _setDone(t, status === 'done');
   render();
 };
 
@@ -2675,10 +2814,10 @@ HANDLERS.toggleProjectTask = (pid,tid,ev)=>{
     }
   }
   if (!t.done){
-    t.done = true;
+    _setDone(t, true);
     _animateCompletion(ev, ()=>render());
   } else {
-    t.done = false;
+    _setDone(t, false);
     render();
   }
 };
@@ -3084,7 +3223,7 @@ function renderTodos(){
         if (kind === 'freetask'){
           const t = state.tasks.find(x=>x.id===id); if (!t) return;
           row.classList.add('completing');
-          setTimeout(()=>{ t.done = !t.done; render(); }, 380);
+          setTimeout(()=>{ _setDone(t, !t.done); render(); }, 380);
         } else if (kind === 'inbox'){
           // Inbox can't be "done"; swipe right promotes to short-term
           HANDLERS.inboxToTodo(id, 'short');
@@ -3920,10 +4059,10 @@ HANDLERS.toggleTask = (id, ev) => {
     }
   }
   if (!t.done){
-    t.done = true;
+    _setDone(t, true);
     _animateCompletion(ev, ()=>render());
   } else {
-    t.done = false;
+    _setDone(t, false);
     render();
   }
 };
@@ -4193,7 +4332,7 @@ function openSearch(){
           <option value="done">Fullført</option>
         </select>
       </div>
-      <div class="search-results" id="search-results"><div class="empty">Begynn å skrive eller bruk filtrene…</div></div>
+      <div class="search-results" id="search-results"><div class="empty">Begynn å skrive eller bruk filtrene… <span style="white-space:nowrap">↑↓ velger, Enter åpner</span></div></div>
     </div>
     <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
   _focusLater('search-input');
@@ -4299,18 +4438,97 @@ function doSearch(filt){
     return;
   }
   res.innerHTML = `<div class="empty" style="text-align:left;font-style:normal;font-size:11.5px;color:var(--ink-muted);padding:6px 10px">${hits.length} treff${hits.length>40?' (viser 40)':''}</div>`+hits.slice(0,40).map((h,i)=>`<div class="sr" data-i="${i}"><strong>${escapeHTML(h.title)}</strong><div class="meta">${escapeHTML(h.sub)}</div></div>`).join('');
-  res.querySelectorAll('.sr').forEach((el,i)=>el.onclick=()=>{
-    const h = hits[i];
-    closeModal();
-    if (h.type==='event'){ HANDLERS.editEvent(h.ref.id); }
-    else if (h.type==='outlook'){ HANDLERS.openOutlookEvent(h.ref.id); }
-    else if (h.type==='task'){ openTaskForm(h.ref.id); }
-    else if (h.type==='project'){ HANDLERS.openProject(h.ref.id); }
-    else if (h.type==='projectTask'){ openProjectTaskForm(h.project.id, h.ref.id); }
-    else if (h.type==='milestone' || h.type==='person'){ HANDLERS.openProject(h.project.id); }
-    else if (h.type==='note'){ state.ui.anchor = h.date; state.ui.view='day'; render(); }
-  });
+  // Én vei inn til «åpne dette treffet», brukt av både klikk og Enter. ADR 0038.
+  _searchHits = hits.slice(0, 40);
+  _searchIndex = -1;
+  res.querySelectorAll('.sr').forEach((el,i)=>el.onclick=()=>{ closeModal(); _searchOpenHit(hits[i]); });
 }
+
+function _searchOpenHit(h){
+  if (!h) return;
+  if (h.type==='event'){ HANDLERS.editEvent(h.ref.id); }
+  else if (h.type==='outlook'){ HANDLERS.openOutlookEvent(h.ref.id); }
+  else if (h.type==='task'){ openTaskForm(h.ref.id); }
+  else if (h.type==='project'){ HANDLERS.openProject(h.ref.id); }
+  else if (h.type==='projectTask'){ openProjectTaskForm(h.project.id, h.ref.id); }
+  else if (h.type==='milestone' || h.type==='person'){ HANDLERS.openProject(h.project.id); }
+  else if (h.type==='note'){ state.ui.anchor = h.date; state.ui.view='day'; render(); }
+}
+
+// ============================================================
+// UKESOPPSUMMERING (ADR 0038)
+// ============================================================
+// Tre spørsmål på én skjerm: hva ble gjort, hva glapp, hva kommer. Alt regnes ut av data
+// som alt finnes — bortsett fra «gjort», som krever `doneAt`. Den fylles først fra
+// 2026-08-12, så for eldre fullførte oppgaver vet vi ikke NÅR. Panelet sier det i stedet
+// for å vise en tom liste som om ingenting var gjort.
+function _weekReviewData(){
+  const todayK = todayKey();
+  const from = dKey(addDays(new Date(), -7));
+  const to = dKey(addDays(new Date(), 7));
+
+  const all = [];
+  (state.tasks||[]).forEach(t=>{
+    if (!passesFilter(t)) return;
+    const p = t.projectId ? (state.projects||[]).find(x=>x.id===t.projectId) : null;
+    all.push({ ...t, _kind:'task', _projectTitle: p ? p.title : '' });
+  });
+  (state.projects||[]).forEach(p=>{
+    if (p.archived || !passesFilter(p)) return;
+    (p.tasks||[]).forEach(t=> all.push({ ...t, _kind:'projectTask', _projectId:p.id, _projectTitle:p.title }));
+    (p.milestones||[]).forEach(m=> all.push({ ...m, due:m.date, _kind:'milestone', _projectId:p.id, _projectTitle:p.title }));
+  });
+
+  const doneKey = t => (t.doneAt || '').slice(0, 10);
+  const done = all.filter(t => t.done && doneKey(t) >= from).sort((a,b)=> doneKey(b).localeCompare(doneKey(a)));
+  const slipped = all.filter(t => !t.done && t.due && t.due < todayK).sort((a,b)=> (a.due||'').localeCompare(b.due||''));
+  const ahead = all.filter(t => !t.done && t.due && t.due >= todayK && t.due <= to).sort((a,b)=> (a.due||'').localeCompare(b.due||''));
+  const anyDoneAt = all.some(t => t.done && t.doneAt);
+  const doneWithoutStamp = all.filter(t => t.done && !t.doneAt).length;
+  return { done, slipped, ahead, anyDoneAt, doneWithoutStamp, from, to, todayK };
+}
+
+HANDLERS.openWeekReview = ()=>{
+  const d = _weekReviewData();
+  const row = (t, dateField)=>{
+    const isProj = t._kind === 'projectTask';
+    const isMs = t._kind === 'milestone';
+    const click = isMs ? act('openProject', t._projectId)
+      : isProj ? act('openProjectTaskForm', t._projectId, t.id)
+      : act('openTaskForm', t.id);
+    const label = dateField === 'doneAt'
+      ? ((t.doneAt||'').slice(0,10) ? fmtDateShort(fromKey((t.doneAt||'').slice(0,10))) : '–')
+      : (t.due ? fmtDateShort(fromKey(t.due)) : '–');
+    const chip = t._projectTitle ? `<span class="proj-chip">${escapeHTML(t._projectTitle)}</span>` : '';
+    return `<div class="wr-row" ${click}>
+      <span class="wr-date">${label}</span>
+      <span class="wr-title">${isMs?'◆ ':''}${escapeHTML(t.title)}${chip}</span>
+    </div>`;
+  };
+  const list = (items, dateField, empty)=> items.length
+    ? items.slice(0, 25).map(t=>row(t, dateField)).join('') + (items.length>25?`<div class="wr-row" style="cursor:default"><span class="wr-date"></span><span class="wr-title" style="color:var(--ink-muted);font-style:italic">+${items.length-25} til</span></div>`:'')
+    : `<div class="wr-empty">${empty}</div>`;
+
+  const doneNote = !d.anyDoneAt && d.doneWithoutStamp
+    ? `<div class="wr-note">Tidspunkt for fullføring har ikke blitt lagret før i dag, så ${d.doneWithoutStamp} eldre fullførte oppgaver kan ikke plasseres i tid. Fra nå av vises de her.</div>`
+    : '';
+
+  openModal(`
+    <h3>Ukesoppsummering</h3>
+    <div class="body">
+      <div class="wr-sec"><h4>✓ Gjort siste 7 dager <small>${d.done.length}</small></h4>
+        ${doneNote}
+        ${list(d.done, 'doneAt', 'Ingenting registrert som fullført denne uka.')}
+      </div>
+      <div class="wr-sec"><h4>⚠ Glippet — forfalt og ikke gjort <small>${d.slipped.length}</small></h4>
+        ${list(d.slipped, 'due', 'Ingenting har glippet. ')}
+      </div>
+      <div class="wr-sec"><h4>→ Neste 7 dager <small>${d.ahead.length}</small></h4>
+        ${list(d.ahead, 'due', 'Ingen frister de neste sju dagene.')}
+      </div>
+    </div>
+    <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
+};
 
 // ============================================================
 // SETTINGS / EXPORT / IMPORT / NOTIFICATIONS

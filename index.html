@@ -297,8 +297,21 @@
   .search-results .sr{padding:8px 10px;border-top:1px solid var(--line-soft);cursor:pointer;font-size:13px}
   .search-results .sr:first-of-type{border-top:none}
   .search-results .sr:hover{background:var(--surface-2)}
+  /* Markert rad ved piltast-navigasjon (ADR 0038). Tydeligere enn hover, siden den
+     forteller hvor Enter kommer til å treffe. */
+  .search-results .sr.active{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)}
   .search-results .sr .meta{font-size:11.5px;color:var(--ink-muted);margin-top:1px}
   .search-results .empty{padding:14px;color:var(--ink-muted);font-style:italic;font-size:13px;text-align:center}
+  /* Ukesoppsummering (ADR 0038) */
+  .wr-sec{margin-bottom:16px}
+  .wr-sec h4{font-family:var(--serif);font-weight:500;font-size:14.5px;margin:0 0 6px;color:var(--ink);display:flex;justify-content:space-between;align-items:baseline}
+  .wr-sec h4 small{font-family:var(--font);font-size:11.5px;color:var(--ink-muted);font-weight:400}
+  .wr-row{display:flex;gap:10px;align-items:baseline;padding:6px 2px;border-top:1px solid var(--line-soft);font-size:13px;cursor:pointer}
+  .wr-row:hover{background:var(--surface-2)}
+  .wr-date{flex:0 0 56px;font-size:11.5px;color:var(--ink-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .wr-title{flex:1;min-width:0}
+  .wr-empty{padding:8px 2px;font-size:12.5px;color:var(--ink-muted);font-style:italic}
+  .wr-note{padding:7px 9px;margin-bottom:6px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);font-size:11.5px;color:var(--ink-soft);line-height:1.45}
 
   /* Notes panel */
   .notes-area{width:100%;min-height:120px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff;font-family:var(--font);font-size:13.5px;resize:vertical}

@@ -6,6 +6,21 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-12 (natt) — Dealflow som brett, hurtigtaster, uten-frist og ukesoppsummering
+
+Fire ting, hvorav den første lukker det siste punktet fra revisjonen. ADR 0037 og 0038.
+
+- **Kanban-brettet viser hele prosjektet.** Det leste bare prosjektets egne oppgaver, så Dealflow — der casene ligger som taggede To Do's — var tomt for nettopp den bruken brettet passer best til. «Shive» og «Akvavet Gulen AS» står nå i kolonner, og drag-and-drop treffer riktig lager. Negativ kontroll: mot forrige commit rendrer brettet 1 kort der det nå rendrer 3.
+- **`status` og `done` var to uavhengige sannheter.** En oppgave med status «I gang» som ble krysset av i lista ble liggende i «I gang»-kolonnen. `_setDone` er nå den ene døren for ferdig, og holder begge i takt. Fire steder satte `done` direkte før.
+- **`doneAt` registreres fra i dag.** Ingenting registrerte *når* noe ble gjort, så en ukesoppsummering var umulig å regne ut. Eldre fullførte oppgaver har den ikke, og panelet sier det i stedet for å vise en tom liste.
+- **Hurtigtaster i søket:** `/` og Ctrl/Cmd+K åpner det, piltaster flytter markeringen, Enter åpner. `/` er avvergt mens du skriver i et felt. Klikk og Enter går gjennom samme funksjon, så de sju åpne-grenene ikke kan drifte fra hverandre.
+- **«Uten frist» på Hjem.** En To Do uten dato er usynlig i Dag, Uke og Måned. Seksjonen viser inntil 8, og vises ikke i det hele tatt når den er tom.
+- **Ukesoppsummering** fra en knapp ved datoen: gjort siste 7 dager, glippet (forfalt og ugjort, delmål inkludert), neste 7 dager. Radene er klikkbare. Lagrer ingenting — det er et vindu, ikke en logg.
+
+Testsuiten: 323 → 364 assertions. 24 feiler mot forrige commit.
+
+---
+
 ## 2026-08-12 (sen kveld) — Adressen er hvor du er, så tilbakeknappen virker
 
 «Hvor er jeg» bodde bare i lagret state, og nettleserens tilbakeknapp gjorde ingenting — eller forlot appen. Nå står posisjonen i adressen. ADR 0036.
