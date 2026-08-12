@@ -6,6 +6,21 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-12 — To Do-lista står på prosjektkortene
+
+Kortet viste før bare én linje: «Neste:» med nærmeste dato. Nå står de tre neste To Do'ene der, tidligste frist først, med «+N mer» hvis det er flere. ADR 0033.
+
+- **Forfalt frist er rød og halvfet** — den ene tilstanden som krever handling. Titler kappes på én linje, og datokolonnen har fast bredde så titlene flukter. Radene har ingen egen handling, så et klikk hvor som helst på kortet åpner prosjektet som før.
+- **Taggede To Do's er med.** En fri To Do tagget til et prosjekt (ADR 0016/0017) hører til prosjektet, og lista viser den.
+- **Tellerne endrer seg, og det er med vilje.** Kortet regnet før bare på prosjektets egne oppgaver mens prosjektsiden flettet begge kilder, så «1/4 oppgaver» kunne stå på et kort der siden viste seks. Nå bruker kort, side, tellere og fremdriftslinje samme kilde (`projectTasksMerged`). Ingen data er endret — kortet sluttet å underrapportere.
+- **«Neste:»-linja vises ikke lenger når den gjentar øverste rad i lista.** Delmål (◆) beholdes, siden de ikke står i To Do-lista.
+- **Verifisert visuelt** med skjermbilder i både lyst og mørkt tema, ikke bare i DOM-en. Kort med liste måler 253 px, uten 160 px.
+- **Gjenstår:** kanban-visningen på prosjektsiden viser fortsatt bare prosjektets egne oppgaver. Det er nå det siste stedet som ikke bruker `projectTasksMerged`.
+
+Testsuiten: 241 → 258 assertions.
+
+---
+
 ## 2026-08-11 (sen natt) — De åtte gjenstående punktene, inkludert to som ikke var avveininger
 
 Maria ba om at alt utestående ble tatt. To av de fire «bevisste utsettelsene» viste seg å ikke være avveininger i det hele tatt. ADR 0032.

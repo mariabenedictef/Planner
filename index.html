@@ -336,6 +336,17 @@
   .pcard .pprog i{display:block;height:100%;background:var(--accent)}
   .pcard .pstats{display:flex;gap:12px;font-size:11.5px;color:var(--ink-muted)}
   .pcard .pstats span strong{color:var(--ink)}
+  /* To Do-liste på prosjektkortet (ADR 0033). Titler kappes på én linje med ellipse, så
+     kortene beholder samme høyde og rutenettet står rolig. */
+  .pcard .ptodos{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line-soft);padding-top:8px;margin-top:2px;min-width:0}
+  .pcard .ptodo{display:flex;gap:8px;align-items:baseline;font-size:11.5px;line-height:1.35;color:var(--ink-soft);min-width:0}
+  /* Fast bredde på datokolonnen, så titlene flukter fra rad til rad uansett om dagen er
+     ett- eller tosifret. «+N mer» er en vanlig rad med tom datocelle, så den stiller seg
+     opp med titlene av seg selv. */
+  .pcard .ptodo-date{flex:0 0 54px;color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pcard .ptodo-date.overdue{color:var(--alert);font-weight:600}
+  .pcard .ptodo-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pcard .ptodo-more .ptodo-title{font-size:11px;color:var(--ink-muted);font-style:italic}
   .pcard.archived{opacity:.55}
 
   .new-project-card{background:transparent;border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:14px;min-height:160px;cursor:pointer;border-radius:var(--radius);font-style:italic}

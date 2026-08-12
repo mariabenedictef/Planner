@@ -1254,7 +1254,10 @@ function projectEventCoversDay(p, key){
   return start <= key && key <= end;
 }
 function projectProgress(p){
-  const items = [...(p.tasks||[]), ...(p.milestones||[])];
+  // Taggede To Do's teller med, slik at fremdriftslinja og «x/y oppgaver» stemmer med
+  // lista kortet nå viser. Før regnet den bare på `p.tasks`, så et kort kunne liste tre
+  // To Do's og samtidig si «0/1 oppgaver». ADR 0033.
+  const items = [...projectTasksMerged(p), ...(p.milestones||[])];
   if (!items.length) return 0;
   const done = items.filter(i=>i.done).length;
   return Math.round(done/items.length*100);
@@ -1860,12 +1863,36 @@ function projectCardHTML(p){
     : days===0 ? `<div class="countdown urgent">i dag <small>er dagen</small></div>`
     : `<div class="countdown ${days<14?'urgent':''}">${days} <small>dager til måldato</small></div>`;
   const prog = projectProgress(p);
-  const taskCount = (p.tasks||[]).length;
-  const doneCount = (p.tasks||[]).filter(t=>t.done).length;
+  const merged = projectTasksMerged(p);
+  const taskCount = merged.length;
+  const doneCount = merged.filter(t=>t.done).length;
   const peopleCount = (p.people||[]).length;
+
+  // To Do-lista på kortet: bare det som gjenstår, tidligste frist først, maks 3 — resten
+  // bak «+N mer». Samme sortering som prosjektsiden (`_dateThenOrderCmp`), så rekkefølgen
+  // er den samme begge steder: dato først, uten dato sist, deretter manuell rekkefølge.
+  // Rader har ingen egen handling, så et klikk hvor som helst på kortet åpner prosjektet.
+  const CARD_TODO_LIMIT = 3;
+  const openTodos = merged.filter(t=>!t.done).sort(_dateThenOrderCmp);
+  const shownTodos = openTodos.slice(0, CARD_TODO_LIMIT);
+  const restCount = openTodos.length - shownTodos.length;
+  const todayK = todayKey();
+  const todosHTML = shownTodos.length ? `<div class="ptodos">
+      ${shownTodos.map(t=>{
+        const overdue = t.due && t.due < todayK;
+        const dateLabel = t.due ? fmtDateShort(fromKey(t.due)) : '–';
+        return `<div class="ptodo"><span class="ptodo-date${overdue?' overdue':''}">${dateLabel}</span><span class="ptodo-title">${escapeHTML(t.title)}</span></div>`;
+      }).join('')}
+      ${restCount>0?`<div class="ptodo ptodo-more"><span class="ptodo-date"></span><span class="ptodo-title">+${restCount} mer</span></div>`:''}
+    </div>` : '';
+
   const next = projectNextDate(p);
-  // Show "Neste:" only if it's not the same as targetDate (avoid duplication)
-  const nextHTML = (next && next.date !== p.targetDate)
+  // Show "Neste:" only if it's not the same as targetDate (avoid duplication) — og ikke
+  // når To Do-lista alt viser den samme oppgaven. Delmål (◆) beholdes, for de står ikke
+  // i lista.
+  const nextIsMilestone = !!(next && next.label && next.label.startsWith('◆'));
+  const showNext = next && next.date !== p.targetDate && (!todosHTML || nextIsMilestone);
+  const nextHTML = showNext
     ? `<div style="font-size:11.5px;color:var(--ink-soft);border-top:1px solid var(--line-soft);padding-top:6px;margin-top:2px"><strong style="color:var(--ink)">${fmtDateShort(fromKey(next.date))}</strong> · ${escapeHTML(next.label)}</div>`
     : '';
   return `<div class="pcard cat-${p.category} ${p.archived?'archived':''}" data-id="${p.id}">
@@ -1880,6 +1907,7 @@ function projectCardHTML(p){
       ${taskCount?`<span><strong>${doneCount}/${taskCount}</strong> oppgaver</span>`:''}
       ${(p.milestones||[]).length?`<span><strong>${(p.milestones||[]).filter(m=>m.done).length}/${(p.milestones||[]).length}</strong> delmål</span>`:''}
     </div>
+    ${todosHTML}
     ${nextHTML}
   </div>`;
 }
@@ -2458,14 +2486,20 @@ HANDLERS.setProjectViewMode = (mode)=>{
   render();
 };
 
-function renderProjectTasks(p){
-  // Merge two sources: the project's own subtasks (p.tasks) and free tasks that
-  // have been tagged to this project via the "▸ Prosjekt"-dropdown in To Do's
-  // (state.tasks with t.projectId === p.id). Each origin uses different HANDLERS
-  // for toggle/edit/delete so the underlying data goes to the right store.
+// Merge two sources: the project's own subtasks (p.tasks) and free tasks tagged to this
+// project via the "▸ Prosjekt"-dropdown in To Do's (state.tasks with t.projectId === p.id)
+// — ADR 0016/0017. Each origin uses different HANDLERS for toggle/edit/delete, so
+// `_origin` must follow along.
+// Én kilde, brukt av både prosjektsiden og prosjektkortet, slik at de ikke kan drifte fra
+// hverandre: kortet regnet før bare på `p.tasks` mens siden viste begge. ADR 0033.
+function projectTasksMerged(p){
   const subtasks = (p.tasks || []).map(t => ({ ...t, _origin: 'sub' }));
-  const tagged = state.tasks.filter(t => t.projectId === p.id).map(t => ({ ...t, _origin: 'free' }));
-  const all = [...subtasks, ...tagged];
+  const tagged = (state.tasks || []).filter(t => t.projectId === p.id).map(t => ({ ...t, _origin: 'free' }));
+  return [...subtasks, ...tagged];
+}
+
+function renderProjectTasks(p){
+  const all = projectTasksMerged(p);
   if (!all.length) return `<div class="empty-state">Ingen oppgaver ennå — legg til den første øverst</div>`;
   return all.sort((a,b)=>{
     if (a.done !== b.done) return a.done?1:-1;
