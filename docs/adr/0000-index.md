@@ -48,6 +48,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0042](0042-bulk-edit-todos.md) | Masseredigering av To Do's: velg-modus utenfor `state`, handlinger på `change` | Accepted (bygger på 0037, 0039) |
 | [0043](0043-actionable-empty-states.md) | Tomme tilstander med handling — `emptyAction` og `focusField` | Accepted |
 | [0044](0044-mobile-overrides-last.md) | Mobiloverstyringer må ligge sist i stilarket; to media-regler var døde. Radhøyde 172 → 60 px | Accepted |
+| [0045](0045-project-tasks-in-todos.md) | Prosjektoppgaver i To Do's: egen bøtte gruppert per prosjekt, samme objekt begge veier | Accepted (bygger på 0033/0037) |
 
 ## How to add a new ADR
 
