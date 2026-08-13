@@ -172,6 +172,9 @@ HANDLERS.switchView = (view) => {
   // grunn til å beholde et åpent prosjekt. ADR 0034.
   state.ui.openProjectId = null;
   state.ui.view = view;
+  // Velg-modus hører til To Do's-siden. Et utvalg som lå og ventet mens hun var på
+  // Hjem ville handlingslinja plutselig operert på ved retur. ADR 0042.
+  _selReset();
   if (document.querySelector('.modal-bg.open')) closeModal();
   _syncHash(true);        // brukerens eget navigasjonssteg ⇒ historikk-oppføring
   render();
@@ -212,11 +215,21 @@ HANDLERS.closeModalThenVoice = () => {
 // Delete a project task while inside the task-edit modal, then close
 HANDLERS.deleteProjectTaskAndClose = (pid, tid) => {
   const p = state.projects.find(x => x.id === pid);
-  if (p) p.tasks = (p.tasks || []).filter(t => t.id !== tid);
+  const t = p ? (p.tasks || []).find(x => x.id === tid) : null;
+  deleteWithUndo(()=>_projectArr(pid, 'tasks'), tid, `«${t ? t.title : 'oppgaven'}»`);
   saveState();
   closeModal();
   render();
 };
+
+// Slår opp en av prosjektets lister på nytt. Brukes som `getArr` til
+// deleteWithUndo, som med vilje ikke fanger referansen — se ADR 0039.
+function _projectArr(pid, key){
+  const p = (state.projects || []).find(x => x.id === pid);
+  if (!p) return null;
+  if (!Array.isArray(p[key])) p[key] = [];
+  return p[key];
+}
 
 // "No-op" handler used purely for the side effect of stopping click propagation via data-stop="1"
 HANDLERS.noop = () => {};
@@ -449,6 +462,104 @@ function isoWeek(d){
 function fmtDate(d){ return `${d.getDate()}. ${I18N.months[d.getMonth()]} ${d.getFullYear()}`; }
 function fmtDateShort(d){ return `${d.getDate()}. ${I18N.monthsShort[d.getMonth()]}`; }
 function fmtMonth(y,m){ return `${I18N.months[m].charAt(0).toUpperCase()+I18N.months[m].slice(1)} ${y}`; }
+
+// ---------------------------------------------------------------------------
+// RELATIVE DATOETIKETTER (ADR 0040)
+// «12. aug» tvinger leseren til å regne selv. «om 3 dager» leses uten å tenke.
+// Innenfor ±7 dager vinner det relative; utenfor er den absolutte datoen både
+// kortere og mer presis, så da bytter vi tilbake. Den fulle datoen legges alltid
+// i title-attributtet på kallstedet, slik at ingenting går tapt.
+// ---------------------------------------------------------------------------
+const REL_WINDOW_DAYS = 7;
+
+// Hele døgn mellom to YYYY-MM-DD-nøkler (b minus a). fromKey() gir lokal midnatt,
+// så et sommertidsskifte gjør differansen 23 eller 25 timer — derfor Math.round,
+// ikke Math.floor: med floor ville 25 timer blitt «0 dager» om høsten.
+function daysBetweenKeys(aKey, bKey){
+  if (!aKey || !bKey) return null;
+  const a = fromKey(aKey), b = fromKey(bKey);
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return null;
+  return Math.round((b - a) / 86400000);
+}
+
+// Lang variant — brukes der det er plass (To Do-lista, Hjem).
+function relDateLabel(key, todayK){
+  if (!key) return '';
+  const d = daysBetweenKeys(todayK || todayKey(), key);
+  if (d === null) return '';
+  if (d === 0) return 'i dag';
+  if (d === 1) return 'i morgen';
+  if (d === -1) return 'i går';
+  if (d > 1 && d <= REL_WINDOW_DAYS) return `om ${d} dager`;
+  if (d < -1 && d >= -REL_WINDOW_DAYS) return `${-d} dager på overtid`;
+  return fmtDateShort(fromKey(key));
+}
+
+// Kompakt variant for smale kolonner — prosjektkortenes datokolonne er 68 px.
+// «5 d siden» er det lengste den kan produsere.
+function relDateShort(key, todayK){
+  if (!key) return '';
+  const d = daysBetweenKeys(todayK || todayKey(), key);
+  if (d === null) return '';
+  if (d === 0) return 'i dag';
+  if (d === 1) return 'i morgen';
+  if (d === -1) return 'i går';
+  if (d > 1 && d <= REL_WINDOW_DAYS) return `om ${d} d`;
+  if (d < -1 && d >= -REL_WINDOW_DAYS) return `${-d} d siden`;
+  return fmtDateShort(fromKey(key));
+}
+
+// Full dato til title-attributt. Egen funksjon fordi alle kallstedene skal ha
+// nøyaktig samme fallback-oppførsel på en ugyldig nøkkel: tom streng.
+function absDateTitle(key){
+  if (!key) return '';
+  const d = fromKey(key);
+  return isNaN(d.getTime()) ? '' : fmtDate(d);
+}
+
+// ---------------------------------------------------------------------------
+// HANDLINGSRIKE TOMME TILSTANDER (ADR 0043)
+// «Ingen delmål satt» er en blindvei: den forteller hva som mangler, men ikke hva
+// man gjør med det. Knappen tar samme plass og fører videre. `attrs` er enten
+// act(...) eller rå data-attributter.
+// ---------------------------------------------------------------------------
+function emptyAction(label, attrs){
+  if (!label || !attrs) return '';
+  return `<div class="es-act"><button class="es-btn" ${attrs}>${escapeHTML(label)}</button></div>`;
+}
+
+// Setter markøren i et felt som allerede står på siden, og ruller det til syne.
+// Tomme tilstander for delmål/personer/lenker peker på skjemaet rett over lista
+// i stedet for å åpne en dialog — feltet er der, det er bare ikke åpenbart.
+HANDLERS.focusField = (id)=>{
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.focus();
+};
+
+// ---------------------------------------------------------------------------
+// FAST FARGE PER PROSJEKT (ADR 0041)
+// Chipen var grå overalt, så en tagget oppgave måtte leses for å plasseres.
+// Fargen utledes av tittelen — ingen ny state, ingen fargevelger, og samme
+// prosjekt får samme farge på alle enheter uten at noe må synkroniseres.
+// Bare nyansen varierer; metning og lyshet ligger i CSS, én gang for lys og én
+// gang for mørk modus, så kontrasten er kontrollert begge steder.
+// ---------------------------------------------------------------------------
+function projectHue(title){
+  const s = String(title || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++){ h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+  return h % 360;
+}
+
+// Én dør for prosjekt-chipen — seks steder rendret den hver for seg, og bare ett
+// av dem hadde klikk-for-å-fjerne. Ekstra attributter sendes inn av det stedet
+// som trenger dem.
+function projChipHTML(title, attrs){
+  if (!title) return '';
+  return `<span class="proj-chip" style="--pc-h:${projectHue(title)}"${attrs ? ' ' + attrs : ''}>${escapeHTML(title)}</span>`;
+}
 
 // Calendar event positioning: returns CSS for top/height so events visually span their full duration.
 // slotH = pixel height of one hour slot.
@@ -1421,6 +1532,12 @@ document.addEventListener('keydown', e=>{
     openSearch();
     return;
   }
+  // Ctrl/Cmd+Z angrer siste sletting — men bare utenfor skrivefelt, der nettleserens
+  // egen angring hører hjemme. Gjør ingenting når det ikke finnes noe angrepunkt. ADR 0039.
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && !typing){
+    if (_undoEntry){ e.preventDefault(); HANDLERS.undoLast(); }
+    return;
+  }
   if (!modalOpen || !document.getElementById('search-results')) return;
   if (e.key === 'ArrowDown'){ e.preventDefault(); _searchMove(1); }
   else if (e.key === 'ArrowUp'){ e.preventDefault(); _searchMove(-1); }
@@ -1588,7 +1705,9 @@ function renderTopbar(){
   const filter = document.getElementById('filter');
   filter.innerHTML = Object.entries(I18N.filters).map(([k,v])=>
     `<button data-f="${k}" class="${state.ui.filter===k?'active':''}">${v}</button>`).join('');
-  filter.querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.ui.filter=b.dataset.f; render(); });
+  // Filterbytte nullstiller velg-modus: et utvalg gjort under «Alle» ville ellers ligget
+  // og virket på rader som ikke lenger vises. ADR 0042.
+  filter.querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.ui.filter=b.dataset.f; _selReset(); render(); });
 }
 
 document.getElementById('search-btn').onclick = openSearch;
@@ -1615,14 +1734,14 @@ function _homeUrgentHTML(urgent, todayK){
       ${urgent.length === 0 ? `<div class="home-empty">Ingen urgent-saker — godt jobba</div>` :
         `<div class="home-list home-list-urgent" id="urgent-list">
           ${urgent.map(t=>{
-            const due = t.due ? fmtDateShort(fromKey(t.due)) : '—';
+            const due = t.due ? relDateShort(t.due, todayK) : '—';
             const overdue = t.due && t.due < todayK;
             const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
-            const projTag = proj ? `<span class="proj-chip">${escapeHTML(proj.title)}</span>` : '';
+            const projTag = projChipHTML(proj ? proj.title : '');
             return `<div class="home-item urgent-item ${t.done?'done':''}" draggable="true" data-task-id="${t.id}">
               <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
               <input type="checkbox" ${t.done?'checked':''} data-action="noop" data-stop="1" onchange="HANDLERS.toggleTask('${t.id}',event)">
-              <div class="hi-date${overdue?' overdue':''}">${due}</div>
+              <div class="hi-date${overdue?' overdue':''}" title="${escapeAttr(absDateTitle(t.due))}">${escapeHTML(due)}</div>
               <div class="hi-title" data-action="openTaskForm" data-args='["${t.id}"]' style="cursor:pointer">${escapeHTML(t.title)}${projTag}</div>
             </div>`;
           }).join('')}
@@ -1636,7 +1755,7 @@ function _homeTodayTasksHTML(todayTasks, todayK){
   return `
     <div class="home-section">
       <h3>✓ Forfaller i dag ${todayTasks.length?`(${todayTasks.length})`:''}</h3>
-      ${todayTasks.length === 0 ? `<div class="home-empty">Ingen oppgaver forfaller i dag</div>` :
+      ${todayTasks.length === 0 ? `<div class="home-empty">Ingen oppgaver forfaller i dag${emptyAction('+ Ny oppgave', act('openTaskFormWithDate', todayK))}</div>` :
         `<div class="home-list">
           ${todayTasks.map(t=>{
             const isProj = t._kind === 'projectTask';
@@ -1644,7 +1763,7 @@ function _homeTodayTasksHTML(todayTasks, todayK){
             const click = isProj ? act('openProjectTaskForm', t._projectId, t.id) : (isMilestone ? act('openProject', t._projectId) : act('openTaskForm', t.id));
             const toggleHandler = isProj ? `HANDLERS.toggleProjectTask('${t._projectId}','${t.id}',event)` : (isMilestone ? `HANDLERS.toggleProjectMilestone('${t._projectId}','${t.id}')` : `HANDLERS.toggleTask('${t.id}',event)`);
             const icon = isMilestone ? '◆' : '';
-            const projTag = t._projectTitle ? `<span class="proj-chip">${escapeHTML(t._projectTitle)}</span>` : '';
+            const projTag = projChipHTML(t._projectTitle);
             return `<div class="home-item ${t.done?'done':''}">
               <input type="checkbox" ${t.done?'checked':''} data-action="noop" data-stop="1" onchange="${toggleHandler}">
               <div class="hi-date">${icon||fmtDateShort(fromKey(t.due||todayK))}</div>
@@ -1673,7 +1792,7 @@ function _homeNoDateHTML(items){
           const toggleHandler = isProj
             ? `HANDLERS.toggleProjectTask('${t._projectId}','${t.id}',event)`
             : `HANDLERS.toggleTask('${t.id}',event)`;
-          const projTag = t._projectTitle ? `<span class="proj-chip">${escapeHTML(t._projectTitle)}</span>` : '';
+          const projTag = projChipHTML(t._projectTitle);
           return `<div class="home-item">
             <input type="checkbox" data-action="noop" data-stop="1" onchange="${toggleHandler}">
             <div class="hi-date" style="color:var(--ink-muted)">–</div>
@@ -2069,8 +2188,11 @@ function projectCardHTML(p){
   const todosHTML = shownTodos.length ? `<div class="ptodos">
       ${shownTodos.map(t=>{
         const overdue = t.due && t.due < todayK;
-        const dateLabel = t.due ? fmtDateShort(fromKey(t.due)) : '–';
-        return `<div class="ptodo"><span class="ptodo-date${overdue?' overdue':''}">${dateLabel}</span><span class="ptodo-title">${escapeHTML(t.title)}</span></div>`;
+        // Kompakt relativ etikett (ADR 0040) — kolonnen er 68 px, og «5 d siden» er
+        // det lengste relDateShort kan produsere.
+        const dateLabel = t.due ? relDateShort(t.due, todayK) : '–';
+        const dateTitle = t.due ? escapeAttr(absDateTitle(t.due)) : 'Ingen frist';
+        return `<div class="ptodo"><span class="ptodo-date${overdue?' overdue':''}" title="${dateTitle}">${escapeHTML(dateLabel)}</span><span class="ptodo-title">${escapeHTML(t.title)}</span></div>`;
       }).join('')}
       ${restCount>0?`<div class="ptodo ptodo-more"><span class="ptodo-date"></span><span class="ptodo-title">+${restCount} mer</span></div>`:''}
     </div>` : '';
@@ -2084,7 +2206,7 @@ function projectCardHTML(p){
   const nextHTML = showNext
     ? `<div style="font-size:11.5px;color:var(--ink-soft);border-top:1px solid var(--line-soft);padding-top:6px;margin-top:2px"><strong style="color:var(--ink)">${fmtDateShort(fromKey(next.date))}</strong> · ${escapeHTML(next.label)}</div>`
     : '';
-  return `<div class="pcard cat-${p.category} ${p.archived?'archived':''}" data-id="${p.id}">
+  return `<div class="pcard cat-${p.category} ${p.archived?'archived':''}" data-id="${p.id}" style="--pc-h:${projectHue(p.title)}">
     <h3>${escapeHTML(p.title)}</h3>
     <div class="pmeta">
       <span class="pill cat-${p.category}">${CAT_BY_ID[p.category]?.label||'–'}</span>
@@ -2607,10 +2729,11 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
 };
 
 HANDLERS.deleteProjectNote = (pid, nid)=>{
-  if (!confirm('Slett notatet? Dette kan ikke angres.')) return;
   const p = state.projects.find(x=>x.id===pid);
   if (!p) return;
-  p.noteList = (p.noteList||[]).filter(n=>n.id !== nid);
+  const n = (p.noteList||[]).find(x=>x.id===nid);
+  const title = n && n.title ? `notatet «${n.title}»` : 'notatet';
+  if (!deleteWithUndo(()=>_projectArr(pid, 'noteList'), nid, title)) return;
   saveState();
   closeModal();
   render();
@@ -2646,7 +2769,7 @@ function renderProjectKanban(p){
   // det passer best til. `_origin` følger med, slik at klikk og drag treffer riktig lager.
   // ADR 0037.
   const all = projectTasksMerged(p);
-  if (!all.length) return `<div class="empty-state">Ingen oppgaver ennå</div>`;
+  if (!all.length) return `<div class="empty-state">Ingen oppgaver ennå${emptyAction('+ Ny oppgave', act('openProjectTaskForm', p.id))}</div>`;
   const today = todayKey();
   const cols = { todo:[], doing:[], done:[] };
   all.forEach(t=>cols[taskStatus(t)].push(t));
@@ -2659,7 +2782,7 @@ function renderProjectKanban(p){
           const open = isFree ? act('openTaskForm', t.id) : act('openProjectTaskForm', p.id, t.id);
           return `<div class="kcard ${t.done?'done':''}" draggable="true" data-id="${t.id}" ondragstart="HANDLERS.kanbanDragStart(event,'${t.id}','${t._origin||'sub'}')" ondragend="HANDLERS.kanbanDragEnd(event)" ${open}>
             <div class="kcard-title">${escapeHTML(t.title)}</div>
-            ${t.due ? `<div class="kcard-meta${overdue}">${fmtDateShort(fromKey(t.due))}${t.endDate&&t.endDate>t.due?'–'+fmtDateShort(fromKey(t.endDate)):''}${t.recurring?' · ↻':''}</div>` : ''}
+            ${t.due ? `<div class="kcard-meta${overdue}" title="${escapeAttr(absDateTitle(t.due))}">${t.endDate&&t.endDate>t.due ? fmtDateShort(fromKey(t.due))+'–'+fmtDateShort(fromKey(t.endDate)) : escapeHTML(relDateShort(t.due))}${t.recurring?' · ↻':''}</div>` : ''}
           </div>`;
         }).join('');
     return `<div class="kcol" data-status="${key}" ondragover="HANDLERS.kanbanOver(event)" ondragleave="HANDLERS.kanbanLeave(event)" ondrop="HANDLERS.kanbanDrop(event,'${p.id}','${key}')">
@@ -2724,12 +2847,15 @@ function projectTasksMerged(p){
 
 function renderProjectTasks(p){
   const all = projectTasksMerged(p);
-  if (!all.length) return `<div class="empty-state">Ingen oppgaver ennå — legg til den første øverst</div>`;
+  if (!all.length) return `<div class="empty-state">Ingen oppgaver ennå${emptyAction('+ Ny oppgave', act('openProjectTaskForm', p.id))}</div>`;
   return all.sort((a,b)=>{
     if (a.done !== b.done) return a.done?1:-1;
     return _dateThenOrderCmp(a, b);
   }).map(t=>{
+    // Relativ etikett når oppgaven har én dato; datointervaller beholder absolutte
+    // datoer i begge ender — «om 3 d–14. aug» leses ikke som et intervall. ADR 0040.
     const range = (t.endDate && t.endDate>t.due) ? '–'+fmtDateShort(fromKey(t.endDate)) : '';
+    const dueLabel = t.due ? (range ? fmtDateShort(fromKey(t.due)) : relDateShort(t.due)) : '';
     const isFree = t._origin === 'free';
     const toggleH = isFree
       ? `HANDLERS.toggleTask('${t.id}',event)`
@@ -2749,12 +2875,14 @@ function renderProjectTasks(p){
       <span class="drag-handle" title="${dragTitle}"${isFree?' style="opacity:.35"':''}>⋮⋮</span>
       <input type="checkbox" ${t.done?'checked':''} onchange="${toggleH}">
       <span class="pttitle" ${editAction}>${escapeHTML(t.title)}</span>
-      ${t.due?`<span class="ptdate">${fmtDateShort(fromKey(t.due))}${range}</span>`:''}
+      ${t.due?`<span class="ptdate" title="${escapeAttr(absDateTitle(t.due))}">${escapeHTML(dueLabel)}${range}</span>`:''}
       <button class="ptdel" ${deleteAction}>×</button>
     </div>`;
   }).join('');
 }
 function renderProjectMilestones(p){
+  // Uten delmål rendres seksjonen aldri — _projectMilestonesSectionHTML tar en annen
+  // gren med sin egen «+ Legg til delmål»-knapp. Denne linjen er et rent forsvar.
   if (!(p.milestones||[]).length) return `<div class="empty-state">Ingen delmål satt</div>`;
   return p.milestones.slice().sort((a,b)=>{
     const ad = a.date || '9999'; const bd = b.date || '9999';
@@ -2764,12 +2892,12 @@ function renderProjectMilestones(p){
     <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
     <input type="checkbox" ${m.done?'checked':''} onchange="HANDLERS.toggleProjectMilestone('${p.id}','${m.id}')">
     <span class="pttitle" data-action="openProjectMilestoneForm" data-args='["${p.id}","${m.id}"]' style="cursor:pointer">${escapeHTML(m.title)}</span>
-    ${m.date?`<span class="ptdate" data-action="openProjectMilestoneForm" data-args='["${p.id}","${m.id}"]' style="cursor:pointer">${fmtDateShort(fromKey(m.date))}</span>`:''}
+    ${m.date?`<span class="ptdate" data-action="openProjectMilestoneForm" data-args='["${p.id}","${m.id}"]' style="cursor:pointer" title="${escapeAttr(absDateTitle(m.date))}">${escapeHTML(relDateShort(m.date))}</span>`:''}
     <button class="ptdel" data-action="deleteProjectMilestone" data-args='["${p.id}","${m.id}"]'>×</button>
   </div>`).join('');
 }
 function renderProjectPeople(p){
-  if (!(p.people||[]).length) return `<div class="empty-state">Ingen personer registrert ennå</div>`;
+  if (!(p.people||[]).length) return `<div class="empty-state">Ingen personer registrert ennå${emptyAction('+ Legg til person', act('focusField', 'pp-name'))}</div>`;
   return p.people.map(pp=>`<div class="pperson">
     <span class="ppname">${escapeHTML(pp.name)}</span>
     ${pp.role?`<span class="pprole">${escapeHTML(pp.role)}</span>`:''}
@@ -2783,7 +2911,7 @@ function renderProjectPeople(p){
   </div>`).join('');
 }
 function renderProjectLinks(p){
-  if (!(p.links||[]).length) return `<div class="empty-state">Ingen lenker lagret ennå</div>`;
+  if (!(p.links||[]).length) return `<div class="empty-state">Ingen lenker lagret ennå${emptyAction('+ Legg til lenke', act('focusField', 'pl-title'))}</div>`;
   return p.links.map(l=>`<div class="plink">
     <a href="${escapeAttr(l.url)}" target="_blank" rel="noopener">${escapeHTML(l.title||l.url)}</a>
     <button class="ptdel" data-action="deleteProjectLink" data-args='["${p.id}","${l.id}"]'>×</button>
@@ -2824,15 +2952,15 @@ HANDLERS.toggleProjectTask = (pid,tid,ev)=>{
 HANDLERS.deleteProjectTask = (pid,tid)=>{
   const p=state.projects.find(x=>x.id===pid); if(!p) return;
   const t=(p.tasks||[]).find(x=>x.id===tid);
-  if (!confirm(`Slett oppgaven «${t? t.title : ''}»?`)) return;
-  p.tasks=p.tasks.filter(x=>x.id!==tid); render();
+  if (!deleteWithUndo(()=>_projectArr(pid,'tasks'), tid, `«${t ? t.title : 'oppgaven'}»`)) return;
+  render();
 };
 HANDLERS.toggleProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); const m=p?.milestones.find(x=>x.id===mid); if(m){m.done=!m.done; render();} };
 HANDLERS.deleteProjectMilestone = (pid,mid)=>{
   const p=state.projects.find(x=>x.id===pid); if(!p) return;
   const m=(p.milestones||[]).find(x=>x.id===mid);
-  if (!confirm(`Slett delmålet «${m? m.title : ''}»?`)) return;
-  p.milestones=p.milestones.filter(x=>x.id!==mid); render();
+  if (!deleteWithUndo(()=>_projectArr(pid,'milestones'), mid, `delmålet «${m ? m.title : ''}»`)) return;
+  render();
 };
 
 // Edit an existing milestone. Opens a modal with title + date + done checkbox,
@@ -2871,9 +2999,9 @@ HANDLERS.saveProjectMilestoneForm = (pid, mid)=>{
   closeModal(); render();
 };
 HANDLERS.deleteProjectMilestoneAndClose = (pid, mid)=>{
-  if (!confirm('Slette dette delmålet?')) return;
   const p = state.projects.find(x=>x.id===pid);
-  if (p) p.milestones = p.milestones.filter(x=>x.id!==mid);
+  const m = p ? (p.milestones||[]).find(x=>x.id===mid) : null;
+  if (!deleteWithUndo(()=>_projectArr(pid,'milestones'), mid, `delmålet «${m ? m.title : ''}»`)) return;
   closeModal(); render();
 };
 HANDLERS.addProjectMilestone = (pid)=>{
@@ -2907,8 +3035,8 @@ HANDLERS.setPersonStatus = (pid,ppid,v)=>{ const p=state.projects.find(x=>x.id==
 HANDLERS.deleteProjectPerson = (pid,ppid)=>{
   const p=state.projects.find(x=>x.id===pid); if(!p) return;
   const pe=(p.people||[]).find(x=>x.id===ppid);
-  if (!confirm(`Fjern ${pe && pe.name ? pe.name : 'personen'} fra prosjektet?`)) return;
-  p.people=p.people.filter(x=>x.id!==ppid); render();
+  if (!deleteWithUndo(()=>_projectArr(pid,'people'), ppid, pe && pe.name ? pe.name : 'personen')) return;
+  render();
 };
 HANDLERS.addProjectLink = (pid)=>{
   const t = document.getElementById('pl-title').value.trim();
@@ -2922,11 +3050,20 @@ HANDLERS.addProjectLink = (pid)=>{
 HANDLERS.deleteProjectLink = (pid,lid)=>{
   const p=state.projects.find(x=>x.id===pid); if(!p) return;
   const l=(p.links||[]).find(x=>x.id===lid);
-  if (!confirm(`Slett lenken «${l? (l.title||l.url) : ''}»?`)) return;
-  p.links=p.links.filter(x=>x.id!==lid); render();
+  if (!deleteWithUndo(()=>_projectArr(pid,'links'), lid, `lenken «${l ? (l.title||l.url) : ''}»`)) return;
+  render();
 };
 HANDLERS.archiveProject = (pid)=>{ const p=state.projects.find(x=>x.id===pid); if(p){p.archived=!p.archived; render();} };
-HANDLERS.deleteProject = (pid)=>{ if(!confirm('Slett prosjektet og alt innhold?')) return; state.projects=state.projects.filter(p=>p.id!==pid); state.ui.openProjectId=null; render(); };
+// Bekreftelsen står igjen her: angring dekker prosjektet, men et helt prosjekt med
+// oppgaver, delmål, notater og lenker er for stort tap til å hvile på at hun rekker
+// å se toasten. ADR 0039.
+HANDLERS.deleteProject = (pid)=>{
+  const p = state.projects.find(x=>x.id===pid);
+  if (!confirm('Slett prosjektet og alt innhold?')) return;
+  if (!deleteWithUndo(()=>state.projects, pid, `prosjektet «${p ? p.title : ''}»`)) return;
+  state.ui.openProjectId=null;
+  render();
+};
 
 // Project create/edit form (top-level fields only)
 function openProjectForm(id){
@@ -3133,8 +3270,10 @@ function renderTodos(){
   viewEl.innerHTML = `
     <div class="subnav">
       <h2>To Do's</h2>
+      <button class="today-btn" data-action="toggleSelectMode">${_selMode ? '✕ Avslutt valg' : '☑ Velg flere'}</button>
     </div>
-    <div class="todo-quick">
+    ${_selMode ? bulkBarHTML(projectsList) : ''}
+    <div class="todo-quick${_selMode ? ' hidden' : ''}">
       <input class="qtxt" id="qt-input" type="text" placeholder="Skriv en To Do og trykk Enter, eller bruk knappene under…" autofocus>
       <div class="qbtns">
         <button data-action="quickAddTodo" data-args='["inbox"]'>→ Innboks</button>
@@ -3179,7 +3318,7 @@ function renderTodos(){
     ${todoBucketHTML('↗ Short term', 'short', shortTerm, projectsList)}
     ${todoBucketHTML('⤳ Long term', 'long', longTerm, projectsList)}
 
-    ${done.length ? `
+    ${done.length && !_selMode ? `
       <div style="margin:18px 0 0;text-align:center">
         <button data-action="toggleShowCompleted" style="padding:6px 14px;font-size:12.5px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">${state.ui.showCompletedTodos?'Skjul fullførte':'Vis fullførte ('+done.length+')'}</button>
       </div>
@@ -3199,8 +3338,9 @@ function renderTodos(){
       HANDLERS.quickAddTodo('inbox');
     }
   });
-  // Wire up drag-to-reorder within each bucket (date trumps manual order in sort)
-  viewEl.querySelectorAll('.todo-bucket').forEach(bucket=>{
+  // Wire up drag-to-reorder within each bucket (date trumps manual order in sort).
+  // I velg-modus er radene ikke draggable — da er det ingenting å koble opp.
+  if (!_selMode) viewEl.querySelectorAll('.todo-bucket').forEach(bucket=>{
     const prio = bucket.dataset.prio;
     if (prio === '' || prio === 'urgent' || prio === 'short' || prio === 'long'){
       setupListReorder(bucket, '.todo-row[data-task-kind="freetask"]', (draggedId, targetId, before)=>{
@@ -3229,15 +3369,140 @@ function renderTodos(){
           HANDLERS.inboxToTodo(id, 'short');
         }
       },
-      // Left swipe → delete (with confirm)
+      // Venstresveip → slett. Bekreftelsesdialogen er borte: et sveip er nettopp
+      // gesten man gjør ved et uhell, og angre-knappen i toasten er et bedre svar
+      // på det enn en dialog man rekker å trykke bort like refleksivt. ADR 0039.
       ()=>{
-        const label = kind === 'freetask' ? 'oppgaven' : 'innboks-elementet';
-        if (!confirm(`Slett ${label}?`)) return;
         if (kind === 'freetask') HANDLERS.deleteFreeTask(id);
         else if (kind === 'inbox') HANDLERS.deleteInbox(id);
       }
     );
   });
+}
+
+// ---------------------------------------------------------------------------
+// MASSEREDIGERING AV TO DO'S (ADR 0042)
+// 108 oppgaver, 23 av dem uten frist. Å gi dem datoer én og én er trettende nok
+// til at det ikke blir gjort. Utvalget lever bevisst utenfor `state`: det er
+// arbeidsminne, ikke data, og en avkryssing som overlevde en omstart ville vært
+// et gjenferd. Derfor heller ingen `saveState()` når utvalget endres — men
+// render() lagrer uansett på slutten, så det er ingen ekstra skriving.
+// ---------------------------------------------------------------------------
+let _selMode = false;
+const _selIds = new Set();
+
+function _selReset(){ _selMode = false; _selIds.clear(); }
+
+// Oppgavene velg-modus opererer på: frie, ikke fullførte, og synlige under
+// gjeldende filter — nøyaktig de radene som faktisk står på skjermen.
+function _selectableTasks(){
+  return (state.tasks || []).filter(t => !t.done && passesFilter(t));
+}
+
+// Bare id-er som fortsatt finnes. Et sky-pull kan ha fjernet noe mens utvalget sto.
+function _selectedTasks(){
+  const ids = _selIds;
+  return (state.tasks || []).filter(t => ids.has(t.id));
+}
+
+HANDLERS.toggleSelectMode = ()=>{
+  _selMode = !_selMode;
+  if (!_selMode) _selIds.clear();
+  render();
+};
+
+HANDLERS.toggleSelectTask = (id)=>{
+  if (_selIds.has(id)) _selIds.delete(id); else _selIds.add(id);
+  render();
+};
+
+HANDLERS.selectAllTodos = ()=>{
+  const all = _selectableTasks();
+  // Samme knapp slår av igjen når alt allerede er valgt.
+  if (all.length && all.every(t=>_selIds.has(t.id))) _selIds.clear();
+  else all.forEach(t=>_selIds.add(t.id));
+  render();
+};
+
+HANDLERS.bulkSetDue = (val)=>{
+  const sel = _selectedTasks();
+  if (!sel.length) return;
+  // Tom verdi fra datofeltet betyr «fjern frist» — det er den eneste måten å tømme
+  // et <input type="date"> på, og «uten frist» er en gyldig tilstand her.
+  sel.forEach(t=>{ if (val) t.due = val; else delete t.due; });
+  showToast(val ? `Frist satt på ${sel.length} oppgaver` : `Frist fjernet fra ${sel.length} oppgaver`);
+  _selReset();
+  render();
+};
+
+HANDLERS.bulkSetProject = (val)=>{
+  const sel = _selectedTasks();
+  if (!sel.length || !val) return;
+  const none = val === '__none__';
+  const p = none ? null : (state.projects || []).find(x=>x.id===val);
+  if (!none && !p) return;
+  sel.forEach(t=>{ if (none) delete t.projectId; else t.projectId = p.id; });
+  showToast(none ? `Prosjekt fjernet fra ${sel.length} oppgaver` : `${sel.length} oppgaver flyttet til «${p.title}»`);
+  _selReset();
+  render();
+};
+
+HANDLERS.bulkDone = ()=>{
+  const sel = _selectedTasks();
+  if (!sel.length) return;
+  sel.forEach(t=>_setDone(t, true));   // én dør for done/doneAt/status — ADR 0037
+  showToast(`${sel.length} oppgaver markert som gjort`);
+  _selReset();
+  render();
+};
+
+// Massesletting beholder bekreftelsen: angring dekker den, men et feilklikk her
+// tar mange rader på én gang, og toasten rekker man ikke alltid. ADR 0039.
+HANDLERS.bulkDelete = ()=>{
+  const sel = _selectedTasks();
+  if (!sel.length) return;
+  if (!confirm(`Slett ${sel.length} ${sel.length===1?'oppgave':'oppgaver'}?`)) return;
+  const ids = new Set(sel.map(t=>t.id));
+  // Indeksene fanges før fjerningen og settes inn igjen i stigende rekkefølge, slik at
+  // rekkefølgen i lista blir den samme. Gjenopprettingen er additiv — den skriver aldri
+  // over hele lista — så en sky-oppdatering i mellomtiden overlever angringen.
+  const removed = [];
+  (state.tasks || []).forEach((t, i)=>{ if (ids.has(t.id)) removed.push({ i, t }); });
+  state.tasks = (state.tasks || []).filter(t=>!ids.has(t.id));
+  registerUndo(`${removed.length} ${removed.length===1?'oppgave':'oppgaver'}`, ()=>{
+    const arr = state.tasks;
+    if (!Array.isArray(arr)) return false;
+    removed.forEach(({ i, t })=>{
+      if (!arr.some(x=>x && x.id===t.id)) arr.splice(Math.min(i, arr.length), 0, t);
+    });
+    return true;
+  });
+  _selReset();
+  render();
+};
+
+// Handlingslinja. Datofeltet har stabil id (render-kontrakten, ADR 0029) og
+// anvendes på `change` — ingen verdi blir stående og vente på en «Bruk»-knapp som
+// en bakgrunns-render kunne rukket å tømme.
+function bulkBarHTML(projectsList){
+  const n = _selIds.size;
+  const all = _selectableTasks();
+  const allSelected = all.length > 0 && all.every(t=>_selIds.has(t.id));
+  return `<div class="bulkbar" id="bulkbar">
+    <span class="bb-count">${n} valgt</span>
+    <button data-action="selectAllTodos">${allSelected ? 'Fjern alle' : `Velg alle (${all.length})`}</button>
+    ${n ? `
+      <label class="bb-field">Frist <input type="date" id="bulk-due" onchange="HANDLERS.bulkSetDue(this.value)"></label>
+      <select id="bulk-proj" onchange="if(this.value)HANDLERS.bulkSetProject(this.value)">
+        <option value="">▸ Prosjekt…</option>
+        <option value="__none__">— fjern prosjekt —</option>
+        ${projectsList}
+      </select>
+      <button data-action="bulkDone">✓ Merk gjort</button>
+      <button data-action="bulkDelete" class="danger">× Slett</button>
+    ` : '<span class="bb-hint">Kryss av radene du vil endre</span>'}
+    <button data-action="toggleSelectMode" class="bb-cancel">Avbryt</button>
+  </div>`;
 }
 
 function todoBucketHTML(label, prio, items, projectsList, hint){
@@ -3249,17 +3514,36 @@ function todoBucketHTML(label, prio, items, projectsList, hint){
 }
 
 function todoRowHTML(t, projectsList){
-  const due = t.due ? `<span class="due">· ${fmtDateShort(fromKey(t.due))}</span>` : '';
+  // Relativ dato (ADR 0040) med den absolutte i title. Rød når fristen er passert —
+  // ordene alene («2 dager på overtid») bærer det, men fargen fanger blikket først.
+  const todayK = todayKey();
+  const overdue = t.due && !t.done && t.due < todayK;
+  const due = t.due
+    ? `<span class="due${overdue?' overdue':''}" title="${escapeAttr(absDateTitle(t.due))}">· ${escapeHTML(relDateLabel(t.due, todayK))}</span>`
+    : '';
   // Project-tag — clicking removes the tag (returns the task to an untagged state).
   // Title attribute documents the click behaviour.
   const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
   // Chip i stedet for «· tittel» i kursiv: taggen ER bæreren av prosjekt-tilhørigheten,
   // og så lenge den så ut som en fotnote følte man behov for å skrive «Meox:» i tittelen
-  // i tillegg. ADR 0035.
-  const projTag = proj ? `<span class="proj-chip" data-action="untagTaskProject" data-args='["${t.id}"]' data-stop="1" title="Klikk for å fjerne prosjekt-tag">${escapeHTML(proj.title)}</span>` : '';
+  // i tillegg. ADR 0035. Fargen kommer fra tittelen — ADR 0041.
+  const projTag = proj ? projChipHTML(proj.title, `data-action="untagTaskProject" data-args='["${t.id}"]' data-stop="1" title="Klikk for å fjerne prosjekt-tag"`) : '';
   const isPrivat = t.category === 'privat';
   const catColor = isPrivat ? 'var(--privat)' : 'var(--work)';
   const catTitle = isPrivat ? 'Kategori: Privat — klikk for Jobb' : 'Kategori: Jobb — klikk for Privat';
+  // Velg-modus (ADR 0042): raden bytter ut draghåndtak, ferdig-boks og handlinger med
+  // én avkryssingsboks. To avkryssingsbokser ved siden av hverandre — «valgt» og
+  // «ferdig» — ville vært umulig å skille på et halvsekunds blikk.
+  if (_selMode){
+    const on = _selIds.has(t.id);
+    // Chipen rendres UTEN fjern-taggen-handlingen her: hele raden er en velg-flate, og et
+    // klikk på chipen skal velge raden — ikke stille fjerne prosjekttilknytningen.
+    const plainTag = proj ? projChipHTML(proj.title) : '';
+    return `<div class="todo-row selectable ${on?'selected':''} ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="freetask" ${act('toggleSelectTask', t.id)}>
+      <input type="checkbox" class="selbox" ${on?'checked':''} ${act('toggleSelectTask', t.id)} data-stop="1">
+      <span class="ttitle">${escapeHTML(t.title)} ${due} ${plainTag}</span>
+    </div>`;
+  }
   return `<div class="todo-row ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="freetask" draggable="true" ondragstart="HANDLERS.todoDragStart(event,'${t.id}','task')" ondragend="HANDLERS.todoDragEnd(event)">
     <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
@@ -3417,7 +3701,8 @@ HANDLERS.inboxToProject = (inboxId, projectId)=>{
 };
 
 HANDLERS.deleteFreeTask = (id)=>{
-  state.tasks = state.tasks.filter(x=>x.id!==id);
+  const t = (state.tasks||[]).find(x=>x.id===id);
+  if (!deleteWithUndo(()=>state.tasks, id, `«${t ? t.title : 'oppgaven'}»`)) return;
   render();
 };
 
@@ -3833,7 +4118,7 @@ function renderDay(){
       <div class="day-side">
         <div class="panel tasks-block">
           <h4>Oppgaver i dag <button class="add-link" data-action="openTaskFormWithDate" data-args='["${key}"]' style="float:right;font-size:12px;color:var(--ink-soft)">+ Ny</button></h4>
-          ${tks.length?`<ul>${tks.map(t=>taskRowHTML(t)).join('')}</ul>`:`<div class="empty-state">${I18N.noTasks}</div>`}
+          ${tks.length?`<ul>${tks.map(t=>taskRowHTML(t)).join('')}</ul>`:`<div class="empty-state">${I18N.noTasks}${emptyAction('+ Ny oppgave', act('openTaskFormWithDate', key))}</div>`}
         </div>
         <div class="panel">
           <h4>Notater</h4>
@@ -3954,7 +4239,7 @@ function taskRowHTML(t){
   }
   const prioPill = t.priority ? `<span class="pill prio-${t.priority}" style="margin-right:4px">${PRIO_BY_ID[t.priority]?.short||t.priority}</span>` : '';
   const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
-  const projTag = proj ? `<span class="proj-chip">${escapeHTML(proj.title)}</span>` : '';
+  const projTag = projChipHTML(proj ? proj.title : '');
   return `<li class="${t.done?'done':''}" draggable="true" ondragstart="HANDLERS.taskToTimeStart(event,'${t.id}','task')">
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
     <span class="tt" data-action="openTaskForm" data-args='["${t.id}"]'>${prioPill}${escapeHTML(t.title)}${projTag}</span>
@@ -4136,7 +4421,7 @@ HANDLERS.deleteEvent = id => {
   if (e && e.recurring){
     if (!confirm('Dette er en gjentakende hendelse. Slette ALLE forekomster?')) return;
   }
-  state.events = state.events.filter(x=>x.id!==baseId);
+  if (!deleteWithUndo(()=>state.events, baseId, `«${e ? e.title : 'hendelsen'}»`)) return;
   closeModal(); render();
 };
 
@@ -4214,7 +4499,11 @@ HANDLERS.saveTaskForm = id=>{
   } else { state.tasks.push(Object.assign({id:uid(),done:false}, data)); }
   closeModal(); render();
 };
-HANDLERS.deleteTask = id => { state.tasks = state.tasks.filter(x=>x.id!==id); closeModal(); render(); };
+HANDLERS.deleteTask = id => {
+  const t = (state.tasks||[]).find(x=>x.id===id);
+  if (!deleteWithUndo(()=>state.tasks, id, `«${t ? t.title : 'oppgaven'}»`)) return;
+  closeModal(); render();
+};
 
 
 
@@ -4266,7 +4555,11 @@ HANDLERS.qcSave = (kind, projectId)=>{
   }
   closeModal(); render();
 };
-HANDLERS.deleteInbox = id => { state.inbox = state.inbox.filter(x=>x.id!==id); render(); };
+HANDLERS.deleteInbox = id => {
+  const i = (state.inbox||[]).find(x=>x.id===id);
+  if (!deleteWithUndo(()=>state.inbox, id, `«${i ? i.text : 'innboks-elementet'}»`)) return;
+  render();
+};
 
 // ============================================================
 // "MER" menu (mobile-only secondary nav)
@@ -4499,7 +4792,7 @@ HANDLERS.openWeekReview = ()=>{
     const label = dateField === 'doneAt'
       ? ((t.doneAt||'').slice(0,10) ? fmtDateShort(fromKey((t.doneAt||'').slice(0,10))) : '–')
       : (t.due ? fmtDateShort(fromKey(t.due)) : '–');
-    const chip = t._projectTitle ? `<span class="proj-chip">${escapeHTML(t._projectTitle)}</span>` : '';
+    const chip = projChipHTML(t._projectTitle);
     return `<div class="wr-row" ${click}>
       <span class="wr-date">${label}</span>
       <span class="wr-title">${isMs?'◆ ':''}${escapeHTML(t.title)}${chip}</span>
@@ -6000,14 +6293,88 @@ function _focusLater(id, ms){
   setTimeout(()=>{ const el = document.getElementById(id); if (el) el.focus(); }, ms || 50);
 }
 
-function showToast(msg, duration){
+// En toast om gangen. To samtidige la seg oppå hverandre i samme hjørne — med
+// angre-knappen i toasten ble det plutselig viktig, for da kan den nederste være
+// den eneste veien tilbake til slettede data.
+// `undoAction` er `{label, action}` der action er et HANDLERS-navn; knappen får
+// data-action og går gjennom den vanlige dispatcheren (ADR 0012).
+function showToast(msg, duration, undoAction){
   duration = duration || 3000;
+  document.querySelectorAll('.toast').forEach(el=>{ if (el.parentNode) el.parentNode.removeChild(el); });
   const t = document.createElement('div');
-  t.style.cssText = 'position:fixed;bottom:90px;right:24px;background:var(--accent);color:#fff;padding:12px 18px;border-radius:8px;font-size:13.5px;z-index:200;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:300px';
-  t.textContent = msg;
+  t.className = 'toast';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  t.appendChild(span);
+  if (undoAction && undoAction.action){
+    const b = document.createElement('button');
+    b.className = 'toast-action';
+    b.textContent = undoAction.label || 'Angre';
+    b.dataset.action = undoAction.action;
+    t.appendChild(b);
+  }
   document.body.appendChild(t);
   setTimeout(()=>{ if (t.parentNode) t.parentNode.removeChild(t); }, duration);
 }
+
+// ---------------------------------------------------------------------------
+// ANGRE SLETTING (ADR 0039)
+// Sletting var endelig: `confirm()` var hele sikkerhetsnettet, og på × for en fri
+// To Do fantes ikke engang det. Ett angrepunkt om gangen, åtte sekunder, knapp i
+// toasten. Bekreftelsesdialogene på enkeltelementer er fjernet i samme slengen —
+// to sikkerhetsnett som gjør samme jobb betyr bare at man klikker seg gjennom det
+// ene uten å lese det. `confirm()` står igjen der angring ikke dekker hele tapet:
+// et helt prosjekt, alle forekomster av en gjentakende hendelse, massesletting.
+// ---------------------------------------------------------------------------
+const UNDO_MS = 8000;
+let _undoEntry = null;
+let _undoTimer = null;
+
+function _clearUndo(){
+  if (_undoTimer){ clearTimeout(_undoTimer); _undoTimer = null; }
+  _undoEntry = null;
+}
+
+function registerUndo(label, restore){
+  if (typeof restore !== 'function') return;
+  _undoEntry = { label: label || 'slettingen', restore };
+  if (_undoTimer) clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(()=>{ _undoEntry = null; _undoTimer = null; }, UNDO_MS);
+  showToast(`Slettet ${label}`, UNDO_MS, { label: '↩ Angre', action: 'undoLast' });
+}
+
+// Fjerner ett element fra en liste og registrerer angrepunktet. `getArr` slås opp
+// på nytt ved gjenoppretting i stedet for å fanges: et sky-pull mellom sletting og
+// angring bytter ut hele `state`, og en fanget array-referanse ville da vært
+// frakoblet — angringen hadde sett ut til å lykkes uten å endre noe synlig.
+// Returnerer det fjernede objektet, eller null om det ikke fantes.
+function deleteWithUndo(getArr, id, label){
+  const arr = getArr();
+  if (!Array.isArray(arr)) return null;
+  const i = arr.findIndex(x => x && x.id === id);
+  if (i < 0) return null;
+  const removed = arr.splice(i, 1)[0];
+  registerUndo(label, ()=>{
+    const a = getArr();
+    if (!Array.isArray(a)) return false;
+    if (a.some(x => x && x.id === removed.id)) return true;
+    a.splice(Math.min(i, a.length), 0, removed);
+    return true;
+  });
+  return removed;
+}
+
+HANDLERS.undoLast = ()=>{
+  const entry = _undoEntry;
+  _clearUndo();
+  if (!entry){ showToast('Ingenting å angre'); return; }
+  let ok = false;
+  try { ok = entry.restore() !== false; }
+  catch (err){ console.warn('[undo] gjenoppretting feilet', err); ok = false; }
+  if (!ok){ showToast('Kunne ikke angre — plasseringen finnes ikke lenger'); return; }
+  render();
+  showToast('Angret');
+};
 
 // Voice capture — converts speech to text and adds to inbox.
 HANDLERS.startVoiceCapture = ()=>{

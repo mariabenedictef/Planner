@@ -6,6 +6,21 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-13 — Angring, relative datoer, prosjektfarger, masseredigering, tomme tilstander og iPhone
+
+Seks punkter, alle visuelle eller brukervennlighetsrettet. ADR 0039–0044.
+
+- **Angre sletting.** Sletting var endelig — og på × for en fri To Do fantes ikke engang en bekreftelse. Alle elleve slettehandlinger går nå gjennom `deleteWithUndo` og gir en toast med «↩ Angre» i åtte sekunder. Ctrl/Cmd+Z virker også, utenfor skrivefelt. Bekreftelsesdialogene er fjernet for enkeltelementer (to sikkerhetsnett som gjør samme jobb betyr bare at man slutter å lese det ene) og beholdt der angring ikke dekker hele tapet: hele prosjektet, alle forekomster av en gjentakende hendelse, massesletting. Gjenopprettingen slår opp lista på nytt, så et sky-pull i mellomtiden ikke gjør angringen til en stille no-op.
+- **Relative datoer.** «12. aug» krevde hoderegning i hver rad. Nå står det «i dag», «i morgen», «om 3 dager», «2 dager på overtid» innenfor ±7 dager — med absolutt dato i `title` og utenfor vinduet. Gjelder To Do-lista, Urgent på Hjem, prosjektkortene, prosjektsidens oppgaver og delmål, og kanban-kortene. Datointervaller beholder absolutte datoer i begge ender. `Math.round` og ikke `floor`: et døgn over sommertidsskiftet er 25 timer, og suiten sjekker begge skiftene i 2026 i to tidssoner.
+- **Fast farge per prosjekt,** utledet av tittelen. Chipen var grå overalt, så en tagget oppgave måtte leses for å plasseres. Samme prosjekt får samme nyanse på PC og telefon uten at noe synkroniseres, og prosjektkortet får den som venstrekant — så kortet og den taggede oppgaven kjennes igjen som samme sak. Metning og lyshet ligger i CSS, én gang for lys og én for mørk modus. Chipen rendres nå fra én funksjon i stedet for seks strengkonkateneringer.
+- **Masseredigering av To Do's.** 23 oppgaver uten frist er trettende å datere én og én. «☑ Velg flere» gir avkryssingsbokser og en handlingslinje: sett eller fjern frist, flytt til prosjekt eller fjern taggen, merk gjort, slett. «Merk gjort» går gjennom `_setDone`, så `doneAt` blir stemplet og ukesoppsummeringen ser dem. Massesletting spør først og kan angres i én operasjon, med rekkefølgen intakt. Utvalget lagres ikke — det er arbeidsminne, og en avkryssing som overlevde en omstart ville vært et gjenferd.
+- **Tomme tilstander som fører videre.** Ni av dem har fått en knapp: «+ Ny oppgave», «+ Legg til person», «+ Legg til lenke». De som peker på et felt lenger ned på siden har en test som sjekker at feltet faktisk finnes i DOM. «Ingen urgent-saker — godt jobba» har med vilje ingen knapp.
+- **iPhone-gjennomgangen fant to døde CSS-regler.** Media-blokkene for telefon ligger midt i stilarket, og to basisregler lenger ned overstyrte dem: handlingsknappene i To Do-radene var **usynlige** på iPhone men tok fortsatt 126 px høyde i hver rad, og draghåndtaket sto der på touch hvor dra ikke virker i det hele tatt. Målt radhøyde 172 px mot 42 på desktop — fire oppgaver fylte skjermen. Radene viser nå ✎ og × på telefon (prioritet og prosjekt ligger i skjemaet ✎ åpner, og for flere rader finnes velg-modus), tittelen wrapper internt i stedet for å dytte avkryssingsboksen alene opp på egen linje, bøtteoverskriften legger seg ikke lenger oppå hjelpeteksten, og «legg til»-feltene på prosjektsiden er ikke lenger klippet av høyre kant. **Median radhøyde 172 → 60 px.** Nye mobilregler må ligge nederst i arket — det står i en kommentar der.
+
+Testsuiten: 364 → 460 assertions. 11 feiler mot forrige commit, fordelt på alle fem nye seksjoner. Skjermbilder i to bredder, lys og mørk modus; telefonbredden emuleres med blink-flagg, for `viewport: 390px` alene matcher ikke `@media (hover: none)` og måler da en smal skjerm med mus.
+
+---
+
 ## 2026-08-12 (natt) — Dealflow som brett, hurtigtaster, uten-frist og ukesoppsummering
 
 Fire ting, hvorav den første lukker det siste punktet fra revisjonen. ADR 0037 og 0038.
