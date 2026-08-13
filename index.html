@@ -1174,6 +1174,24 @@
   .todo-row .actions .ag{color:var(--alert);border-color:transparent}
   .todo-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent)}
   .todo-empty{padding:14px 16px;color:var(--ink-muted);font-style:italic;font-size:13px;text-align:center}
+
+  /* «Fra prosjekter»-bøtta (ADR 0045). Dempet overskrift — den skal ikke konkurrere med
+     Urgent/Short/Long, som er hennes egen prioritering. Gruppeoverskriften bærer
+     prosjektets farge fra --pc-h (ADR 0041), så raden kjennes igjen fra kortet. */
+  .todo-bucket .bh.proj{background:var(--surface-2);color:var(--ink-soft)}
+  .proj-bucket .ptgroup + .ptgroup{border-top:1px solid var(--line)}
+  .ptgroup-head{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;
+    background:var(--surface);border-top:1px solid var(--line-soft);
+    box-shadow:inset 3px 0 0 hsl(var(--pc-h, 220), 40%, 72%)}
+  .ptgroup-head:hover{background:var(--surface-2)}
+  .ptgroup-head .ptgroup-name{font-size:12px;font-weight:600;letter-spacing:.2px;
+    color:hsl(var(--pc-h, 220), 42%, 33%)}
+  .ptgroup-head .ptgroup-count{font-size:11px;color:var(--ink-muted)}
+  [data-theme="dark"] .ptgroup-head{box-shadow:inset 3px 0 0 hsl(var(--pc-h, 220), 30%, 46%)}
+  [data-theme="dark"] .ptgroup-head .ptgroup-name{color:hsl(var(--pc-h, 220), 46%, 76%)}
+  /* Prosjektoppgaverader har to handlinger, ikke ni — de skal ikke hoppe i bredden. */
+  .ptodo-row .actions{min-width:0}
+  .ptodo-row.done .ttitle{text-decoration:line-through;color:var(--ink-muted)}
   .lrow.ics .ldate{opacity:.7}
   .pill.ics{background:#5b8db8}
   .sync-status{font-size:11.5px;color:var(--ink-muted)}
@@ -1222,26 +1240,28 @@
          HTML5-dra ikke virker i det hele tatt.
      Nye mobiloverstyringer hører derfor hjemme HER, nederst. */
   @media (max-width: 700px){
-    /* Frie To Do-rader: bare rediger og slett i selve raden. Prioritet, prosjekt,
-       frist og kategori ligger alle i oppgaveskjemaet ✎ åpner — ett trykk unna — og
-       for flere rader samtidig finnes velg-modus (ADR 0042). Ni kontroller per rad
-       ga tre skjermer med rulling for fire oppgaver. */
-    .todo-row[data-task-kind="freetask"] .actions{
+    /* Oppgaverader — frie og prosjektoppgaver (ADR 0045): bare ✎ (og × der den finnes)
+       i selve raden. Prioritet, prosjekt, frist og kategori ligger alle i skjemaet ✎
+       åpner — ett trykk unna — og for flere rader samtidig finnes velg-modus (ADR 0042).
+       Ni kontroller per rad ga tre skjermer med rulling for fire oppgaver.
+       `:not(inbox)` framfor å liste opp typer: innboksen er unntaket, ikke regelen. */
+    .todo-row:not([data-task-kind="inbox"]) .actions{
       opacity:1; flex:0 0 auto; padding-left:0; gap:4px; justify-content:flex-end}
-    .todo-row[data-task-kind="freetask"] .actions > *{display:none}
-    .todo-row[data-task-kind="freetask"] .actions > .ag{
+    .todo-row:not([data-task-kind="inbox"]) .actions > *{display:none}
+    .todo-row:not([data-task-kind="inbox"]) .actions > .ag{
       display:inline-flex; align-items:center; justify-content:center;
       min-width:40px; min-height:40px; font-size:16px}
     /* ✎ er ikke destruktiv. `.ag` farget begge røde, og på telefonen — der de er de
-       eneste to knappene — leste blyanten som en slett-knapp nummer to. */
-    .todo-row[data-task-kind="freetask"] .actions > .ag[data-action="openTaskForm"]{color:var(--ink-soft)}
+       eneste knappene — leste blyanten som en slett-knapp nummer to. */
+    .todo-row:not([data-task-kind="inbox"]) .actions > .ag[data-action="openTaskForm"],
+    .todo-row:not([data-task-kind="inbox"]) .actions > .ag[data-action="openProjectTaskForm"]{color:var(--ink-soft)}
     /* Fast tre-kolonners rad: avkryssing | tittel | ✎ ×. Med `flex-wrap:wrap` på raden
        dyttet en lang tittel seg selv ned på ny flex-linje og etterlot avkryssingsboksen
        alene øverst og knappene på en tredje linje — 134 px for én oppgave. Tittelen får
        wrappe internt i stedet, så dato og prosjekt-chip legger seg under teksten. */
-    .todo-row[data-task-kind="freetask"]{flex-wrap:nowrap; align-items:flex-start}
-    .todo-row[data-task-kind="freetask"] input[type=checkbox]{margin-top:2px}
-    .todo-row[data-task-kind="freetask"] .ttitle{
+    .todo-row:not([data-task-kind="inbox"]){flex-wrap:nowrap; align-items:flex-start}
+    .todo-row:not([data-task-kind="inbox"]) input[type=checkbox]{margin-top:2px}
+    .todo-row:not([data-task-kind="inbox"]) .ttitle{
       flex:1 1 auto; min-width:0; flex-wrap:wrap; row-gap:2px; align-items:baseline}
     /* Innboksen beholder hele knapperaden: der ER trikset å sortere med ⚠ ↗ ⤳. */
     .todo-row[data-task-kind="inbox"] .actions{opacity:1}

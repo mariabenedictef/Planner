@@ -6,6 +6,21 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-08-13 (kveld) — Prosjektoppgaver synes i To Do's, begge veier
+
+Toveisheten var halv: en fri To Do tagget til et prosjekt har vist seg inne i prosjektet siden ADR 0033/0037, men prosjektenes egne underoppgaver var usynlige i To Do's — der hun faktisk jobber. ADR 0045.
+
+- **Ny bøtte «◈ Fra prosjekter»** under Urgent/Short/Long, gruppert per prosjekt med prosjektets egen farge på gruppeoverskriften. Sortert etter tidligste frist, både gruppene og radene. Elleve underoppgaver i dine data, fordelt på fem prosjekter — flere med frister som alt var passert.
+- **Ikke blandet inn i prioritetsbøttene med vilje.** Prosjektoppgaver har ingen prioritet, så alle ville havnet i «Ukategorisert» — bøtta du bruker til «disse trenger en plassering» — og druknet den.
+- **Samme objekt, ikke en kopi.** Å krysse av i To Do's *er* å krysse av på prosjektsiden; det finnes ingen andre kopi som kan komme i utakt. Gjentakelse og `doneAt` oppfører seg identisk begge steder.
+- **Tre handlinger i raden:** kryss av, «▸ Utsett», ✎ for å åpne. Ingen slett — sletting av prosjektinnhold hører hjemme der resten av saken er synlig. Venstresveip er koblet fra for disse radene; høyresveip fullfører som ellers.
+- Taggede frie To Do's **dobbeltføres ikke** — de står allerede i prioritetsbøttene. Arkiverte prosjekter er utelatt, Jobb/Privat-filteret følger prosjektets kategori, bøtta vises ikke når den er tom, og den skjules i velg-modus (prosjektoppgaver er ikke med i masseredigering).
+- Mobilreglene fra ADR 0044 gjelder nå alle oppgaverader, ikke bare frie — `:not([data-task-kind="inbox"])` framfor en liste over typer.
+
+Testsuiten: 460 → 495 assertions, og de nye dekker **begge** retningene eksplisitt. 8 feiler mot forrige commit.
+
+---
+
 ## 2026-08-13 — Angring, relative datoer, prosjektfarger, masseredigering, tomme tilstander og iPhone
 
 Seks punkter, alle visuelle eller brukervennlighetsrettet. ADR 0039–0044.

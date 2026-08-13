@@ -3318,6 +3318,8 @@ function renderTodos(){
     ${todoBucketHTML('↗ Short term', 'short', shortTerm, projectsList)}
     ${todoBucketHTML('⤳ Long term', 'long', longTerm, projectsList)}
 
+    ${_selMode ? '' : projectTodosBucketHTML()}
+
     ${done.length && !_selMode ? `
       <div style="margin:18px 0 0;text-align:center">
         <button data-action="toggleShowCompleted" style="padding:6px 14px;font-size:12.5px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">${state.ui.showCompletedTodos?'Skjul fullførte':'Vis fullførte ('+done.length+')'}</button>
@@ -3342,6 +3344,9 @@ function renderTodos(){
   // I velg-modus er radene ikke draggable — da er det ingenting å koble opp.
   if (!_selMode) viewEl.querySelectorAll('.todo-bucket').forEach(bucket=>{
     const prio = bucket.dataset.prio;
+    // «Fra prosjekter» sorteres etter frist innenfor hvert prosjekt (ADR 0045) —
+    // manuell rekkefølge der bor på prosjektsiden, så ingen omsortering her.
+    if (bucket.classList.contains('proj-bucket')) return;
     if (prio === '' || prio === 'urgent' || prio === 'short' || prio === 'long'){
       setupListReorder(bucket, '.todo-row[data-task-kind="freetask"]', (draggedId, targetId, before)=>{
         reorderFreeTasksByPriority(prio, draggedId, targetId, before);
@@ -3364,6 +3369,9 @@ function renderTodos(){
           const t = state.tasks.find(x=>x.id===id); if (!t) return;
           row.classList.add('completing');
           setTimeout(()=>{ _setDone(t, !t.done); render(); }, 380);
+        } else if (kind === 'projecttask'){
+          // Samme dør som avkryssingsboksen, så gjentakelse og doneAt håndteres likt.
+          HANDLERS.toggleProjectTask(row.dataset.projectId, id);
         } else if (kind === 'inbox'){
           // Inbox can't be "done"; swipe right promotes to short-term
           HANDLERS.inboxToTodo(id, 'short');
@@ -3372,6 +3380,8 @@ function renderTodos(){
       // Venstresveip → slett. Bekreftelsesdialogen er borte: et sveip er nettopp
       // gesten man gjør ved et uhell, og angre-knappen i toasten er et bedre svar
       // på det enn en dialog man rekker å trykke bort like refleksivt. ADR 0039.
+      // Prosjektoppgaver er med vilje ikke med her: sletting av prosjektinnhold hører
+      // hjemme på prosjektsiden, der resten av saken er synlig. ADR 0045.
       ()=>{
         if (kind === 'freetask') HANDLERS.deleteFreeTask(id);
         else if (kind === 'inbox') HANDLERS.deleteInbox(id);
@@ -3502,6 +3512,89 @@ function bulkBarHTML(projectsList){
       <button data-action="bulkDelete" class="danger">× Slett</button>
     ` : '<span class="bb-hint">Kryss av radene du vil endre</span>'}
     <button data-action="toggleSelectMode" class="bb-cancel">Avbryt</button>
+  </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// «FRA PROSJEKTER» I TO DO'S (ADR 0045)
+// Prosjektenes egne underoppgaver fantes bare inne i hvert prosjekt. Hun jobber
+// fra To Do's, så de var usynlige der hun faktisk ser — mens motsatt retning
+// (taggede frie To Do's inn i prosjektet) har virket siden ADR 0033/0037.
+//
+// Egen bøtte under de fire prioritetsbøttene, gruppert per prosjekt. Ikke blandet
+// inn i Urgent/Short/Long: prosjektoppgaver har ingen `priority`, så alle ville
+// havnet i «Ukategorisert» — bøtta hun bruker til «disse trenger en plassering» —
+// og druknet den i tretti rader den ikke handler om.
+//
+// Det er SAMME objekt som på prosjektsiden, ikke en kopi. Derfor er toveis-
+// oppdateringen ikke en synkronisering som kan drifte: å krysse av her ér å krysse
+// av der. `toggleProjectTask` er den samme døren begge steder.
+// ---------------------------------------------------------------------------
+
+// Bare prosjektenes EGNE underoppgaver. Taggede frie To Do's står allerede i
+// prioritetsbøttene over; å ta dem med her ville vist dem to ganger på samme side.
+function projectTodoGroups(){
+  const groups = [];
+  (state.projects || []).forEach(p=>{
+    if (p.archived || !passesFilter(p)) return;
+    const own = p.tasks || [];
+    const open = own.filter(t=>!t.done).sort(_dateThenOrderCmp);
+    const done = state.ui.showCompletedTodos ? own.filter(t=>t.done).sort(_dateThenOrderCmp) : [];
+    if (!open.length && !done.length) return;
+    // Gruppene sorteres etter tidligste åpne frist, som prosjektkortene — det som
+    // forfaller først skal stå øverst. Uten frist sist.
+    const first = open.find(t=>t.due);
+    groups.push({ p, open, done, sortKey: first ? first.due : '9999-99-99' });
+  });
+  groups.sort((a,b)=> a.sortKey !== b.sortKey
+    ? a.sortKey.localeCompare(b.sortKey)
+    : a.p.title.localeCompare(b.p.title, 'nb'));
+  return groups;
+}
+
+// Rad for en prosjektoppgave i To Do's. Bevisst færre handlinger enn en fri To Do:
+// krysse av, utsette frist, åpne. Ingen slett — å slette prosjektinnhold fra en liste
+// der resten av saken ikke er synlig er lettere å gjøre ved et uhell enn å angre.
+function projectTaskRowHTML(p, t){
+  const todayK = todayKey();
+  const overdue = t.due && !t.done && t.due < todayK;
+  const due = t.due
+    ? `<span class="due${overdue?' overdue':''}" title="${escapeAttr(absDateTitle(t.due))}">· ${escapeHTML(relDateLabel(t.due, todayK))}</span>`
+    : '';
+  return `<div class="todo-row ptodo-row ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="projecttask" data-project-id="${p.id}">
+    <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleProjectTask('${p.id}','${t.id}',event)">
+    <span class="ttitle" ${act('openProjectTaskForm', p.id, t.id)}>${escapeHTML(t.title)} ${due}</span>
+    <div class="actions">
+      <select onchange="if(this.value){HANDLERS.postponeProjectTask('${p.id}','${t.id}',this.value);this.value=''}" class="btn-sec-xs" title="Utsett frist">
+        <option value="">▸ Utsett</option>
+        <option value="1d">+1 dag</option>
+        <option value="3d">+3 dager</option>
+        <option value="1w">+1 uke</option>
+        <option value="1m">+1 måned</option>
+      </select>
+      <button class="ag" ${act('openProjectTaskForm', p.id, t.id)} title="Rediger detaljer">✎</button>
+    </div>
+  </div>`;
+}
+
+// Hele bøtta. Vises ikke i det hele tatt når det ikke finnes noen prosjektoppgaver —
+// en permanent tom boks nederst på siden er kostnad uten nytte (samme regel som
+// «uten frist» på Hjem, ADR 0038).
+function projectTodosBucketHTML(){
+  const groups = projectTodoGroups();
+  if (!groups.length) return '';
+  const total = groups.reduce((n,g)=>n + g.open.length, 0);
+  return `<div class="todo-bucket proj-bucket" id="proj-todos">
+    <div class="bh proj">◈ Fra prosjekter <small>${total} · underoppgaver som bor i et prosjekt — kryss av her eller der, det er samme oppgave</small></div>
+    ${groups.map(g=>`
+      <div class="ptgroup">
+        <div class="ptgroup-head" ${act('openProject', g.p.id)} style="--pc-h:${projectHue(g.p.title)}" title="Åpne prosjektet">
+          <span class="ptgroup-name">${escapeHTML(g.p.title)}</span>
+          <span class="ptgroup-count">${g.open.length}</span>
+        </div>
+        ${g.open.map(t=>projectTaskRowHTML(g.p, t)).join('')}
+        ${g.done.map(t=>projectTaskRowHTML(g.p, t)).join('')}
+      </div>`).join('')}
   </div>`;
 }
 
@@ -3706,17 +3799,33 @@ HANDLERS.deleteFreeTask = (id)=>{
   render();
 };
 
-HANDLERS.postponeTask = (id, by)=>{
-  const t = state.tasks.find(x=>x.id===id);
-  if (!t) return;
+// Flytter én frist framover. Egen funksjon fordi to handlere trenger den — frie
+// To Do's og prosjektoppgaver (ADR 0045) — og en kopi ville drevet fra originalen.
+// Returnerer false på ukjent intervall, så kallstedet kan la staten stå urørt.
+function _postponeDue(t, by){
+  if (!t) return false;
   const base = t.due ? fromKey(t.due) : new Date();
   let newDue;
   if (by === '1d') newDue = addDays(base, 1);
   else if (by === '3d') newDue = addDays(base, 3);
   else if (by === '1w') newDue = addDays(base, 7);
   else if (by === '1m') newDue = new Date(base.getFullYear(), base.getMonth()+1, base.getDate());
-  else return;
+  else return false;
   t.due = dKey(newDue);
+  return true;
+}
+
+HANDLERS.postponeTask = (id, by)=>{
+  const t = state.tasks.find(x=>x.id===id);
+  if (!_postponeDue(t, by)) return;
+  render();
+};
+
+// Samme utsettelse for en prosjektoppgave, fra «Fra prosjekter»-bøtta. ADR 0045.
+HANDLERS.postponeProjectTask = (pid, tid, by)=>{
+  const p = (state.projects||[]).find(x=>x.id===pid);
+  const t = p ? (p.tasks||[]).find(x=>x.id===tid) : null;
+  if (!_postponeDue(t, by)) return;
   render();
 };
 
