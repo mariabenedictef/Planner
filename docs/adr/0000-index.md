@@ -42,6 +42,12 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0036](0036-hash-routing-address-is-position.md) | Hash-ruting: adressen er posisjonen. Bare ekte navigasjonssteg lager historikk | Accepted (bygger på 0034) |
 | [0037](0037-kanban-merges-tagged-tasks.md) | Kanban bruker `projectTasksMerged`; `_setDone` er den ene døren for ferdig og stempler `doneAt` | Accepted (fullfører 0033) |
 | [0038](0038-keyboard-no-date-week-review.md) | Hurtigtaster for søk (`/`, Ctrl+K, piltaster), «uten frist» på Hjem, ukesoppsummering | Accepted (bygger på 0037) |
+| [0039](0039-undo-delete.md) | Angre sletting: ett angrepunkt, 8 sekunder, knapp i toasten. Bekreftelser fjernet for enkeltelementer | Accepted |
+| [0040](0040-relative-dates.md) | Relative datoetiketter innenfor ±7 dager, absolutt dato utenfor og i `title` | Accepted |
+| [0041](0041-project-colour-from-title.md) | Fast farge per prosjekt utledet av tittelen; `projChipHTML` er én dør for chipen | Accepted (bygger på 0035) |
+| [0042](0042-bulk-edit-todos.md) | Masseredigering av To Do's: velg-modus utenfor `state`, handlinger på `change` | Accepted (bygger på 0037, 0039) |
+| [0043](0043-actionable-empty-states.md) | Tomme tilstander med handling — `emptyAction` og `focusField` | Accepted |
+| [0044](0044-mobile-overrides-last.md) | Mobiloverstyringer må ligge sist i stilarket; to media-regler var døde. Radhøyde 172 → 60 px | Accepted |
 
 ## How to add a new ADR
 
