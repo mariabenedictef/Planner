@@ -154,7 +154,11 @@
 
   /* Month view */
   .month-grid{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .month-grid .row{display:grid;grid-template-columns:repeat(7,1fr)}
+  /* minmax(0,1fr), ikke 1fr: `1fr` er `minmax(auto,1fr)`, og auto-minimum er innholdets
+     minste bredde. Hver ukerad er sitt eget rutenett, så en lang hendelsestittel gjorde
+     sin kolonne bred og nabokolonnene smale — og bredden varierte fra uke til uke.
+     Målt på desktop før fiksen: 42 celler med bredder fra 26 til 474 px. ADR 0051. */
+  .month-grid .row{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
   .month-grid .row.head{background:var(--surface-2)}
   .month-grid .row.head .cell{padding:8px;font-size:11px;letter-spacing:.5px;color:var(--ink-muted);font-weight:600;text-align:left;text-transform:uppercase;border-right:1px solid var(--line-soft)}
   .month-grid .row.head .cell:last-child{border-right:none}
@@ -1375,7 +1379,7 @@
     .brand .dot{width:6px; height:6px; margin-right:6px}
     .topbar-spacer{display:none}
     .filter{order:2; flex:1 1 130px; min-width:130px; max-width:210px; margin:0 auto; padding:2px}
-    .filter button{flex:1; padding:0 6px; min-height:32px; font-size:12.5px; font-weight:500; border-radius:999px}
+    .filter button{flex:1; padding:0 6px; font-size:12.5px; font-weight:500; border-radius:999px}
     .top-actions{order:3; flex:0 0 auto; gap:0}
     .icon-btn{width:40px; height:40px}
 
@@ -1445,7 +1449,6 @@
     /* ---- Måned: minikalender ----
        Sju like kolonner. Hver hendelse er én prikk i kategorifargen, «+N til» en grå
        prikk. Trykk på dagen åpner Dag — renderMonth har alltid gjort det. */
-    .month-grid .row{grid-template-columns:repeat(7, minmax(0,1fr))}
     .month-grid .row.head .cell{padding:8px 0; text-align:center; letter-spacing:.3px}
     .month-grid .cell{
       min-height:60px; padding:5px 3px 7px;
@@ -1475,6 +1478,13 @@
     .month-grid .cell .ev.cat-reise{background:var(--reise)}
     .month-grid .cell .ev.proj, .month-grid .cell .ev.projevt{background:var(--accent-soft)}
     .month-grid .cell .more{background:var(--line)}
+
+    /* ---- Måned: dagsagenda under minikalenderen (ADR 0051) ----
+       Minikalenderen sier AT det skjer noe; agendaen under sier hva, for valgt dag.
+       Samme .wa-*-komponenter som ukeagendaen. */
+    #month-agenda{margin-top:12px}
+    .month-grid .cell.sel{box-shadow:inset 0 0 0 2px var(--accent-soft)}
+    .month-grid .cell.sel.today{box-shadow:inset 0 0 0 2px var(--accent)}
 
     /* ---- Uke: agenda (DOM fra _renderWeekAgenda) ---- */
     .week-agenda{display:flex; flex-direction:column; gap:10px; font-size:14px}
@@ -1531,7 +1541,42 @@
     .today-btn, .add-link{min-height:40px}
     .todo-row .actions > .ag, .todo-row .actions button, .ptdel,
     .todo-row:not([data-task-kind="inbox"]) .actions > .ag{min-width:44px; min-height:44px}
-    .todo-row input[type=checkbox], .ptask input[type=checkbox], .home-item input[type=checkbox]{width:24px; height:24px}
+
+    /* Avkryssingsboksen: 44 px treffområde, 22 px synlig boks (ADR 0051).
+       En native avkryssingsboks ignorerer polstring, og ::before treffer den ikke så
+       lenge den er et erstattet element — derfor `appearance:none` og egen tegning.
+       Negative marginer gjør at treffområdet er 44 px mens LAYOUT-bredden er 22, så
+       raden ikke mister plass til tittelen. Den andre selektoren er ikke overflødig:
+       ADR 0044-blokka setter `margin-top:2px` med høyere spesifisitet. */
+    .todo-row input[type=checkbox],
+    .todo-row:not([data-task-kind="inbox"]) input[type=checkbox],
+    .ptask input[type=checkbox],
+    .home-item input[type=checkbox]{
+      appearance:none; -webkit-appearance:none;
+      width:44px; height:44px; flex:0 0 44px; margin:-11px; padding:0;
+      background:none; border:none; border-radius:0;
+      display:grid; place-content:center; cursor:pointer;
+    }
+    .todo-row input[type=checkbox]::before,
+    .ptask input[type=checkbox]::before,
+    .home-item input[type=checkbox]::before{
+      content:'✓'; width:22px; height:22px;
+      display:grid; place-content:center;
+      font-size:14px; line-height:1; color:transparent;
+      border:1.5px solid var(--line); border-radius:6px; background:var(--surface);
+      transition:background-color .12s, border-color .12s, color .12s;
+    }
+    .todo-row input[type=checkbox]:checked::before,
+    .ptask input[type=checkbox]:checked::before,
+    .home-item input[type=checkbox]:checked::before{
+      background:var(--accent); border-color:var(--accent); color:var(--surface);
+    }
+    .todo-row input[type=checkbox]:focus-visible::before,
+    .ptask input[type=checkbox]:focus-visible::before,
+    .home-item input[type=checkbox]:focus-visible::before{outline:2px solid var(--accent); outline-offset:2px}
+
+    /* Filterknappene: 40 px får plass i den 52 px høye topplinja (6 px polstring hver vei). */
+    .filter button{min-height:40px}
     /* Prikkene i minikalenderen er ikke mål — dagen er målet. Uten dette ville et treff
        på en 6 px prikk åpnet hendelsen i stedet for dagen. */
     .month-grid .cell .ev, .month-grid .cell .more{pointer-events:none}

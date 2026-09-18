@@ -3520,10 +3520,13 @@ HANDLERS.selectAllTodos = ()=>{
 HANDLERS.bulkSetDue = (val)=>{
   const sel = _selectedTasks();
   if (!sel.length) return;
+  const snap = _snapshotFields(sel, ['due']);
   // Tom verdi fra datofeltet betyr «fjern frist» — det er den eneste måten å tømme
   // et <input type="date"> på, og «uten frist» er en gyldig tilstand her.
   sel.forEach(t=>{ if (val) t.due = val; else delete t.due; });
-  showToast(val ? `Frist satt på ${sel.length} oppgaver` : `Frist fjernet fra ${sel.length} oppgaver`);
+  registerFieldUndo(snap, ['due'],
+    val ? `fristen på ${sel.length} oppgaver` : `fristen fra ${sel.length} oppgaver`,
+    val ? 'Endret' : 'Fjernet');
   _selReset();
   render();
 };
@@ -3534,8 +3537,11 @@ HANDLERS.bulkSetProject = (val)=>{
   const none = val === '__none__';
   const p = none ? null : (state.projects || []).find(x=>x.id===val);
   if (!none && !p) return;
+  const snap = _snapshotFields(sel, ['projectId']);
   sel.forEach(t=>{ if (none) delete t.projectId; else t.projectId = p.id; });
-  showToast(none ? `Prosjekt fjernet fra ${sel.length} oppgaver` : `${sel.length} oppgaver flyttet til «${p.title}»`);
+  registerFieldUndo(snap, ['projectId'],
+    none ? `prosjektet fra ${sel.length} oppgaver` : `${sel.length} oppgaver til «${p.title}»`,
+    none ? 'Fjernet' : 'Flyttet');
   _selReset();
   render();
 };
@@ -3543,8 +3549,9 @@ HANDLERS.bulkSetProject = (val)=>{
 HANDLERS.bulkDone = ()=>{
   const sel = _selectedTasks();
   if (!sel.length) return;
+  const snap = _snapshotFields(sel, ['done','doneAt','status']);
   sel.forEach(t=>_setDone(t, true));   // én dør for done/doneAt/status — ADR 0037
-  showToast(`${sel.length} oppgaver markert som gjort`);
+  registerFieldUndo(snap, ['done','doneAt','status'], `${sel.length} oppgaver som gjort`, 'Merket');
   _selReset();
   render();
 };
@@ -4123,7 +4130,8 @@ function renderMonth(){
     <div class="month-grid">
       <div class="row head">${I18N.weekdaysShort.map(w=>`<div class="cell">${w}</div>`).join('')}</div>
       <div id="mgrid"></div>
-    </div>`;
+    </div>
+    <div id="month-agenda"></div>`;
 
   document.getElementById('prev').onclick = ()=>{ state.ui.anchor = dKey(addMonths(anchor,-1)); render(); };
   document.getElementById('next').onclick = ()=>{ state.ui.anchor = dKey(addMonths(anchor,1)); render(); };
@@ -4133,6 +4141,7 @@ function renderMonth(){
   );
 
   const grid = document.getElementById('mgrid');
+  const selKey = state.ui.anchor || todayKey();
   const first = new Date(y,m,1);
   const offset = monIdx(first);
   const days = monthDays(y,m);
@@ -4190,7 +4199,8 @@ function renderMonth(){
       return `<div class="${cls}" title="${escapeAttr(label)}">${inner}</div>`;
     }).join('');
     const more = (dayEvents.length+tks.length)-4;
-    html += `<div class="cell ${inMonth?'':'other'} ${isToday?'today':''}" data-key="${key}">
+    const isSel = key === selKey;
+    html += `<div class="cell ${inMonth?'':'other'} ${isToday?'today':''} ${isSel?'sel':''}" data-key="${key}">
       <div class="num">${d.getDate()}${hol?`<span class="holiday-tag">${escapeHTML(hol)}</span>`:''}</div>
       ${evHTML}${taskHTML}
       ${more>0?`<div class="more">+ ${more} til</div>`:''}
@@ -4198,7 +4208,21 @@ function renderMonth(){
   }
   html += '</div>';
   grid.innerHTML = html;
-  grid.querySelectorAll('.cell').forEach(c=>c.onclick=()=>{ state.ui.anchor = c.dataset.key; state.ui.view='day'; render(); });
+  // På telefon velger et trykk dagen og viser agendaen under rutenettet; på desktop
+  // går det rett til Dag, som før. Ankeret er valgt dag begge steder, så adressen
+  // (#/maned/<dato>) beskriver posisjonen også her — ADR 0036/0051.
+  grid.querySelectorAll('.cell').forEach(c=>c.onclick=()=>{
+    state.ui.anchor = c.dataset.key;
+    if (!_isPhone()) state.ui.view = 'day';
+    render();
+  });
+
+  const agenda = document.getElementById('month-agenda');
+  if (agenda){
+    // Minikalenderen viser AT det skjer noe, ikke hva. Agendaen under svarer på hva,
+    // for den valgte dagen — uten å forlate måneden. ADR 0051.
+    agenda.innerHTML = _isPhone() ? _dayAgendaHTML(fromKey(selKey), dKey(today), { long: true }) : '';
+  }
 }
 
 function goToday(){ state.ui.anchor = todayKey(); render(); }
@@ -4219,52 +4243,59 @@ function _isPhone(){
 // Agendaen viser de sju dagene nedover, hver med hendelsene og oppgavene sine som rader.
 // Samme datakilder og samme handlere som rutenettet: eventsOnDay, tasksOnDay, act().
 // Desktop-visningen er uendret — dette er en annen tegning av samme uke, ikke en annen uke.
+// Én dags agenda som HTML — hendelser og åpne oppgaver som rader. Brukes både av
+// ukeagendaen og av dagsagendaen under minikalenderen i Måned (ADR 0050/0051), så de
+// to kan ikke drifte fra hverandre. `long` gir ukedagen skrevet helt ut, som passer når
+// seksjonen står alene.
+function _dayAgendaHTML(d, todayK, opts){
+  const o = opts || {};
+  const key = dKey(d);
+  const evs = eventsOnDay(key);
+  const tks = tasksOnDay(key).filter(t=>!t.done);
+  const hol = HOLIDAYS[key];
+  const rows = [
+    ...evs.map(e=>{
+      const isProj = e._kind === 'project';
+      const click = e._ics ? act('openOutlookEvent', e.id)
+                  : isProj ? act('openProject', e._projectId)
+                  : act('editEvent', e.id);
+      const time = e._isContinuation ? '↳' : (e.start ? `${e.start}${e.end ? '–'+e.end : ''}` : 'hele dagen');
+      const cls = `wa-row ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}`;
+      return `<div class="${cls}" ${click} data-stop="1">
+        <span class="wa-time">${escapeHTML(time)}</span>
+        <span class="wa-title">${isProj ? '📍 ' : ''}${escapeHTML(e.title)}${e.location ? `<small>${escapeHTML(e.location)}</small>` : ''}</span>
+      </div>`;
+    }),
+    ...tks.map(t=>{
+      const isProj = t._kind === 'projectTask' || t._kind === 'milestone';
+      const label = isProj ? `${escapeHTML(t._projectTitle)}: ${escapeHTML(t.title)}` : escapeHTML(t.title);
+      const click = t._kind === 'task' ? act('openTaskForm', t.id)
+                  : t._kind === 'projectTask' ? act('openProjectTaskForm', t._projectId, t.id)
+                  : act('openProject', t._projectId);
+      const mark = t._kind === 'milestone' ? '◆' : '☐';
+      return `<div class="wa-row task cat-${t.category||'arbeid'}" ${click} data-stop="1">
+        <span class="wa-time">${mark}</span>
+        <span class="wa-title">${t._isContinuation ? '↳ ' : ''}${label}</span>
+      </div>`;
+    }),
+  ];
+  const dow = o.long ? I18N.weekdaysLong[monIdx(d)] : I18N.weekdaysShort[monIdx(d)];
+  return `<section class="wa-day${key === todayK ? ' today' : ''}" data-key="${key}">
+    <header class="wa-head" ${act('openDay', key)}>
+      <span class="wa-dow">${dow}</span>
+      <span class="wa-num">${d.getDate()}${o.long ? '. ' + I18N.monthsShort[d.getMonth()] : ''}</span>
+      ${hol ? `<span class="wa-hol">${escapeHTML(hol)}</span>` : ''}
+      <span class="wa-count">${rows.length ? rows.length : ''}</span>
+    </header>
+    ${rows.length ? rows.join('') : `<div class="wa-empty">${o.long ? 'Ingenting denne dagen' : '—'}</div>`}
+  </section>`;
+}
+
+// Uke som AGENDA på telefon (ADR 0050).
 function _renderWeekAgenda(wg, days, today){
   const todayK = dKey(today);
-  const html = days.map(d=>{
-    const key = dKey(d);
-    const evs = eventsOnDay(key);
-    const tks = tasksOnDay(key).filter(t=>!t.done);
-    const hol = HOLIDAYS[key];
-    const isToday = key === todayK;
-    const rows = [
-      ...evs.map(e=>{
-        const isProj = e._kind === 'project';
-        const click = e._ics ? act('openOutlookEvent', e.id)
-                    : isProj ? act('openProject', e._projectId)
-                    : act('editEvent', e.id);
-        const time = e._isContinuation ? '↳' : (e.start ? `${e.start}${e.end ? '–'+e.end : ''}` : 'hele dagen');
-        const cls = `wa-row ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}`;
-        return `<div class="${cls}" ${click} data-stop="1">
-          <span class="wa-time">${escapeHTML(time)}</span>
-          <span class="wa-title">${isProj ? '📍 ' : ''}${escapeHTML(e.title)}${e.location ? `<small>${escapeHTML(e.location)}</small>` : ''}</span>
-        </div>`;
-      }),
-      ...tks.map(t=>{
-        const isProj = t._kind === 'projectTask' || t._kind === 'milestone';
-        const label = isProj ? `${escapeHTML(t._projectTitle)}: ${escapeHTML(t.title)}` : escapeHTML(t.title);
-        const click = t._kind === 'task' ? act('openTaskForm', t.id)
-                    : t._kind === 'projectTask' ? act('openProjectTaskForm', t._projectId, t.id)
-                    : act('openProject', t._projectId);
-        const mark = t._kind === 'milestone' ? '◆' : '☐';
-        return `<div class="wa-row task cat-${t.category||'arbeid'}" ${click} data-stop="1">
-          <span class="wa-time">${mark}</span>
-          <span class="wa-title">${t._isContinuation ? '↳ ' : ''}${label}</span>
-        </div>`;
-      }),
-    ];
-    return `<section class="wa-day${isToday?' today':''}" data-key="${key}">
-      <header class="wa-head" ${act('openDay', key)}>
-        <span class="wa-dow">${I18N.weekdaysShort[monIdx(d)]}</span>
-        <span class="wa-num">${d.getDate()}</span>
-        ${hol ? `<span class="wa-hol">${escapeHTML(hol)}</span>` : ''}
-        <span class="wa-count">${rows.length ? rows.length : ''}</span>
-      </header>
-      ${rows.length ? rows.join('') : '<div class="wa-empty">—</div>'}
-    </section>`;
-  }).join('');
   wg.className = 'week-agenda';
-  wg.innerHTML = html;
+  wg.innerHTML = days.map(d => _dayAgendaHTML(d, todayK)).join('');
 }
 
 function renderWeek(){
@@ -5809,7 +5840,13 @@ function _rruleOccurrences(baseStart, params, winEnd, maxOcc){
       out.push(d);
     }
   }
-  return out;
+  // Én forekomst per kildedato, alltid. Ingen av grenene over kan normalt gi to
+  // forekomster på samme dato — de regner i hele dager, og BYHOUR/RDATE støttes ikke —
+  // men en misdannet regel (`BYMONTHDAY=15,15`, `BYDAY=2MO,2MO`) kan. Dedupliseringen
+  // gjør kildedatoen til en BEVISLIG unik nøkkel, ikke bare en praktisk talt unik:
+  // det er nøkkelen EXDATE og RECURRENCE-ID matcher på (ADR 0025/0028/0048).
+  const seen = new Set();
+  return out.filter(d => { const k = dKey(d); if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
 function expandRRule(baseEv, baseDate, rrule, exdates, endSpec, overrideKeys){
@@ -6668,12 +6705,44 @@ function _clearUndo(){
   _undoEntry = null;
 }
 
-function registerUndo(label, restore){
+function registerUndo(label, restore, verb){
   if (typeof restore !== 'function') return;
   _undoEntry = { label: label || 'slettingen', restore };
   if (_undoTimer) clearTimeout(_undoTimer);
   _undoTimer = setTimeout(()=>{ _undoEntry = null; _undoTimer = null; }, UNDO_MS);
-  showToast(`Slettet ${label}`, UNDO_MS, { label: '↩ Angre', action: 'undoLast' });
+  showToast(`${verb || 'Slettet'} ${label}`, UNDO_MS, { label: '↩ Angre', action: 'undoLast' });
+}
+
+// Angring for ENDRINGER, ikke bare slettinger (ADR 0051). Masseredigering kunne treffe
+// tjue oppgaver på ett klikk og var uopprettelig.
+//
+// Vi tar øyeblikksbilde av FELTENE som endres, ikke av objektene, og slår opp på id ved
+// gjenoppretting — samme grunn som deleteWithUndo slår opp lista på nytt (ADR 0039): et
+// sky-pull mellom endring og angring bytter ut hele `state`, og en fanget referanse ville
+// da vært frakoblet. Angringen hadde sett ut til å lykkes uten å endre noe synlig.
+function _snapshotFields(tasks, fields){
+  return (tasks || []).map(t => {
+    const snap = { id: t.id, had: [] };
+    fields.forEach(f => { if (f in t){ snap[f] = t[f]; snap.had.push(f); } });
+    return snap;
+  });
+}
+
+function registerFieldUndo(snapshot, fields, label, verb){
+  registerUndo(label, ()=>{
+    let n = 0;
+    (snapshot || []).forEach(snap => {
+      const t = _taskById(snap.id);
+      if (!t) return;
+      // Feltene skrives tilbake samlet. For done/doneAt/status betyr det at vi IKKE går
+      // via _setDone (ADR 0037): den ville stemplet et ferskt doneAt, og poenget her er
+      // å gjenopprette nøyaktig det som sto før. Trioen skrives atomisk, så invarianten
+      // _setDone vokter er like hel etterpå som den var før.
+      fields.forEach(f => { if (snap.had.indexOf(f) >= 0) t[f] = snap[f]; else delete t[f]; });
+      n++;
+    });
+    return n > 0;          // fant vi ingenting, sier toasten at angringen mislyktes
+  }, verb || 'Endret');
 }
 
 // Fjerner ett element fra en liste og registrerer angrepunktet. `getArr` slås opp

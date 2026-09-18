@@ -6,6 +6,20 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-09-18 — Restlista gjort opp
+
+Punktene som sto igjen etter mobilrunden. ADR 0051.
+
+- **Angring for endringer, ikke bare slettinger.** Masseredigering kunne treffe tjue oppgaver på ett klikk og var uopprettelig. Frist, prosjekt og «merk gjort» kan nå angres i åtte sekunder, som slettinger. Øyeblikksbildet tar vare på feltene og slår opp på id ved gjenoppretting — en fanget objektreferanse ville vært frakoblet etter et sky-pull. «Merk gjort» får tilbake nøyaktig det `doneAt` som sto, ikke et ferskt stempel.
+- **Dagsagenda under minikalenderen i Måned.** Et trykk på en dag på telefon viser hendelsene og oppgavene for den dagen under rutenettet, uten å forlate måneden. Samme komponent som ukeagendaen. Desktop går til Dag som før.
+- **Avkryssingsboksene har et ekte 44 px treffområde** (var 24). ADR 0050 skrev at det ikke lot seg gjøre på en native avkryssingsboks — det stemte helt til `appearance:none`, som gjør at den ikke lenger er et erstattet element. Negative marginer holder layout-bredden på 22 px, så radhøyden er uendret og tittelen ble 9 px bredere. Filterknappene 32 → 40 px.
+- **Månedsrutenettet var ragget på desktop også** — 42 celler med bredder fra 26 til 474 px, fordi hver ukerad er sitt eget rutenett som sizer etter innhold. Samme `1fr`-felle som gjorde Prosjekter 652 px bred; jeg fikset den bare for telefon forrige runde. Nå `minmax(0,1fr)` i basisregelen: 171 px jevnt.
+- **Én forekomst per kildedato, alltid.** ADR 0048 kalte dubletter på samme dato teoretisk. Målt: `FREQ=MONTHLY;BYDAY=1MO,1MO` ga hver forekomst to ganger. Da er kildedatoen ikke en unik nøkkel, og `EXDATE`/`RECURRENCE-ID` ville truffet feil. Dedupliseres nå.
+
+Testsuiten: 555 → 588 assertions. 23 feiler mot forrige commit. Desktop ellers målt uendret.
+
+---
+
 ## 2026-09-17 (kveld) — Mobilmodellen
 
 Planleggeren på iPhone, gjennomgått med ekte data på 390 px. ADR 0050.
