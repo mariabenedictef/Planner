@@ -36,6 +36,15 @@
     --personlig:#c89396;
     --helse:#8fa68e;
     --reise:#c9a87a;
+    /* Bøtteoverskrifter i To Do's. Egne variabler framfor hardkodet hex, slik
+       .bh.proj alt gjorde: ellers følger de ikke med i mørk modus. ADR 0047. */
+    --bh-urgent-bg:#fce8e8; --bh-urgent-ink:#883333;
+    --bh-short-bg:#fbf1e1;  --bh-short-ink:#7a5a30;
+    --bh-long-bg:#e8eef7;   --bh-long-ink:#3a4a66;
+    --bh-urgent-line:#e6b8b8; --bh-short-line:#dfc99a; --bh-long-line:#bcc7d8;
+    /* Dempede flater som var hardkodet: helg/andre måneds dager, og Outlook-hendelser. ADR 0050. */
+    --surface-dim:#fbfaf6;
+    --ics-bg:#f0f4f9; --ics-line:#5b8db8;
     --today:#fdf6e3;
     --shadow:0 1px 2px rgba(40,40,40,.04), 0 4px 24px rgba(40,40,40,.06);
     --shadow-elev:0 6px 28px rgba(40,40,40,.12);
@@ -64,6 +73,12 @@
     --personlig:#d4a8aa;
     --helse:#9ebd9e;
     --reise:#d6b88f;
+    --bh-urgent-bg:#3b2826; --bh-urgent-ink:#e3a79f;
+    --bh-short-bg:#3a3226;  --bh-short-ink:#dcbd8d;
+    --bh-long-bg:#28303d;   --bh-long-ink:#adc0dc;
+    --bh-urgent-line:#5c403c; --bh-short-line:#584c39; --bh-long-line:#3c4859;
+    --surface-dim:#1f232b;
+    --ics-bg:#242c38; --ics-line:#7fa6cc;
     --today:#3d352a;
     --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 24px rgba(0,0,0,.35);
     --shadow-elev:0 6px 28px rgba(0,0,0,.5);
@@ -118,9 +133,9 @@
 
   /* Overview grid */
   .overview{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
-  @media (max-width:1100px){.overview{grid-template-columns:repeat(3,1fr)}}
-  @media (max-width:680px){.overview{grid-template-columns:repeat(2,1fr)}}
-  @media (max-width:420px){.overview{grid-template-columns:1fr}}
+  
+  
+  
   .mo{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px;cursor:pointer;transition:transform .1s ease,box-shadow .1s ease}
   .mo:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
   .mo h3{font-family:var(--serif);font-weight:500;font-size:15px;margin:0 0 4px;color:var(--ink)}
@@ -146,7 +161,7 @@
   .month-grid .cell{border-top:1px solid var(--line-soft);border-right:1px solid var(--line-soft);min-height:110px;padding:6px 8px;cursor:pointer;position:relative;display:flex;flex-direction:column;gap:3px;transition:background .1s}
   .month-grid .cell:nth-child(7n){border-right:none}
   .month-grid .cell:hover{background:var(--surface-2)}
-  .month-grid .cell.other{background:#fbfaf6;color:var(--ink-muted)}
+  .month-grid .cell.other{background:var(--surface-dim);color:var(--ink-muted)}
   .month-grid .cell.today{background:var(--today)}
   .month-grid .cell .num{font-size:13px;font-weight:600;color:var(--ink-soft);display:flex;align-items:center;gap:4px}
   .month-grid .cell.today .num{color:var(--ink)}
@@ -159,11 +174,7 @@
   .month-grid .cell .ev.cat-reise{border-left-color:var(--reise)}
   .month-grid .cell .more{font-size:10.5px;color:var(--ink-muted)}
 
-  @media (max-width:680px){
-    .month-grid .cell{min-height:64px;padding:4px}
-    .month-grid .cell .ev{font-size:10px;padding:1px 3px}
-    .month-grid .row.head .cell{padding:5px;font-size:10px}
-  }
+  
 
   /* Week view */
   .week{display:grid;grid-template-columns:60px repeat(7,1fr);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;font-size:12px}
@@ -174,7 +185,7 @@
   .week .hour-label{padding:4px 8px;font-size:10.5px;color:var(--ink-muted);text-align:right;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
   .week .slot{border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);height:42px;position:relative;cursor:pointer;overflow:visible}
   .week .slot:nth-child(8n){border-right:none}
-  .week .slot.weekend{background:#fbfaf6}
+  .week .slot.weekend{background:var(--surface-dim)}
   .week .slot:hover{background:var(--surface-2)}
   .week .slot .ev{position:absolute;left:2px;right:2px;background:var(--surface);border-left:3px solid var(--ink-muted);padding:3px 6px;border-radius:4px;font-size:11px;line-height:1.2;overflow:hidden;box-shadow:var(--shadow)}
   .week .slot .ev.cat-arbeid{border-left-color:var(--work)}
@@ -183,11 +194,11 @@
   .week .slot .ev.cat-helse{border-left-color:var(--helse)}
   .week .slot .ev.cat-reise{border-left-color:var(--reise)}
 
-  @media (max-width:680px){.week{grid-template-columns:36px repeat(7,1fr);font-size:11px}.week .wh{padding:4px;font-size:9.5px}.week .wh strong{font-size:12px}}
+  
 
   /* Day view */
   .day-layout{display:grid;grid-template-columns:1fr 320px;gap:16px}
-  @media (max-width:900px){.day-layout{grid-template-columns:1fr}}
+  
   .day-main{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
   .day-side{display:flex;flex-direction:column;gap:14px}
   .day-side .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
@@ -221,7 +232,7 @@
 
   /* Goals & habits */
   .panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  @media (max-width:800px){.panel-grid{grid-template-columns:1fr}}
+  
   .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
   .panel h3{font-family:var(--serif);font-weight:500;font-size:17px;margin:0 0 12px;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
   .panel h3 button{font-size:12px;color:var(--ink-soft);padding:4px 10px;border-radius:6px;border:1px solid var(--line)}
@@ -261,7 +272,7 @@
   .fab:hover{transform:translateY(-2px) scale(1.04);box-shadow:0 8px 24px rgba(40,40,40,.22), 0 2px 5px rgba(40,40,40,.12)}
   .fab:active{transform:translateY(0) scale(.96);transition-duration:.05s}
   [data-theme="dark"] .fab{color:#1a1d24}
-  @media (max-width:680px){.fab{bottom:18px;right:18px}}
+  
 
   /* Toast. Flyttet ut av app.js sin cssText da angre-knappen kom til — en knapp
      med hover-tilstand hører hjemme i CSS. ADR 0039. */
@@ -275,7 +286,7 @@
     white-space:nowrap;flex:0 0 auto}
   .toast .toast-action:hover{background:rgba(255,255,255,.16)}
   [data-theme="dark"] .toast .toast-action:hover{background:rgba(0,0,0,.12)}
-  @media (max-width:680px){.toast{left:16px;right:16px;bottom:80px;max-width:none}}
+  
 
   /* Modal */
   .modal-bg{position:fixed;inset:0;background:rgba(40,46,60,.34);z-index:5000;display:none;align-items:center;justify-content:center;padding:16px}
@@ -285,12 +296,12 @@
   .modal .body{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
   .modal .field{display:flex;flex-direction:column;gap:5px}
   .modal .field label{font-size:11px;letter-spacing:.5px;color:var(--ink-muted);font-weight:600;text-transform:uppercase}
-  .modal .field input,.modal .field select,.modal .field textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:14px}
+  .modal .field input,.modal .field select,.modal .field textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:14px}
   .modal .field textarea{min-height:70px;resize:vertical;font-family:var(--font)}
   .modal .field .row{display:flex;gap:8px}
   .modal .field .row > *{flex:1}
   .modal .footer{padding:12px 18px;border-top:1px solid var(--line-soft);display:flex;justify-content:flex-end;gap:8px}
-  .modal .footer button{padding:8px 14px;border-radius:8px;font-size:13px;font-weight:500;border:1px solid var(--line);background:#fff;color:var(--ink-soft)}
+  .modal .footer button{padding:8px 14px;border-radius:8px;font-size:13px;font-weight:500;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
   .modal .footer button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
   .modal .footer button.danger{color:var(--alert);border-color:transparent;margin-right:auto}
   .modal .ms-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
@@ -328,7 +339,7 @@
   .wr-note{padding:7px 9px;margin-bottom:6px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);font-size:11.5px;color:var(--ink-soft);line-height:1.45}
 
   /* Notes panel */
-  .notes-area{width:100%;min-height:120px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff;font-family:var(--font);font-size:13.5px;resize:vertical}
+  .notes-area{width:100%;min-height:120px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-family:var(--font);font-size:13.5px;resize:vertical}
 
   /* Weekly review */
 
@@ -368,6 +379,8 @@
   .pcard .countdown{font-family:var(--serif);font-size:22px;color:var(--ink);font-weight:500}
   .pcard .countdown.past{color:var(--ink-muted);font-style:italic}
   .pcard .countdown.urgent{color:var(--alert)}
+  .pcard .pnext{font-size:11.5px;color:var(--ink-soft);border-top:1px solid var(--line-soft);padding-top:6px;margin-top:2px}
+  .pcard .pnext strong{color:var(--ink)}
   .pcard .countdown small{display:block;font-family:var(--font);font-size:10.5px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
   .pcard .pprog{height:5px;background:var(--surface-2);border-radius:3px;overflow:hidden}
   .pcard .pprog i{display:block;height:100%;background:var(--accent)}
@@ -411,7 +424,7 @@
   .psection{padding:16px 0;border-top:1px solid var(--line-soft)}
   .psection:first-of-type{border-top:none}
   .psection h4{font-family:var(--serif);font-weight:500;font-size:16px;margin:0 0 10px;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
-  .psection h4 button{font-size:12px;color:var(--ink-soft);padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:#fff}
+  .psection h4 button{font-size:12px;color:var(--ink-soft);padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface)}
   .psection h4 button:hover{background:var(--surface-2)}
   .ptask{padding:6px 0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13px}
   .ptask:first-of-type{border-top:none}
@@ -435,7 +448,7 @@
   .pinline-add{display:flex;gap:6px;margin-top:8px}
   .pinline-add input{flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px}
   .pinline-add input.small{flex:0 0 130px}
-  .pinline-add button{padding:6px 12px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);font-size:13px}
+  .pinline-add button{padding:6px 12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:13px}
   .pback{margin-bottom:12px;font-size:12.5px;color:var(--ink-soft);background:none;padding:4px 0}
   .pback:hover{color:var(--ink)}
 
@@ -445,13 +458,13 @@
 
   /* Project view mode toggle */
   .pview-toggle{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:12px;margin-right:8px}
-  .pview-toggle button{padding:4px 10px;background:#fff;color:var(--ink-soft);border:none;border-right:1px solid var(--line)}
+  .pview-toggle button{padding:4px 10px;background:var(--surface);color:var(--ink-soft);border:none;border-right:1px solid var(--line)}
   .pview-toggle button:last-child{border-right:none}
   .pview-toggle button.active{background:var(--accent);color:#fff}
 
   /* Kanban */
   .kanban{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-  @media (max-width:700px){.kanban{grid-template-columns:1fr;gap:10px}}
+  
   .kcol{background:var(--surface-2);border-radius:8px;padding:8px;min-height:60px;border:1px solid var(--line-soft);transition:outline .12s}
   .kcol-h{font-family:var(--serif);font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;padding:0 4px 4px}
   .kcol-h small{font-size:10.5px;color:var(--ink-muted);font-family:var(--font)}
@@ -467,7 +480,7 @@
   .kcard-meta.overdue{color:var(--alert)}
 
   /* Outlook synced event style */
-  .ev.ics{background:#f0f4f9;border-left-color:#5b8db8 !important;font-style:italic;opacity:.95}
+  .ev.ics{background:var(--ics-bg);border-left-color:var(--ics-line) !important;font-style:italic;opacity:.95}
   .ev.ics::before{content:'📧 ';font-style:normal}
 
   /* Multi-day event styling — continuous bar across day-cells within the same week-row.
@@ -594,6 +607,368 @@
   .icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex-shrink:0;vertical-align:-2px}
   .icon svg{width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
+  
+  
+
+  
+  
+  
+  
+  /* Prevent horizontal scrolling on body */
+  html{overflow-x:hidden}
+
+  
+  
+  
+  
+
+  
+  
+
+  /* Time-blocked task in day view */
+  .day-hours .hslot .ev.task-block{background:var(--surface-2);border-left-style:dashed;font-style:italic}
+  .day-hours .hslot .ev.task-block::before{content:'☐ ';font-style:normal;color:var(--ink-muted)}
+  .day-hours .hslot.drop-target{background:var(--surface-2);outline:2px dashed var(--accent);outline-offset:-2px}
+  .day-side .panel li[draggable="true"]{cursor:grab}
+  .day-side .panel li[draggable="true"]:active{cursor:grabbing}
+
+  /* Project notes — multi-note cards + rich editor */
+  .notes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:8px}
+  .note-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;cursor:pointer;min-height:90px;transition:transform .12s,box-shadow .12s;display:flex;flex-direction:column;gap:4px}
+  .note-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+  .note-card-title{font-family:var(--serif);font-weight:500;font-size:14px;color:var(--ink);line-height:1.25}
+  .note-card-preview{font-size:11.5px;color:var(--ink-muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+  .note-card-empty{font-size:11.5px;color:var(--ink-muted);font-style:italic}
+  .new-note-card{background:transparent;border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:13px;cursor:pointer;border-radius:var(--radius);min-height:90px;font-style:italic}
+  .new-note-card:hover{background:var(--surface);color:var(--ink)}
+  /* Rich text editor */
+  .note-toolbar{display:flex;gap:4px;padding:6px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
+  .note-toolbar button,.note-toolbar select{padding:5px 10px;font-size:12px;border:1px solid var(--line);background:var(--surface);border-radius:4px;cursor:pointer;color:var(--ink);font-family:var(--font);min-width:30px}
+  .note-toolbar button:hover,.note-toolbar select:hover{background:var(--surface-2)}
+  .note-toolbar .tb-sep{width:1px;background:var(--line);align-self:stretch;margin:0 4px}
+  .note-toolbar button.tb-bold{font-weight:700}
+  .note-toolbar button.tb-italic{font-style:italic}
+  .note-editor{min-height:240px;padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.6;outline:none;overflow-y:auto;max-height:60vh}
+  .note-editor:focus{border-color:var(--accent)}
+  .note-editor h2{font-family:var(--serif);font-size:20px;font-weight:500;margin:14px 0 6px;color:var(--ink)}
+  .note-editor h3{font-family:var(--serif);font-size:16px;font-weight:500;margin:10px 0 4px;color:var(--ink)}
+  .note-editor ul,.note-editor ol{margin:6px 0;padding-left:24px}
+  .note-editor li{margin:2px 0}
+  .note-editor p{margin:6px 0}
+  .note-editor a{color:var(--accent);text-decoration:underline}
+  .note-editor img{max-width:100%;border-radius:4px;margin:6px 0}
+  .note-editor:empty:before{content:attr(data-placeholder);color:var(--ink-muted);font-style:italic;pointer-events:none}
+  .note-title-input{font-family:var(--serif);font-weight:500;font-size:18px;border:none;background:transparent;width:100%;color:var(--ink);outline:none;padding:4px 0;border-bottom:1px dashed var(--line-soft)}
+  .note-title-input:focus{border-bottom-color:var(--accent)}
+  /* Note modal view mode — clean reading view, hides toolbar + editor borders */
+  /* Wikilink-autocomplete (ADR 0026) — flytende liste når du skriver «[[» i et notat.
+     z-index over .modal-bg (5000) siden den bor inne i modalen. */
+  .wl-ac{position:fixed;z-index:5100;min-width:220px;max-width:330px;max-height:212px;overflow-y:auto;
+    background:var(--surface);border:1px solid var(--line);border-radius:8px;
+    box-shadow:0 10px 30px rgba(0,0,0,.16);padding:4px;font-size:13px}
+  .wl-ac-item{padding:7px 10px;border-radius:5px;cursor:pointer;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+  .wl-ac-item[aria-selected="true"]{background:var(--surface-2)}
+  .wl-ac-item .wl-ac-cat{float:right;margin-left:12px;font-size:11px;color:var(--ink-muted);font-style:italic}
+  .wl-ac-empty{padding:7px 10px;color:var(--ink-muted);font-style:italic}
+
+  [data-note-mode="view"] .note-toolbar{display:none!important}
+  [data-note-mode="view"] .note-editor{border:none;padding:0;background:transparent;cursor:pointer;min-height:120px}
+  [data-note-mode="view"] .note-title-input{border-bottom:none;font-size:22px;padding:2px 0;cursor:pointer;pointer-events:none}
+  [data-note-mode="view"] .note-edit-hint{display:flex}
+  [data-note-mode="edit"] .note-edit-hint{display:none}
+  .note-edit-hint{display:none;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-muted);font-style:italic;padding:8px 0 4px;justify-content:flex-end}
+  .toggle-edit-btn{padding:5px 12px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer}
+  .toggle-edit-btn:hover{background:var(--surface-2)}
+
+  /* Wikilinks */
+  .wikilink{color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent-soft);padding:0 1px}
+  .wikilink:hover{background:var(--surface-2);border-bottom-style:solid}
+  .wikilink-broken{color:var(--ink-muted);border-bottom-color:var(--ink-muted);font-style:italic}
+  .backlinks{display:flex;flex-direction:column;gap:6px}
+  .backlinks .bl{padding:8px 10px;background:var(--surface-2);border-radius:6px;font-size:12.5px;cursor:pointer;line-height:1.4}
+  .backlinks .bl:hover{background:var(--line-soft)}
+  .backlinks .bl strong{color:var(--ink);font-size:13px;display:block;margin-bottom:2px}
+  .backlinks .bl .snippet{color:var(--ink-muted);font-size:11.5px;font-style:italic}
+
+  /* Markdown preview */
+  .md-preview{padding:12px;background:var(--surface-2);border-radius:8px;font-size:13.5px;line-height:1.55;color:var(--ink)}
+  .md-preview h2{margin:8px 0 4px;font-family:var(--serif);font-weight:500;font-size:18px;color:var(--ink)}
+  .md-preview h3{margin:8px 0 4px;font-family:var(--serif);font-weight:500;font-size:15px}
+  .md-preview h4{margin:6px 0 2px;font-family:var(--serif);font-weight:500;font-size:14px}
+  .md-preview p{margin:6px 0}
+  .md-preview ul{margin:6px 0;padding-left:20px}
+  .md-preview li{margin:2px 0}
+  .md-preview img{max-width:100%;border-radius:4px;margin:6px 0;display:block;border:1px solid var(--line-soft)}
+  .md-preview a{color:var(--accent);text-decoration:underline}
+  .md-preview code{background:var(--surface);padding:1px 4px;border-radius:3px;font-size:90%;font-family:Consolas,monospace}
+  .md-preview hr{border:none;border-top:1px solid var(--line);margin:12px 0}
+
+  /* Hjem view */
+  .home-greeting{font-family:var(--serif);font-size:24px;color:var(--ink);margin:0 0 4px;font-weight:500}
+  .home-greeting .day{color:var(--accent)}
+  .home-date{font-size:13px;color:var(--ink-muted);margin-bottom:18px}
+  .home-countdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:20px}
+  .countdown-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;cursor:pointer;transition:transform .12s, box-shadow .12s;position:relative;overflow:hidden}
+  .countdown-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+  .countdown-card .cd-label{font-size:11px;letter-spacing:.5px;color:var(--ink-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px}
+  .countdown-card .cd-title{font-family:var(--serif);font-size:16px;font-weight:500;color:var(--ink);line-height:1.2;margin-bottom:8px}
+  .countdown-card .cd-days{font-family:var(--serif);font-size:36px;font-weight:500;color:var(--ink);line-height:1}
+  .countdown-card .cd-next{font-size:11.5px;color:var(--ink-muted);margin-top:6px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .home-date .wr-btn{margin-left:10px;padding:2px 9px;font-size:11.5px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer}
+  .countdown-card .cd-days small{display:block;font-family:var(--font);font-size:11px;color:var(--ink-muted);margin-top:4px;font-weight:400;text-transform:uppercase;letter-spacing:.5px}
+  .countdown-card.featured{background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border-color:var(--accent-soft)}
+  .countdown-card.featured .cd-days{font-size:44px}
+  .countdown-card.urgent .cd-days{color:var(--alert)}
+  .home-section{margin-bottom:20px}
+  .home-section > h3{font-family:var(--serif);font-weight:500;font-size:16px;margin:0 0 10px;color:var(--ink);letter-spacing:0;display:flex;align-items:center;gap:6px}
+  .home-list{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .home-list-urgent{background:var(--alert-bg);border-color:var(--alert)}
+  .home-item{display:flex;align-items:center;gap:12px;padding:9px 14px;border-top:1px solid var(--line-soft);cursor:pointer;font-size:13.5px;transition:background-color .12s}
+  .home-item:first-of-type{border-top:none}
+  .home-item:hover{background:var(--surface-2)}
+  .home-list-urgent .home-item{border-top-color:rgba(200,80,62,0.18)}
+  .home-list-urgent .home-item:hover{background:rgba(200,80,62,0.08)}
+  .hi-date{min-width:60px;font-family:var(--serif);font-size:13px;color:var(--ink-muted);flex-shrink:0}
+  .hi-date.overdue{color:var(--alert);font-weight:600}
+  .hi-title{flex:1;color:var(--ink);line-height:1.35}
+  .home-empty{padding:14px 16px;color:var(--ink-muted);font-style:italic;font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+  .home-item input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;margin:0}
+  .home-item .drag-handle{color:var(--ink-muted);font-size:11px;cursor:grab;user-select:none;letter-spacing:-2px;width:14px;flex-shrink:0;opacity:.5;transition:opacity .12s}
+  .home-item:hover .drag-handle{opacity:1}
+  .home-item.dragging{opacity:.4}
+  .home-item.drop-before{border-top:2px solid var(--accent)!important;margin-top:-1px}
+  .home-item.drop-after{border-bottom:2px solid var(--accent)!important;margin-bottom:-1px}
+  /* Generic drag-handle styling for any task row */
+  .drag-handle{color:var(--ink-muted);font-size:11px;cursor:grab;user-select:none;letter-spacing:-2px;width:14px;flex-shrink:0;opacity:.5;transition:opacity .12s;display:inline-block}
+  .ptask:hover .drag-handle,.todo-row:hover .drag-handle{opacity:1}
+  .ptask.dragging,.todo-row.dragging{opacity:.4}
+  .ptask.drop-before,.todo-row.drop-before{border-top:2px solid var(--accent)!important;margin-top:-1px}
+  .ptask.drop-after,.todo-row.drop-after{border-bottom:2px solid var(--accent)!important;margin-bottom:-1px}
+  .home-item.done .hi-title{text-decoration:line-through;color:var(--ink-muted)}
+  /* Prosjekt-tagg som chip (ADR 0035). Erstatter «· Tittel» i kursiv, som leste som en
+     fotnote — og fikk prosjektnavnet skrevet inn i tittelen i tillegg. Dempet, men en ting. */
+  .proj-chip{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;
+    background:var(--surface-2);border:1px solid var(--line);color:var(--ink-soft);
+    font-size:10.5px;line-height:1.5;white-space:nowrap;vertical-align:baseline}
+  /* Fargen kommer fra --pc-h, satt inline av projChipHTML() ut fra prosjekttittelen.
+     Bare nyansen varierer — metning og lyshet står her, én gang for lys og én gang for
+     mørk modus, så kontrasten er kontrollert begge steder. Faller tilbake til den gamle
+     grå chipen hvis --pc-h mangler. ADR 0041. */
+  .proj-chip[style*="--pc-h"]{
+    background:hsl(var(--pc-h), 44%, 94%);
+    border-color:hsl(var(--pc-h), 34%, 82%);
+    color:hsl(var(--pc-h), 42%, 33%)}
+  [data-theme="dark"] .proj-chip[style*="--pc-h"]{
+    background:hsl(var(--pc-h), 20%, 24%);
+    border-color:hsl(var(--pc-h), 18%, 34%);
+    color:hsl(var(--pc-h), 46%, 76%)}
+  .todo-row .proj-chip{cursor:pointer}
+  .todo-row .proj-chip:hover{border-color:var(--alert);color:var(--alert)}
+
+  /* Week calendar view on Hjem — 7 columns (Mon–Sun) */
+  .hjem-week-title{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+  .hjem-week-title .wn{font-family:var(--serif);font-size:14px;color:var(--ink-soft)}
+  .hjem-week-title .wn strong{color:var(--ink);font-weight:500;margin:0 4px}
+  .hjem-week-title .range{font-size:12px;color:var(--ink-muted)}
+  .hjem-week{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .hjem-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+  .hjem-week-col{border-right:1px solid var(--line-soft);min-height:140px;display:flex;flex-direction:column}
+  .hjem-week-col:last-child{border-right:none}
+  .hjem-week-col.today{background:var(--today)}
+  .hjem-week-col.weekend{background:var(--surface-2)}
+  .hjem-week-col.today.weekend{background:var(--today)}
+  .hjem-week-col-h{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line-soft);background:var(--surface-2);position:sticky;top:0}
+  .hjem-week-col.weekend .hjem-week-col-h{background:var(--surface-2)}
+  .hjem-week-col-h .wd{font-size:10px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:2px}
+  .hjem-week-col-h .num{font-family:var(--serif);font-size:18px;color:var(--ink);font-weight:500;display:block;line-height:1}
+  .hjem-week-col.today .hjem-week-col-h .num{color:var(--accent)}
+  .hjem-week-col-h .hol{font-size:9px;color:var(--alert);font-style:italic;display:block;margin-top:2px;line-height:1.15;word-break:break-word}
+  .hjem-week-items{padding:6px;display:flex;flex-direction:column;gap:3px;flex:1;font-size:10.5px}
+  .hjem-week-items .wke{background:var(--surface);border-left:2px solid var(--ink-muted);padding:3px 6px;border-radius:3px;cursor:pointer;line-height:1.3;word-break:break-word;color:var(--ink)}
+  .hjem-week-items .wke:hover{filter:brightness(.95)}
+  .hjem-week-items .wke strong{font-weight:600;font-size:10px}
+  .hjem-week-items .wke.cat-arbeid{border-left-color:var(--work)}
+  .hjem-week-items .wke.cat-privat{border-left-color:var(--privat)}
+  .hjem-week-items .wke.ics{font-style:italic;background:var(--ics-bg);border-left-color:var(--ics-line)}
+  [data-theme="dark"] .hjem-week-items .wke.ics{background:#1f2935}
+  .hjem-week-items .wke-empty{font-size:10px;color:var(--ink-muted);font-style:italic;padding:4px 2px;text-align:center}
+  
+  
+  .home-quick{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:18px}
+  .home-quick input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--surface);color:var(--ink)}
+  .home-quick .home-quick-hint{font-size:11px;color:var(--ink-muted);margin-top:6px}
+
+  /* Task completion animation */
+  .todo-row.completing,.ptask.completing,.kcard.completing,.tasks-block li.completing{animation:taskComplete 380ms ease-out forwards}
+  @keyframes taskComplete{
+    0%{opacity:1;transform:translateX(0)}
+    50%{opacity:.5;transform:translateX(8px)}
+    100%{opacity:0;transform:translateX(40px);max-height:0;padding-top:0;padding-bottom:0;margin-top:0;margin-bottom:0;border:0}
+  }
+
+  /* Today dashboard */
+  .dashboard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  
+  .dashboard h4{margin:0 0 8px;font-family:var(--serif);font-weight:500;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:6px}
+  .dashboard .dash-item{padding:4px 0;font-size:12.5px;color:var(--ink-soft);display:flex;gap:8px;align-items:flex-start;line-height:1.35;cursor:pointer;border-top:1px solid var(--line-soft)}
+  .dashboard .dash-item:first-of-type{border-top:none}
+  .dashboard .dash-item:hover{color:var(--ink)}
+  .dashboard .dash-item .ddate{min-width:48px;color:var(--ink-muted);font-family:var(--serif);font-size:12px;flex-shrink:0}
+  .dashboard .dash-item .dtitle{flex:1}
+  .dashboard .dash-item .dtitle .dmeta{display:block;font-size:11px;color:var(--ink-muted);margin-top:1px}
+  .dashboard .dash-urgent h4{color:var(--alert)}
+  .dashboard .dash-empty{font-size:12px;color:var(--ink-muted);font-style:italic;padding:4px 0}
+
+  /* Priority pills + To Do's view */
+  .pill.prio-urgent{background:var(--alert);color:#fff}
+  .pill.prio-short{background:#c9a87a;color:#fff}
+  .pill.prio-long{background:#6b7d99;color:#fff}
+  .pill.prio-none{background:var(--surface-2);color:var(--ink-muted)}
+  .todo-quick{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:18px;display:flex;flex-direction:column;gap:10px}
+  /* Uten eksplisitt bakgrunn arver feltet nettleserens hvite standard, mens teksten
+     følger --ink. I mørk modus ble det lys tekst på hvitt — praktisk talt usynlig. */
+  .todo-quick input.qtxt{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--surface);color:var(--ink)}
+  .todo-quick .qbtns{display:flex;gap:6px;flex-wrap:wrap}
+  .todo-quick .qbtns button,
+  .todo-quick .qbtns select{padding:6px 12px;font-size:12.5px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
+  .todo-quick .qbtns button.urgent{background:var(--bh-urgent-bg);border-color:var(--bh-urgent-line);color:var(--bh-urgent-ink)}
+  .todo-quick .qbtns button.short{background:var(--bh-short-bg);border-color:var(--bh-short-line);color:var(--bh-short-ink)}
+  .todo-quick .qbtns button.long{background:var(--bh-long-bg);border-color:var(--bh-long-line);color:var(--bh-long-ink)}
+  .todo-quick .qbtns button:hover{filter:brightness(.95)}
+  .todo-bucket{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;overflow:hidden}
+  .todo-bucket .bh{padding:10px 16px;background:var(--surface-2);font-family:var(--serif);font-size:15px;font-weight:500;display:flex;justify-content:space-between;align-items:center;color:var(--ink)}
+  .todo-bucket .bh small{font-size:11.5px;color:var(--ink-muted);font-weight:400;font-family:var(--font);font-style:italic}
+  .todo-bucket .bh.urgent{background:var(--bh-urgent-bg);color:var(--bh-urgent-ink)}
+  .todo-bucket .bh.short{background:var(--bh-short-bg);color:var(--bh-short-ink)}
+  .todo-bucket .bh.long{background:var(--bh-long-bg);color:var(--bh-long-ink)}
+  .todo-row{padding:8px 16px;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13.5px}
+  .todo-row:first-of-type{border-top:none}
+  .todo-row.done .ttitle{text-decoration:line-through;color:var(--ink-muted)}
+  .todo-row .ttitle{flex:1;cursor:pointer;display:flex;align-items:center;gap:6px;min-width:0}
+  /* Dato og prosjekt-chip skal ikke krympe eller brytes — det er tittelen som skal ta
+     plassen. Uten `flex-shrink:0` klemte flex-oppsettet chipen til «Meox …». ADR 0035. */
+  .todo-row .ttitle .due{font-size:11px;color:var(--ink-muted);flex:0 0 auto;white-space:nowrap}
+  /* Forfalt frist. Ordene bærer det alene («2 dager på overtid»), men fargen fanger
+     blikket først når lista er lang. ADR 0040. */
+  .todo-row .ttitle .due.overdue{color:var(--alert);font-weight:600}
+  .todo-row .ttitle > .proj-chip{flex:0 0 auto}
+
+  /* Velg-modus og handlingslinje (ADR 0042) */
+  .todo-row.selectable{cursor:pointer}
+  .todo-row.selectable:hover{background:var(--surface-2)}
+  .todo-row.selected{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)}
+  .todo-row .selbox{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+  .bulkbar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+    margin:0 0 12px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow)}
+  .bulkbar .bb-count{font-weight:600;font-size:13px;color:var(--ink);white-space:nowrap}
+  .bulkbar .bb-hint{font-size:12px;color:var(--ink-muted);font-style:italic}
+  .bulkbar .bb-field{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft)}
+  .bulkbar button,.bulkbar select,.bulkbar input{padding:5px 10px;font-size:12.5px;border-radius:6px;
+    border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
+  .bulkbar button{cursor:pointer}
+  .bulkbar button:hover{background:var(--surface-2);color:var(--ink)}
+  .bulkbar button.danger{color:var(--alert);border-color:var(--alert-bg)}
+  .bulkbar button.danger:hover{background:var(--alert-bg)}
+  .bulkbar .bb-cancel{margin-left:auto}
+  
+  .todo-row .actions{display:flex;gap:3px;align-items:center;opacity:0;transition:opacity .12s}
+  .todo-row:hover .actions{opacity:1}
+  .todo-row .actions button{padding:3px 7px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
+  .todo-row .actions button:hover{background:var(--surface-2)}
+  .todo-row .actions .ag{color:var(--alert);border-color:transparent}
+  .todo-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent)}
+  .todo-empty{padding:14px 16px;color:var(--ink-muted);font-style:italic;font-size:13px;text-align:center}
+
+  /* «Fra prosjekter»-bøtta (ADR 0045). Dempet overskrift — den skal ikke konkurrere med
+     Urgent/Short/Long, som er hennes egen prioritering. Gruppeoverskriften bærer
+     prosjektets farge fra --pc-h (ADR 0041), så raden kjennes igjen fra kortet. */
+  .todo-bucket .bh.proj{background:var(--surface-2);color:var(--ink-soft)}
+  .proj-bucket .ptgroup + .ptgroup{border-top:1px solid var(--line)}
+  .ptgroup-head{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;
+    background:var(--surface);border-top:1px solid var(--line-soft);
+    box-shadow:inset 3px 0 0 hsl(var(--pc-h, 220), 40%, 72%)}
+  .ptgroup-head:hover{background:var(--surface-2)}
+  .ptgroup-head .ptgroup-name{font-size:12px;font-weight:600;letter-spacing:.2px;
+    color:hsl(var(--pc-h, 220), 42%, 33%)}
+  .ptgroup-head .ptgroup-count{font-size:11px;color:var(--ink-muted)}
+  [data-theme="dark"] .ptgroup-head{box-shadow:inset 3px 0 0 hsl(var(--pc-h, 220), 30%, 46%)}
+  [data-theme="dark"] .ptgroup-head .ptgroup-name{color:hsl(var(--pc-h, 220), 46%, 76%)}
+  /* Prosjektoppgaverader har to handlinger, ikke ni — de skal ikke hoppe i bredden. */
+  .ptodo-row .actions{min-width:0}
+  .ptodo-row.done .ttitle{text-decoration:line-through;color:var(--ink-muted)}
+  .lrow.ics .ldate{opacity:.7}
+  .pill.ics{background:#5b8db8}
+  .sync-status{font-size:11.5px;color:var(--ink-muted)}
+  .sync-status.error{color:var(--alert)}
+  .sync-status.ok{color:#588a58}
+
+  /* Tasks list */
+  .tasks-block ul{list-style:none;margin:0;padding:0}
+  .tasks-block li{padding:6px 0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13px}
+  .tasks-block li:first-of-type{border-top:none}
+  .tasks-block li.done .tt{text-decoration:line-through;color:var(--ink-muted)}
+  .tasks-block .tt{flex:1}
+  .tasks-block .due{font-size:11px;color:var(--ink-muted)}
+  .tasks-block input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent)}
+
+  /* ====== Utility classes (consolidated from repeated inline styles, added 2026-05-26) ====== */
+  .text-alert{color:var(--alert)}
+  .text-muted-sm{font-size:11.5px;color:var(--ink-muted)}
+  .text-muted-italic{font-size:11.5px;color:var(--ink-muted);font-style:italic}
+  .text-note{font-weight:400;color:var(--ink-muted);text-transform:none;letter-spacing:0}
+  .text-mute-small{color:var(--ink-muted);font-size:11px}
+  .btn-sec{padding:6px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
+  .btn-sec-lg{padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
+  .btn-sec-xs{padding:2px 4px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:var(--surface)}
+  .btn-action{padding:7px 12px;border-radius:6px;border:1px solid var(--line);font-size:13px}
+  .flex-row-gap{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .flex-col-stretch{flex-direction:column;align-items:stretch;gap:6px}
+  .section-break{padding:10px 0;border-bottom:1px solid var(--line-soft);margin-bottom:6px}
+  .section-title{font-family:var(--serif);font-size:15px;margin-bottom:8px}
+  .input-mono{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-family:monospace;margin-bottom:8px}
+  .input-overlay{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  .pos-rel-ib{position:relative;display:inline-block}
+
+  /* ============================================================ */
+  /* ALLE MEDIA-SPØRRINGER LIGGER SIST (ADR 0046)                 */
+  /* ============================================================ */
+  /* Media-blokkene lå før spredt ut over hele arket, og alt som ble deklarert
+     ETTER dem vant ved samme spesifisitet — uansett hva media-spørringen sa.
+     Det gjorde regler døde i månedsvis uten et eneste varsel: handlingsknappene
+     i To Do-radene var usynlige på iPhone men tok fortsatt 126 px høyde i hver
+     rad, og draghåndtaket sto der på touch hvor HTML5-dra ikke virker (ADR 0044).
+     ADR 0044 lappet symptomet ved å legge én blokk nederst. Dette er kuren:
+     alle 19 media-blokkene ligger nå her, i sin opprinnelige innbyrdes
+     rekkefølge, etter samtlige basisregler. En basisregel kan ikke lenger
+     overkjøre en media-regel ved et uhell.
+     REGELEN: nye media-spørringer skrives HER, aldri oppe i arket. */
+
+  @media (max-width:1100px){.overview{grid-template-columns:repeat(3,1fr)}}
+
+  @media (max-width:680px){.overview{grid-template-columns:repeat(2,1fr)}}
+
+  @media (max-width:420px){.overview{grid-template-columns:1fr}}
+
+  @media (max-width:680px){
+    .month-grid .cell{min-height:64px;padding:4px}
+    .month-grid .cell .ev{font-size:10px;padding:1px 3px}
+    .month-grid .row.head .cell{padding:5px;font-size:10px}
+  }
+
+  @media (max-width:680px){.week{grid-template-columns:36px repeat(7,1fr);font-size:11px}.week .wh{padding:4px;font-size:9.5px}.week .wh strong{font-size:12px}}
+
+  @media (max-width:900px){.day-layout{grid-template-columns:1fr}}
+
+  @media (max-width:800px){.panel-grid{grid-template-columns:1fr}}
+
+  @media (max-width:680px){.fab{bottom:18px;right:18px}}
+
+  @media (max-width:680px){.toast{left:16px;right:16px;bottom:80px;max-width:none}}
+
+  @media (max-width:700px){.kanban{grid-template-columns:1fr;gap:10px}}
+
   /* ========== PRINT STYLES ========== */
   @media print {
     header.topbar, .fab, #sync-indicator, .modal-bg, .nav, .filter, .top-actions, .icon-btn, .arrows, .today-btn, .add-link, .ag, .actions { display: none !important; }
@@ -688,6 +1063,7 @@
     /* Settings secrets-input: smaller font ok since not user-typed */
     #ics-url,#sync-url,#sync-token{font-size:12px}
   }
+
   /* On any touch device (hover not supported), keep action buttons visible */
   @media (hover: none){
     .todo-row .actions{opacity:1}
@@ -695,8 +1071,6 @@
     .ptask .drag-handle, .todo-row .drag-handle{display:none}
     .keydates .kd:hover{background:inherit}
   }
-  /* Prevent horizontal scrolling on body */
-  html{overflow-x:hidden}
 
   /* ============================================================ */
   /* iPhone redesign — touch-first sizing, generous spacing, native feel */
@@ -799,7 +1173,11 @@
     .todo-bucket .bh { padding: 14px 18px; font-size: 16px; }
     /* Task rows: title gets full width on first line, actions wrap to a second row below.
        Prevents the word-by-word vertical wrapping that happens when actions squeeze the title column. */
-    .todo-row { padding: 14px 16px; gap: 10px; font-size: 15px; min-height: 56px; flex-wrap: wrap; align-items: center; row-gap: 10px; }
+    /* Polstring og skriftstørrelse holdes bevisst på verdiene ADR 0044 målte
+       (median radhøyde 57–60 px på iPhone). Denne blokka var delvis død fram til
+       ADR 0046, og da den våknet vokste raden til 71 px. Berøringsmålene beholdes
+       store — det er avkryssingsboksen og knappene som skal treffes, ikke raden. */
+    .todo-row { padding: 8px 16px; gap: 10px; font-size: 13.5px; min-height: 56px; flex-wrap: wrap; align-items: center; row-gap: 10px; }
     .todo-row input[type=checkbox] { width: 22px; height: 22px; flex-shrink: 0; }
     .todo-row .ttitle {
       font-size: 15px; line-height: 1.4;
@@ -922,323 +1300,17 @@
     .modal h3 { font-size: 17px; }
   }
 
-  /* Time-blocked task in day view */
-  .day-hours .hslot .ev.task-block{background:var(--surface-2);border-left-style:dashed;font-style:italic}
-  .day-hours .hslot .ev.task-block::before{content:'☐ ';font-style:normal;color:var(--ink-muted)}
-  .day-hours .hslot.drop-target{background:var(--surface-2);outline:2px dashed var(--accent);outline-offset:-2px}
-  .day-side .panel li[draggable="true"]{cursor:grab}
-  .day-side .panel li[draggable="true"]:active{cursor:grabbing}
-
-  /* Project notes — multi-note cards + rich editor */
-  .notes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:8px}
-  .note-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;cursor:pointer;min-height:90px;transition:transform .12s,box-shadow .12s;display:flex;flex-direction:column;gap:4px}
-  .note-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
-  .note-card-title{font-family:var(--serif);font-weight:500;font-size:14px;color:var(--ink);line-height:1.25}
-  .note-card-preview{font-size:11.5px;color:var(--ink-muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
-  .note-card-empty{font-size:11.5px;color:var(--ink-muted);font-style:italic}
-  .new-note-card{background:transparent;border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:13px;cursor:pointer;border-radius:var(--radius);min-height:90px;font-style:italic}
-  .new-note-card:hover{background:var(--surface);color:var(--ink)}
-  /* Rich text editor */
-  .note-toolbar{display:flex;gap:4px;padding:6px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
-  .note-toolbar button,.note-toolbar select{padding:5px 10px;font-size:12px;border:1px solid var(--line);background:var(--surface);border-radius:4px;cursor:pointer;color:var(--ink);font-family:var(--font);min-width:30px}
-  .note-toolbar button:hover,.note-toolbar select:hover{background:var(--surface-2)}
-  .note-toolbar .tb-sep{width:1px;background:var(--line);align-self:stretch;margin:0 4px}
-  .note-toolbar button.tb-bold{font-weight:700}
-  .note-toolbar button.tb-italic{font-style:italic}
-  .note-editor{min-height:240px;padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.6;outline:none;overflow-y:auto;max-height:60vh}
-  .note-editor:focus{border-color:var(--accent)}
-  .note-editor h2{font-family:var(--serif);font-size:20px;font-weight:500;margin:14px 0 6px;color:var(--ink)}
-  .note-editor h3{font-family:var(--serif);font-size:16px;font-weight:500;margin:10px 0 4px;color:var(--ink)}
-  .note-editor ul,.note-editor ol{margin:6px 0;padding-left:24px}
-  .note-editor li{margin:2px 0}
-  .note-editor p{margin:6px 0}
-  .note-editor a{color:var(--accent);text-decoration:underline}
-  .note-editor img{max-width:100%;border-radius:4px;margin:6px 0}
-  .note-editor:empty:before{content:attr(data-placeholder);color:var(--ink-muted);font-style:italic;pointer-events:none}
-  .note-title-input{font-family:var(--serif);font-weight:500;font-size:18px;border:none;background:transparent;width:100%;color:var(--ink);outline:none;padding:4px 0;border-bottom:1px dashed var(--line-soft)}
-  .note-title-input:focus{border-bottom-color:var(--accent)}
-  /* Note modal view mode — clean reading view, hides toolbar + editor borders */
-  /* Wikilink-autocomplete (ADR 0026) — flytende liste når du skriver «[[» i et notat.
-     z-index over .modal-bg (5000) siden den bor inne i modalen. */
-  .wl-ac{position:fixed;z-index:5100;min-width:220px;max-width:330px;max-height:212px;overflow-y:auto;
-    background:var(--surface);border:1px solid var(--line);border-radius:8px;
-    box-shadow:0 10px 30px rgba(0,0,0,.16);padding:4px;font-size:13px}
-  .wl-ac-item{padding:7px 10px;border-radius:5px;cursor:pointer;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
-  .wl-ac-item[aria-selected="true"]{background:var(--surface-2)}
-  .wl-ac-item .wl-ac-cat{float:right;margin-left:12px;font-size:11px;color:var(--ink-muted);font-style:italic}
-  .wl-ac-empty{padding:7px 10px;color:var(--ink-muted);font-style:italic}
-
-  [data-note-mode="view"] .note-toolbar{display:none!important}
-  [data-note-mode="view"] .note-editor{border:none;padding:0;background:transparent;cursor:pointer;min-height:120px}
-  [data-note-mode="view"] .note-title-input{border-bottom:none;font-size:22px;padding:2px 0;cursor:pointer;pointer-events:none}
-  [data-note-mode="view"] .note-edit-hint{display:flex}
-  [data-note-mode="edit"] .note-edit-hint{display:none}
-  .note-edit-hint{display:none;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-muted);font-style:italic;padding:8px 0 4px;justify-content:flex-end}
-  .toggle-edit-btn{padding:5px 12px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer}
-  .toggle-edit-btn:hover{background:var(--surface-2)}
-
-  /* Wikilinks */
-  .wikilink{color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent-soft);padding:0 1px}
-  .wikilink:hover{background:var(--surface-2);border-bottom-style:solid}
-  .wikilink-broken{color:var(--ink-muted);border-bottom-color:var(--ink-muted);font-style:italic}
-  .backlinks{display:flex;flex-direction:column;gap:6px}
-  .backlinks .bl{padding:8px 10px;background:var(--surface-2);border-radius:6px;font-size:12.5px;cursor:pointer;line-height:1.4}
-  .backlinks .bl:hover{background:var(--line-soft)}
-  .backlinks .bl strong{color:var(--ink);font-size:13px;display:block;margin-bottom:2px}
-  .backlinks .bl .snippet{color:var(--ink-muted);font-size:11.5px;font-style:italic}
-
-  /* Markdown preview */
-  .md-preview{padding:12px;background:var(--surface-2);border-radius:8px;font-size:13.5px;line-height:1.55;color:var(--ink)}
-  .md-preview h2{margin:8px 0 4px;font-family:var(--serif);font-weight:500;font-size:18px;color:var(--ink)}
-  .md-preview h3{margin:8px 0 4px;font-family:var(--serif);font-weight:500;font-size:15px}
-  .md-preview h4{margin:6px 0 2px;font-family:var(--serif);font-weight:500;font-size:14px}
-  .md-preview p{margin:6px 0}
-  .md-preview ul{margin:6px 0;padding-left:20px}
-  .md-preview li{margin:2px 0}
-  .md-preview img{max-width:100%;border-radius:4px;margin:6px 0;display:block;border:1px solid var(--line-soft)}
-  .md-preview a{color:var(--accent);text-decoration:underline}
-  .md-preview code{background:var(--surface);padding:1px 4px;border-radius:3px;font-size:90%;font-family:Consolas,monospace}
-  .md-preview hr{border:none;border-top:1px solid var(--line);margin:12px 0}
-
-  /* Hjem view */
-  .home-greeting{font-family:var(--serif);font-size:24px;color:var(--ink);margin:0 0 4px;font-weight:500}
-  .home-greeting .day{color:var(--accent)}
-  .home-date{font-size:13px;color:var(--ink-muted);margin-bottom:18px}
-  .home-countdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:20px}
-  .countdown-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;cursor:pointer;transition:transform .12s, box-shadow .12s;position:relative;overflow:hidden}
-  .countdown-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
-  .countdown-card .cd-label{font-size:11px;letter-spacing:.5px;color:var(--ink-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px}
-  .countdown-card .cd-title{font-family:var(--serif);font-size:16px;font-weight:500;color:var(--ink);line-height:1.2;margin-bottom:8px}
-  .countdown-card .cd-days{font-family:var(--serif);font-size:36px;font-weight:500;color:var(--ink);line-height:1}
-  .countdown-card .cd-days small{display:block;font-family:var(--font);font-size:11px;color:var(--ink-muted);margin-top:4px;font-weight:400;text-transform:uppercase;letter-spacing:.5px}
-  .countdown-card.featured{background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border-color:var(--accent-soft)}
-  .countdown-card.featured .cd-days{font-size:44px}
-  .countdown-card.urgent .cd-days{color:var(--alert)}
-  .home-section{margin-bottom:20px}
-  .home-section > h3{font-family:var(--serif);font-weight:500;font-size:16px;margin:0 0 10px;color:var(--ink);letter-spacing:0;display:flex;align-items:center;gap:6px}
-  .home-list{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .home-list-urgent{background:var(--alert-bg);border-color:var(--alert)}
-  .home-item{display:flex;align-items:center;gap:12px;padding:9px 14px;border-top:1px solid var(--line-soft);cursor:pointer;font-size:13.5px;transition:background-color .12s}
-  .home-item:first-of-type{border-top:none}
-  .home-item:hover{background:var(--surface-2)}
-  .home-list-urgent .home-item{border-top-color:rgba(200,80,62,0.18)}
-  .home-list-urgent .home-item:hover{background:rgba(200,80,62,0.08)}
-  .hi-date{min-width:60px;font-family:var(--serif);font-size:13px;color:var(--ink-muted);flex-shrink:0}
-  .hi-date.overdue{color:var(--alert);font-weight:600}
-  .hi-title{flex:1;color:var(--ink);line-height:1.35}
-  .home-empty{padding:14px 16px;color:var(--ink-muted);font-style:italic;font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
-  .home-item input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;margin:0}
-  .home-item .drag-handle{color:var(--ink-muted);font-size:11px;cursor:grab;user-select:none;letter-spacing:-2px;width:14px;flex-shrink:0;opacity:.5;transition:opacity .12s}
-  .home-item:hover .drag-handle{opacity:1}
-  .home-item.dragging{opacity:.4}
-  .home-item.drop-before{border-top:2px solid var(--accent)!important;margin-top:-1px}
-  .home-item.drop-after{border-bottom:2px solid var(--accent)!important;margin-bottom:-1px}
-  /* Generic drag-handle styling for any task row */
-  .drag-handle{color:var(--ink-muted);font-size:11px;cursor:grab;user-select:none;letter-spacing:-2px;width:14px;flex-shrink:0;opacity:.5;transition:opacity .12s;display:inline-block}
-  .ptask:hover .drag-handle,.todo-row:hover .drag-handle{opacity:1}
-  .ptask.dragging,.todo-row.dragging{opacity:.4}
-  .ptask.drop-before,.todo-row.drop-before{border-top:2px solid var(--accent)!important;margin-top:-1px}
-  .ptask.drop-after,.todo-row.drop-after{border-bottom:2px solid var(--accent)!important;margin-bottom:-1px}
-  .home-item.done .hi-title{text-decoration:line-through;color:var(--ink-muted)}
-  /* Prosjekt-tagg som chip (ADR 0035). Erstatter «· Tittel» i kursiv, som leste som en
-     fotnote — og fikk prosjektnavnet skrevet inn i tittelen i tillegg. Dempet, men en ting. */
-  .proj-chip{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;
-    background:var(--surface-2);border:1px solid var(--line);color:var(--ink-soft);
-    font-size:10.5px;line-height:1.5;white-space:nowrap;vertical-align:baseline}
-  /* Fargen kommer fra --pc-h, satt inline av projChipHTML() ut fra prosjekttittelen.
-     Bare nyansen varierer — metning og lyshet står her, én gang for lys og én gang for
-     mørk modus, så kontrasten er kontrollert begge steder. Faller tilbake til den gamle
-     grå chipen hvis --pc-h mangler. ADR 0041. */
-  .proj-chip[style*="--pc-h"]{
-    background:hsl(var(--pc-h), 44%, 94%);
-    border-color:hsl(var(--pc-h), 34%, 82%);
-    color:hsl(var(--pc-h), 42%, 33%)}
-  [data-theme="dark"] .proj-chip[style*="--pc-h"]{
-    background:hsl(var(--pc-h), 20%, 24%);
-    border-color:hsl(var(--pc-h), 18%, 34%);
-    color:hsl(var(--pc-h), 46%, 76%)}
-  .todo-row .proj-chip{cursor:pointer}
-  .todo-row .proj-chip:hover{border-color:var(--alert);color:var(--alert)}
-
-  /* Week calendar view on Hjem — 7 columns (Mon–Sun) */
-  .hjem-week-title{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap}
-  .hjem-week-title .wn{font-family:var(--serif);font-size:14px;color:var(--ink-soft)}
-  .hjem-week-title .wn strong{color:var(--ink);font-weight:500;margin:0 4px}
-  .hjem-week-title .range{font-size:12px;color:var(--ink-muted)}
-  .hjem-week{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .hjem-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
-  .hjem-week-col{border-right:1px solid var(--line-soft);min-height:140px;display:flex;flex-direction:column}
-  .hjem-week-col:last-child{border-right:none}
-  .hjem-week-col.today{background:var(--today)}
-  .hjem-week-col.weekend{background:var(--surface-2)}
-  .hjem-week-col.today.weekend{background:var(--today)}
-  .hjem-week-col-h{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line-soft);background:var(--surface-2);position:sticky;top:0}
-  .hjem-week-col.weekend .hjem-week-col-h{background:var(--surface-2)}
-  .hjem-week-col-h .wd{font-size:10px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:2px}
-  .hjem-week-col-h .num{font-family:var(--serif);font-size:18px;color:var(--ink);font-weight:500;display:block;line-height:1}
-  .hjem-week-col.today .hjem-week-col-h .num{color:var(--accent)}
-  .hjem-week-col-h .hol{font-size:9px;color:var(--alert);font-style:italic;display:block;margin-top:2px;line-height:1.15;word-break:break-word}
-  .hjem-week-items{padding:6px;display:flex;flex-direction:column;gap:3px;flex:1;font-size:10.5px}
-  .hjem-week-items .wke{background:var(--surface);border-left:2px solid var(--ink-muted);padding:3px 6px;border-radius:3px;cursor:pointer;line-height:1.3;word-break:break-word;color:var(--ink)}
-  .hjem-week-items .wke:hover{filter:brightness(.95)}
-  .hjem-week-items .wke strong{font-weight:600;font-size:10px}
-  .hjem-week-items .wke.cat-arbeid{border-left-color:var(--work)}
-  .hjem-week-items .wke.cat-privat{border-left-color:var(--privat)}
-  .hjem-week-items .wke.ics{font-style:italic;background:#f0f4f9;border-left-color:#5b8db8}
-  [data-theme="dark"] .hjem-week-items .wke.ics{background:#1f2935}
-  .hjem-week-items .wke-empty{font-size:10px;color:var(--ink-muted);font-style:italic;padding:4px 2px;text-align:center}
   /* On narrow screens — keep columns but make them scroll horizontally */
   @media (max-width:700px){
     .hjem-week-grid{grid-template-columns:repeat(7,minmax(90px,1fr));overflow-x:auto;-webkit-overflow-scrolling:touch}
   }
-  .home-quick{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:18px}
-  .home-quick input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--surface);color:var(--ink)}
-  .home-quick .home-quick-hint{font-size:11px;color:var(--ink-muted);margin-top:6px}
 
-  /* Task completion animation */
-  .todo-row.completing,.ptask.completing,.kcard.completing,.tasks-block li.completing{animation:taskComplete 380ms ease-out forwards}
-  @keyframes taskComplete{
-    0%{opacity:1;transform:translateX(0)}
-    50%{opacity:.5;transform:translateX(8px)}
-    100%{opacity:0;transform:translateX(40px);max-height:0;padding-top:0;padding-bottom:0;margin-top:0;margin-bottom:0;border:0}
-  }
-
-  /* Today dashboard */
-  .dashboard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
   @media (max-width:700px){.dashboard{grid-template-columns:1fr}}
-  .dashboard h4{margin:0 0 8px;font-family:var(--serif);font-weight:500;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:6px}
-  .dashboard .dash-item{padding:4px 0;font-size:12.5px;color:var(--ink-soft);display:flex;gap:8px;align-items:flex-start;line-height:1.35;cursor:pointer;border-top:1px solid var(--line-soft)}
-  .dashboard .dash-item:first-of-type{border-top:none}
-  .dashboard .dash-item:hover{color:var(--ink)}
-  .dashboard .dash-item .ddate{min-width:48px;color:var(--ink-muted);font-family:var(--serif);font-size:12px;flex-shrink:0}
-  .dashboard .dash-item .dtitle{flex:1}
-  .dashboard .dash-item .dtitle .dmeta{display:block;font-size:11px;color:var(--ink-muted);margin-top:1px}
-  .dashboard .dash-urgent h4{color:var(--alert)}
-  .dashboard .dash-empty{font-size:12px;color:var(--ink-muted);font-style:italic;padding:4px 0}
 
-  /* Priority pills + To Do's view */
-  .pill.prio-urgent{background:var(--alert);color:#fff}
-  .pill.prio-short{background:#c9a87a;color:#fff}
-  .pill.prio-long{background:#6b7d99;color:#fff}
-  .pill.prio-none{background:var(--surface-2);color:var(--ink-muted)}
-  .todo-quick{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:18px;display:flex;flex-direction:column;gap:10px}
-  .todo-quick input.qtxt{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px}
-  .todo-quick .qbtns{display:flex;gap:6px;flex-wrap:wrap}
-  .todo-quick .qbtns button{padding:6px 12px;font-size:12.5px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)}
-  .todo-quick .qbtns button.urgent{background:#fce8e8;border-color:#e6b8b8;color:#883333}
-  .todo-quick .qbtns button.short{background:#fbf1e1;border-color:#dfc99a;color:#7a5a30}
-  .todo-quick .qbtns button.long{background:#e8eef7;border-color:#bcc7d8;color:#3a4a66}
-  .todo-quick .qbtns button:hover{filter:brightness(.95)}
-  .todo-bucket{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;overflow:hidden}
-  .todo-bucket .bh{padding:10px 16px;background:var(--surface-2);font-family:var(--serif);font-size:15px;font-weight:500;display:flex;justify-content:space-between;align-items:center;color:var(--ink)}
-  .todo-bucket .bh small{font-size:11.5px;color:var(--ink-muted);font-weight:400;font-family:var(--font);font-style:italic}
-  .todo-bucket .bh.urgent{background:#fce8e8;color:#883333}
-  .todo-bucket .bh.short{background:#fbf1e1;color:#7a5a30}
-  .todo-bucket .bh.long{background:#e8eef7;color:#3a4a66}
-  .todo-row{padding:8px 16px;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13.5px}
-  .todo-row:first-of-type{border-top:none}
-  .todo-row.done .ttitle{text-decoration:line-through;color:var(--ink-muted)}
-  .todo-row .ttitle{flex:1;cursor:pointer;display:flex;align-items:center;gap:6px;min-width:0}
-  /* Dato og prosjekt-chip skal ikke krympe eller brytes — det er tittelen som skal ta
-     plassen. Uten `flex-shrink:0` klemte flex-oppsettet chipen til «Meox …». ADR 0035. */
-  .todo-row .ttitle .due{font-size:11px;color:var(--ink-muted);flex:0 0 auto;white-space:nowrap}
-  /* Forfalt frist. Ordene bærer det alene («2 dager på overtid»), men fargen fanger
-     blikket først når lista er lang. ADR 0040. */
-  .todo-row .ttitle .due.overdue{color:var(--alert);font-weight:600}
-  .todo-row .ttitle > .proj-chip{flex:0 0 auto}
-
-  /* Velg-modus og handlingslinje (ADR 0042) */
-  .todo-row.selectable{cursor:pointer}
-  .todo-row.selectable:hover{background:var(--surface-2)}
-  .todo-row.selected{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)}
-  .todo-row .selbox{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
-  .bulkbar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:8px;
-    margin:0 0 12px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);
-    border-radius:var(--radius);box-shadow:var(--shadow)}
-  .bulkbar .bb-count{font-weight:600;font-size:13px;color:var(--ink);white-space:nowrap}
-  .bulkbar .bb-hint{font-size:12px;color:var(--ink-muted);font-style:italic}
-  .bulkbar .bb-field{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft)}
-  .bulkbar button,.bulkbar select,.bulkbar input{padding:5px 10px;font-size:12.5px;border-radius:6px;
-    border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
-  .bulkbar button{cursor:pointer}
-  .bulkbar button:hover{background:var(--surface-2);color:var(--ink)}
-  .bulkbar button.danger{color:var(--alert);border-color:var(--alert-bg)}
-  .bulkbar button.danger:hover{background:var(--alert-bg)}
-  .bulkbar .bb-cancel{margin-left:auto}
   @media (max-width:700px){.bulkbar .bb-cancel{margin-left:0}}
-  .todo-row .actions{display:flex;gap:3px;align-items:center;opacity:0;transition:opacity .12s}
-  .todo-row:hover .actions{opacity:1}
-  .todo-row .actions button{padding:3px 7px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)}
-  .todo-row .actions button:hover{background:var(--surface-2)}
-  .todo-row .actions .ag{color:var(--alert);border-color:transparent}
-  .todo-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent)}
-  .todo-empty{padding:14px 16px;color:var(--ink-muted);font-style:italic;font-size:13px;text-align:center}
-
-  /* «Fra prosjekter»-bøtta (ADR 0045). Dempet overskrift — den skal ikke konkurrere med
-     Urgent/Short/Long, som er hennes egen prioritering. Gruppeoverskriften bærer
-     prosjektets farge fra --pc-h (ADR 0041), så raden kjennes igjen fra kortet. */
-  .todo-bucket .bh.proj{background:var(--surface-2);color:var(--ink-soft)}
-  .proj-bucket .ptgroup + .ptgroup{border-top:1px solid var(--line)}
-  .ptgroup-head{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;
-    background:var(--surface);border-top:1px solid var(--line-soft);
-    box-shadow:inset 3px 0 0 hsl(var(--pc-h, 220), 40%, 72%)}
-  .ptgroup-head:hover{background:var(--surface-2)}
-  .ptgroup-head .ptgroup-name{font-size:12px;font-weight:600;letter-spacing:.2px;
-    color:hsl(var(--pc-h, 220), 42%, 33%)}
-  .ptgroup-head .ptgroup-count{font-size:11px;color:var(--ink-muted)}
-  [data-theme="dark"] .ptgroup-head{box-shadow:inset 3px 0 0 hsl(var(--pc-h, 220), 30%, 46%)}
-  [data-theme="dark"] .ptgroup-head .ptgroup-name{color:hsl(var(--pc-h, 220), 46%, 76%)}
-  /* Prosjektoppgaverader har to handlinger, ikke ni — de skal ikke hoppe i bredden. */
-  .ptodo-row .actions{min-width:0}
-  .ptodo-row.done .ttitle{text-decoration:line-through;color:var(--ink-muted)}
-  .lrow.ics .ldate{opacity:.7}
-  .pill.ics{background:#5b8db8}
-  .sync-status{font-size:11.5px;color:var(--ink-muted)}
-  .sync-status.error{color:var(--alert)}
-  .sync-status.ok{color:#588a58}
-
-  /* Tasks list */
-  .tasks-block ul{list-style:none;margin:0;padding:0}
-  .tasks-block li{padding:6px 0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13px}
-  .tasks-block li:first-of-type{border-top:none}
-  .tasks-block li.done .tt{text-decoration:line-through;color:var(--ink-muted)}
-  .tasks-block .tt{flex:1}
-  .tasks-block .due{font-size:11px;color:var(--ink-muted)}
-  .tasks-block input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent)}
-
-  /* ====== Utility classes (consolidated from repeated inline styles, added 2026-05-26) ====== */
-  .text-alert{color:var(--alert)}
-  .text-muted-sm{font-size:11.5px;color:var(--ink-muted)}
-  .text-muted-italic{font-size:11.5px;color:var(--ink-muted);font-style:italic}
-  .text-note{font-weight:400;color:var(--ink-muted);text-transform:none;letter-spacing:0}
-  .text-mute-small{color:var(--ink-muted);font-size:11px}
-  .btn-sec{padding:6px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)}
-  .btn-sec-lg{padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)}
-  .btn-sec-xs{padding:2px 4px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:#fff}
-  .btn-action{padding:7px 12px;border-radius:6px;border:1px solid var(--line);font-size:13px}
-  .flex-row-gap{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .flex-col-stretch{flex-direction:column;align-items:stretch;gap:6px}
-  .section-break{padding:10px 0;border-bottom:1px solid var(--line-soft);margin-bottom:6px}
-  .section-title{font-family:var(--serif);font-size:15px;margin-bottom:8px}
-  .input-mono{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-family:monospace;margin-bottom:8px}
-  .input-overlay{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-  .pos-rel-ib{position:relative;display:inline-block}
 
   /* ============================================================ */
-  /* MOBILRETTELSER — MÅ LIGGE SIST (ADR 0044)                    */
   /* ============================================================ */
-  /* Media-blokkene for telefon ligger midt i dette arket (ca. linje 690–900). Alt som
-     deklareres etter dem vinner ved samme spesifisitet, uansett hva media-spørringen
-     sier. To regler var derfor døde i månedsvis:
-       · `@media (hover:none){.todo-row .actions{opacity:1}}` ble slått av
-         `.todo-row .actions{...opacity:0}` lenger ned — handlingsknappene var usynlige
-         på iPhone, men tok fortsatt 126 px høyde i hver rad (målt: rad 172 px mot 42 px
-         på desktop). Fire oppgaver fylte skjermen.
-       · `@media (hover:none){.drag-handle{display:none}}` ble slått av
-         `.drag-handle{...display:inline-block}` — draghåndtaket sto der på touch, hvor
-         HTML5-dra ikke virker i det hele tatt.
-     Nye mobiloverstyringer hører derfor hjemme HER, nederst. */
   @media (max-width: 700px){
     /* Oppgaverader — frie og prosjektoppgaver (ADR 0045): bare ✎ (og × der den finnes)
        i selve raden. Prioritet, prosjekt, frist og kategori ligger alle i skjemaet ✎
@@ -1279,6 +1351,190 @@
     .pinline-add{flex-wrap:wrap}
     .pinline-add input, .pinline-add input.small{flex:1 1 100%; min-width:0}
     .pinline-add button{flex:1 1 100%; min-height:40px}
+  }
+
+  /* ============================================================ */
+  /* MOBILMODELLEN (ADR 0050)                                        */
+  /* ============================================================ */
+  /* Én modell for telefon, ikke femti småfikser: rammen krymper til to smale bånd
+     (topplinje på én rad, bunnmeny som tab-bar), innholdet tilpasser seg tommelen
+     (44 px berøringsmål, 12 px skriftgulv, ingen fylte fargebokser). Måned er en
+     minikalender med prikker, Uke er en agenda (tegnes av _renderWeekAgenda i app.js).
+     Ligger sist i arket, som ADR 0046 krever. */
+  @media (max-width: 700px){
+
+    /* ---- Rammen ---- */
+    /* Bunnmenyen bor INNE i den klebrige topplinja. Med z-index:10 ble hele den
+       konteksten tegnet under alt innhold med høyere z — hendelser i Uke og Dag har
+       1–99 — så møtene la seg over menyen. 300 ligger over alt innhold, under modalen (5000). */
+    header.topbar{
+      z-index:300; flex-wrap:nowrap; gap:6px; min-height:52px;
+      padding:6px 12px; padding-top:calc(6px + env(safe-area-inset-top, 0px));
+    }
+    .brand{order:1; flex:0 1 auto; min-width:0; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .brand .dot{width:6px; height:6px; margin-right:6px}
+    .topbar-spacer{display:none}
+    .filter{order:2; flex:1 1 130px; min-width:130px; max-width:210px; margin:0 auto; padding:2px}
+    .filter button{flex:1; padding:0 6px; min-height:32px; font-size:12.5px; font-weight:500; border-radius:999px}
+    .top-actions{order:3; flex:0 0 auto; gap:0}
+    .icon-btn{width:40px; height:40px}
+
+    .nav{
+      padding:3px 6px calc(4px + env(safe-area-inset-bottom, 0px));
+      gap:0; box-shadow:none; border-top:1px solid var(--line); background:var(--surface);
+      justify-content:stretch; overflow:visible;
+    }
+    .nav button{
+      flex:1 1 0; min-width:0; min-height:46px; padding:9px 0 6px;
+      font-size:11.5px; font-weight:500; line-height:1.2; border-radius:10px; position:relative;
+      letter-spacing:-.1px; color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .nav button.active{background:transparent; color:var(--ink); font-weight:600; box-shadow:none}
+    [data-theme="dark"] .nav button.active{color:var(--ink)}
+    .nav button.active::before{
+      content:''; position:absolute; top:0; left:50%; transform:translateX(-50%);
+      width:22px; height:2px; border-radius:2px; background:var(--accent);
+    }
+    .nav button .badge{font-size:10.5px; padding:1px 4px; margin-left:3px; vertical-align:1px}
+
+    /* Innholdet skal aldri ende under menyen, og FAB-en skal ikke ligge på den. */
+    main{padding-bottom:calc(72px + env(safe-area-inset-bottom, 0px))}
+    .fab{bottom:calc(76px + env(safe-area-inset-bottom, 0px)); right:16px; width:52px; height:52px}
+
+    /* ---- Skriftgulv: ingenting under 12 px på telefon ----
+       Målt: 36 forfallsdatoer på 11 px, 21 månedsmerker på 10,5, kategoripiller på 10.
+       Løftes ett hakk hver — ikke til én felles størrelse, hierarkiet skal stå. */
+    .pcard .ptodo{font-size:13px}
+    .todo-row .ttitle .due, .tasks-block .due, .ptask .due,
+    .search-results .sr .meta, .keydates .kd .ktitle .meta,
+    .strip .label, .gantt-headrow .label-col, .ptgroup-head .ptgroup-count,
+    .countdown-card .cd-label, .text-mute-small, .hjem-week-col-h .wd,
+    .gantt-months .mtick, .hjem-week-items .wke-empty, .nav button .badge{font-size:12px}
+    .pill{font-size:11.5px; letter-spacing:.4px}
+    .todo-bucket .bh small, .home-section small, .psection small, .pcard small{font-size:12px}
+    .gantt-row .bar{height:24px; line-height:24px; font-size:12px}
+    .gantt-row .label{font-size:12.5px}
+    .hjem-week-items .wke strong{font-size:12px}
+    .countdown-card .cd-days small, .pcard .countdown small{font-size:12px; letter-spacing:.3px}
+    .countdown-card .cd-next, .pcard .pnext{font-size:12.5px}
+    .home-date .wr-btn{font-size:12.5px; min-height:32px; padding:0 10px}
+    .home-quick-hint span{font-size:12.5px}
+    .pcard .ptodo-more .ptodo-title{font-size:12px}
+    .pcard .ptodo-date{flex-basis:72px}
+    .week .hour-label, .day-hours .hl{font-size:12px}
+    .todo-bucket .bh small{font-size:12.5px}
+    .home-quick-hint{font-size:12.5px}
+    .proj-chip{font-size:12px}
+    .month-grid .row.head .cell{font-size:12px}
+
+    /* ---- Undernavigasjon (I dag · tittel · ‹ ›) på én rad ---- */
+    .subnav:has(.arrows){display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px; margin-bottom:10px}
+    .subnav:has(.arrows) h2{font-size:19px; line-height:1.2; text-align:center; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .subnav:has(.arrows) h2 .yr{display:block; font-size:12.5px; margin:1px 0 0; white-space:nowrap}
+    .subnav .today-btn{min-height:40px; padding:0 12px; font-size:13px}
+    .subnav .arrows button{width:40px; height:40px}
+
+    /* ---- Prosjekter: kortene kan ikke sprenge bredden ----
+       `1fr` er `minmax(auto,1fr)`, og auto-minimum er innholdets minste bredde — en
+       nowrap-tittel på 518 px gjorde hele siden 652 px bred, og bunnmenyen forsvant ut
+       av bildet. minmax(0,1fr) er den kanoniske kuren. */
+    .projects-grid{grid-template-columns:minmax(0,1fr); gap:10px}
+    .pcard{min-width:0; padding:14px 16px; border-radius:12px}
+    .pcard h3{font-size:18px}
+
+    /* ---- Måned: minikalender ----
+       Sju like kolonner. Hver hendelse er én prikk i kategorifargen, «+N til» en grå
+       prikk. Trykk på dagen åpner Dag — renderMonth har alltid gjort det. */
+    .month-grid .row{grid-template-columns:repeat(7, minmax(0,1fr))}
+    .month-grid .row.head .cell{padding:8px 0; text-align:center; letter-spacing:.3px}
+    .month-grid .cell{
+      min-height:60px; padding:5px 3px 7px;
+      flex-direction:row; flex-wrap:wrap; align-content:flex-start; justify-content:center; gap:3px;
+    }
+    .month-grid .cell .num{width:100%; justify-content:center; font-size:14px; font-weight:500; height:24px; margin-bottom:1px}
+    .month-grid .cell.today .num{color:var(--accent); font-weight:700}
+    .month-grid .cell .num .holiday-tag{display:none}
+    .month-grid .cell:has(.holiday-tag) .num{color:var(--alert)}
+    .month-grid .cell .ev,
+    .month-grid .cell .more,
+    .month-grid .cell .ev.multi,
+    .month-grid .cell .ev.multi.multi-cont,
+    .month-grid .cell .ev.multi:not(.multi-cont):not(.multi-last),
+    .month-grid .cell .ev.multi.multi-cont:not(.multi-last),
+    .month-grid .cell .ev.multi.multi-rowend:not(.multi-last),
+    .month-grid .cell .ev.multi.multi-cont.multi-rowstart{
+      width:6px; height:6px; min-height:0; flex:0 0 6px;
+      padding:0; margin:0; border:none; border-radius:50%;
+      font-size:0; line-height:0; color:transparent; overflow:hidden; box-shadow:none;
+      background:var(--ink-muted);
+    }
+    .month-grid .cell .ev::before, .month-grid .cell .ev::after{content:none}
+    .month-grid .cell .ev.cat-arbeid{background:var(--work)}
+    .month-grid .cell .ev.cat-privat, .month-grid .cell .ev.cat-personlig{background:var(--privat)}
+    .month-grid .cell .ev.cat-helse{background:var(--helse)}
+    .month-grid .cell .ev.cat-reise{background:var(--reise)}
+    .month-grid .cell .ev.proj, .month-grid .cell .ev.projevt{background:var(--accent-soft)}
+    .month-grid .cell .more{background:var(--line)}
+
+    /* ---- Uke: agenda (DOM fra _renderWeekAgenda) ---- */
+    .week-agenda{display:flex; flex-direction:column; gap:10px; font-size:14px}
+    .wa-day{background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden}
+    .wa-day.today{border-color:var(--accent-soft)}
+    .wa-head{display:flex; align-items:center; gap:8px; min-height:44px; padding:8px 14px; background:var(--surface-2); cursor:pointer}
+    .wa-dow{font-size:12px; font-weight:600; letter-spacing:.4px; text-transform:uppercase; color:var(--ink-muted)}
+    .wa-num{font-family:var(--serif); font-size:18px; color:var(--ink)}
+    .wa-day.today .wa-num{color:var(--accent); font-weight:600}
+    .wa-hol{font-size:12.5px; font-style:italic; color:var(--alert)}
+    .wa-count{margin-left:auto; font-size:12.5px; color:var(--ink-muted); font-variant-numeric:tabular-nums}
+    .wa-row{
+      display:flex; gap:10px; align-items:flex-start; min-height:44px;
+      padding:10px 14px 10px 11px; border-top:1px solid var(--line-soft);
+      border-left:3px solid var(--ink-muted); cursor:pointer;
+    }
+    .wa-row.cat-arbeid{border-left-color:var(--work)}
+    .wa-row.cat-privat, .wa-row.cat-personlig{border-left-color:var(--privat)}
+    .wa-row.cat-helse{border-left-color:var(--helse)}
+    .wa-row.cat-reise{border-left-color:var(--reise)}
+    .wa-row.task{border-left-style:dashed}
+    .wa-row:active{background:var(--surface-2)}
+    .wa-time{flex:0 0 76px; font-size:13px; color:var(--ink-soft); font-variant-numeric:tabular-nums; padding-top:1px}
+    .wa-title{flex:1; min-width:0; color:var(--ink); line-height:1.35; overflow-wrap:anywhere}
+    .wa-title small{display:block; font-size:12.5px; color:var(--ink-muted); margin-top:1px}
+    .wa-empty{padding:10px 14px; color:var(--ink-muted); border-top:1px solid var(--line-soft)}
+
+    /* ---- Hjem: rolig, ikke fylt rødt ---- */
+    .home-list-urgent{background:var(--surface); border-color:var(--line); border-left:3px solid var(--alert)}
+    .home-list-urgent .home-item{border-top-color:var(--line-soft)}
+    .home-list-urgent .home-item:hover{background:var(--surface-2)}
+    .home-item{min-height:48px}
+    /* Hurtigfeltets forklaring er skrevet for desktop; på telefon holder knappen. */
+    .home-quick-hint span:last-child{display:none}
+
+    /* ---- Dag ---- */
+    .day-hours{grid-template-columns:46px 1fr}
+    .day-hours .hslot .ev{font-size:13.5px}
+
+    /* ---- Årsoversikt: tidslinja ruller sidelengs, etikettkolonnen står ----
+       Innerbredden på 900 px er der for at 24 måneder skal få plass — så etikettene
+       må være klebrige for at du skal vite hvilken rad du ser på når du ruller. */
+    .gantt-inner{min-width:900px}
+    .gantt-headrow, .gantt-row{grid-template-columns:132px 1fr}
+    .gantt-headrow .label-col, .gantt-row .label{position:sticky; left:0; z-index:2; background:var(--surface)}
+    .gantt-headrow .label-col{background:var(--surface-2)}
+    .gantt-row .label{padding:8px 10px}
+    .gantt-row .track{min-height:40px}
+    .gantt-scroll{-webkit-overflow-scrolling:touch}
+
+    /* ---- Berøringsmål som ikke alt var 44 px ---- */
+    .pview-toggle button, .psection h4 button, .pinline-add button, .btn-sec, .btn-sec-lg{min-height:40px}
+    .modal .footer button{min-height:44px; padding:0 18px}
+    .today-btn, .add-link{min-height:40px}
+    .todo-row .actions > .ag, .todo-row .actions button, .ptdel,
+    .todo-row:not([data-task-kind="inbox"]) .actions > .ag{min-width:44px; min-height:44px}
+    .todo-row input[type=checkbox], .ptask input[type=checkbox], .home-item input[type=checkbox]{width:24px; height:24px}
+    /* Prikkene i minikalenderen er ikke mål — dagen er målet. Uten dette ville et treff
+       på en 6 px prikk åpnet hendelsen i stedet for dagen. */
+    .month-grid .cell .ev, .month-grid .cell .more{pointer-events:none}
   }
 
 </style>

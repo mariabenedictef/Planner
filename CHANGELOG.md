@@ -6,6 +6,37 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-09-17 (kveld) — Mobilmodellen
+
+Planleggeren på iPhone, gjennomgått med ekte data på 390 px. ADR 0050.
+
+- **Prosjekter var 652 px bred på en 390 px telefon** — kortene tvang bredden, nettleseren zoomet ut, og bunnmenyen forsvant ut av bildet. `minmax(0,1fr)` på rutenettet. Samme feil lå under Måned, der tomme dager ble 15 px-striper.
+- **Måned er en minikalender**: sju like kolonner, én prikk per hendelse i kategorifargen, trykk på dagen åpner Dag.
+- **Uke er en agenda**: de sju dagene nedover med hendelser og oppgaver som rader, samme handlere som rutenettet. Desktop tegner rutenettet som før.
+- **Rammen er to smale bånd.** Topplinje på én rad — innholdet starter på 67 px i stedet for 133 — og bunnmeny som ekte tab-bar med fire like felt, ingen avkorting, aktiv fane med strek i stedet for mørk pille. Menyen lå inne i topplinjas `z-index:10`, så hendelser i Uke og Dag tegnet seg over den; 300 nå.
+- **Skriftgulv 12 px** (minste var 9,5), **44 px berøringsmål** på radknapper og slett, avkryssingsbokser 24. Urgent på Hjem er en liste med rød kant, ikke en fylt boks. Årsoversikten ruller sidelengs med klebrige etiketter.
+- Dag viste to Outlook-ikoner på heldagshendelser. Tre hardkodede lyse flater til i mørk modus (helg, andre måneds dager, Outlook-hendelser) er på variabler.
+
+Testsuiten: 529 → 555 assertions. 24 feiler mot koden før runden. Desktop målt uendret på 320 elementer. Rettet i egen verifikasjon: rutene er norske — forrige rundes skjermbilder «i sju visninger» traff bare én.
+
+---
+
+## 2026-09-17 — Ett oppgavelager, RECURRENCE-ID, og hele stilarket ryddet
+
+Fire ADR-er i én runde: 0046–0049. Den største er datamodellen.
+
+- **Ett oppgavelager bak `version: 5`.** Oppgaver bodde to steder — frie To Do's i `state.tasks`, prosjektenes egne i `p.tasks` — og hver ny visning måtte huske å spørre begge. Tre ADR-er på fire måneder (0033, 0037, 0045) kom av at én av dem glemte det. Nå er det ett lager, og et lagret felt `kind` sier om oppgaven er prosjektets egen (`'sub'`) eller fri (`'free'`). Feltet kan ikke utledes: en tagget fri To Do og en underoppgave i samme prosjekt har begge `projectId`. Tre dører — `_taskById`, `_freeTasks`, `_projectSubtasks` — erstatter 30 spredte oppslag. Verifisert mot din egen eksport fra 26. mai: 65 frie + 39 underoppgaver i 11 prosjekter → 104 i ett lager, null id-er tapt, null felttap, idempotent. ADR 0049.
+- **Migreringen er nå én dør, og alle går gjennom den.** `pullFromRemote`, `restoreCloudBackup`, `_mergeSnapshot` og `resetAll` la tidligere blobben rett oppå en fersk `DEFAULT_STATE` — altså ingen migrering i det hele tatt. Latent til nå, datatap ved neste formatskifte. Første gang et v4-blob lastes, lagres de rå bytene under `planlegger.preV5.<tidsstempel>` først. Åtte døde `DEFAULT_STATE`-felter er fjernet samtidig.
+- **`RECURRENCE-ID` virker.** Et møte du flyttet i Outlook sto **to steder samtidig** — serien laget det på gammelt tidspunkt, og Outlooks overstyring ble lagt til som en egen hendelse med kolliderende id. Og en enkeltavlysning forsvant sporløst, fordi `STATUS:CANCELLED` ble kastet før noen så at den pekte på én forekomst. `parseICS` leser nå i to omganger, siden en overstyring kan stå før serien den hører til. Målt på en femukers serie: én flyttet ga 6 hendelser før og 5 nå; én avlyst ga 5 før og 4 nå. ADR 0048.
+- **Alle 19 media-spørringer ligger nå sist i stilarket.** ADR 0044 lappet symptomet med én blokk nederst; dette er kuren. **78 erklæringer var døde** — hele «iPhone redesign»-blokka var delvis slått av basisregler lenger nede. Omskrivingen er verifisert innholdsbevarende: 2 666 erklæringer før og etter, identisk multimengde, rekkefølgen bevart i begge grupper. Flyttingen alene ville gjort To Do-radene 20 % høyere, så `.todo-row` er bevisst holdt på verdiene 0044 målte — median 59 px, som før — mens berøringsmålene fikk vokse: avkryssingsboksen 15 → 22 px. ADR 0046.
+- **Mørk modus: 11 lyse flater → 3.** Bøtteoverskriftene Urgent/Short/Long var hardkodet hex og ble stående lyse. Mønstersveipen fant verre ting enn den som var meldt: **hurtigfeltet på To Do's hadde ingen bakgrunn i det hele tatt** og arvet nettleserens hvite, mens teksten fulgte `--ink` — lys tekst på hvitt, praktisk talt usynlig mens du skrev. Tolv av forekomstene lå som inline-stiler i `app.js`, som slår stilarket, og kunne derfor ikke fikses i CSS-en. Alt går nå på `var(--surface)` og nye `--bh-*`-variabler. De tre som står igjen — merkeprikken, FAB-en og toasten — er med vilje lyse. **Lys modus er målt bit for bit uendret.** ADR 0047.
+
+Testsuitene: `run.mjs` 495 → 529 assertions, `ics.mjs` 61 → 80. Negativ kontroll mot `7b024c5`: 34 av 504 feiler i hovedsuiten (gammel kode krasjer i to seksjoner og kan ikke engang lese v5-fixturene), 11 av 80 i ICS-suiten. Skjermbilder i to bredder og to modi, null horisontal overflow, null konsollfeil.
+
+**Merk ved oppgradering:** telefonen kjører gammel `app.js` til den henter den nye. En v4-klient som puller et v5-blob plasserer prosjektoppgavene feil og kan skrive det tilbake. Last planleggeren på nytt på iPhone før du rører noe der.
+
+---
+
 ## 2026-08-13 (kveld) — Prosjektoppgaver synes i To Do's, begge veier
 
 Toveisheten var halv: en fri To Do tagget til et prosjekt har vist seg inne i prosjektet siden ADR 0033/0037, men prosjektenes egne underoppgaver var usynlige i To Do's — der hun faktisk jobber. ADR 0045.

@@ -214,13 +214,29 @@ HANDLERS.closeModalThenVoice = () => {
 
 // Delete a project task while inside the task-edit modal, then close
 HANDLERS.deleteProjectTaskAndClose = (pid, tid) => {
-  const p = state.projects.find(x => x.id === pid);
-  const t = p ? (p.tasks || []).find(x => x.id === tid) : null;
-  deleteWithUndo(()=>_projectArr(pid, 'tasks'), tid, `«${t ? t.title : 'oppgaven'}»`);
+  const t = _taskById(tid);
+  deleteWithUndo(()=>state.tasks, tid, `«${t ? t.title : 'oppgaven'}»`);
   saveState();
   closeModal();
   render();
 };
+
+// ============================================================
+// OPPGAVELAGERET: ett lager, tre dører (ADR 0049)
+// ============================================================
+// `state.tasks` holder alt. Det persisterte feltet `kind` sier hvor oppgaven hører
+// hjemme — 'sub' = prosjektets egen underoppgave (alltid med projectId), 'free' = fri
+// To Do (kan være tagget til et prosjekt med projectId). Skillet er IKKE utledbart:
+// en fri To Do tagget til et prosjekt og en underoppgave i samme prosjekt har begge
+// projectId satt, men hører hjemme i hver sin visning. Derfor et lagret felt.
+function _taskById(id){ return (state.tasks || []).find(t => t && t.id === id) || null; }
+// Frie To Do's — alt som ikke er en prosjektunderoppgave. Prioritetsbøttene, Hjem,
+// søket og ukesoppsummeringen spør her.
+function _freeTasks(){ return (state.tasks || []).filter(t => t && t.kind !== 'sub'); }
+// Ett prosjekts egne underoppgaver, i lagerrekkefølge.
+function _projectSubtasks(pid){
+  return (state.tasks || []).filter(t => t && t.kind === 'sub' && t.projectId === pid);
+}
 
 // Slår opp en av prosjektets lister på nytt. Brukes som `getArr` til
 // deleteWithUndo, som med vilje ikke fanger referansen — se ADR 0039.
@@ -620,21 +636,16 @@ function _saveOutlookCache(){
     return { ok: false, error: err.message || String(err) };
   }
 }
-const STATE_VERSION = 4;
+const STATE_VERSION = 5;
 const DEFAULT_STATE = {
-  themes: {},      // legacy yearly themes — migrated to yearFocus
-  yearFocus: {},   // { "2026": "string" }  optional
-  quarterly: {},   // legacy — migrated to quarterFocus
-  quarterFocus: {},// { "2026-Q2": "string" } optional
-  monthFocus: {},  // { "2026-07": "string" } optional
   events: [],
   outlookEvents: [],  // synced from Outlook ICS — read-only
+  // ETT oppgavelager (ADR 0049). `kind` sier hvor oppgaven hører hjemme:
+  //   'free' = fri To Do, kan være tagget til et prosjekt via projectId
+  //   'sub'  = prosjektets egen underoppgave, alltid med projectId
   tasks: [],
   projects: [],
-  goals: [],
-  habits: [],
   notes: {},
-  reviews: {},
   inbox: [],
   // UI preferences and current view state (formerly part of `settings`)
   ui: {
@@ -656,33 +667,44 @@ const DEFAULT_STATE = {
     syncToken: '',
     lastWeeklyExport: '',
   },
-  meta: { version: 4, createdAt: new Date().toISOString() }
+  meta: { version: STATE_VERSION, createdAt: new Date().toISOString() }
 };
+
+// Felter som fantes i v4 og tidligere, og som ingen renderer leser. De fjernes ved
+// migrering i stedet for å bæres videre i hver eneste sky-push og hvert øyeblikksbilde.
+// `goals` leses fortsatt som migreringskilde lenger nede før den slettes.
+const _DEAD_V4_FIELDS = ['goals','habits','themes','quarterly','yearFocus','quarterFocus','monthFocus','reviews'];
 
 let state = loadState();
 
-function loadState(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return structuredClone(DEFAULT_STATE);
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)){
-      throw new Error('Stored state is not an object');
-    }
+// ============================================================
+// ÉN DØR INN I STATE: migrateState (ADR 0049)
+// ============================================================
+// Migreringene lå før inne i loadState. Fire andre stier satte `state` uten å gå
+// veien om den — pullFromRemote, restoreCloudBackup, _mergeSnapshot og resetAll la
+// blobben rett oppå en fersk DEFAULT_STATE. Så lenge formatet ikke endret seg var
+// det bare latent; med v5 ville et blob fra skyen eller en lokal backup lagt seg inn
+// med prosjektoppgaver på gammel plass og blitt usynlige. Alle stier går nå hit.
+// Funksjonen er idempotent: et v5-blob kommer uendret ut.
+function migrateState(parsed){
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)){
+    return structuredClone(DEFAULT_STATE);
+  }
+  // Kopi først — kalleren skal ikke få objektet sitt endret under føttene.
+  parsed = structuredClone(parsed);
     // Normalise bucket types BEFORE anything iterates them. A single wrong-typed
     // bucket (tasks:{} or projects:null) used to throw, and the catch below then
     // returned an empty DEFAULT_STATE which render()'s saveState() wrote straight
     // over the original blob — losing everything. See ADR 0022.
-    ['events','tasks','projects','outlookEvents','inbox','goals','habits'].forEach(k=>{
+    ['events','tasks','projects','outlookEvents','inbox','goals'].forEach(k=>{
       if (!Array.isArray(parsed[k])) delete parsed[k];
     });
-    ['ui','sync','themes','quarterly','yearFocus','quarterFocus','monthFocus','reviews','notes','meta'].forEach(k=>{
+    ['ui','sync','notes','meta'].forEach(k=>{
       if (parsed[k] === null || typeof parsed[k] !== 'object' || Array.isArray(parsed[k])) delete parsed[k];
     });
     const merged = Object.assign(structuredClone(DEFAULT_STATE), parsed, {
       ui: Object.assign({}, DEFAULT_STATE.ui, parsed.ui || {}),
       sync: Object.assign({}, DEFAULT_STATE.sync, parsed.sync || {}),
-      themes: Object.assign({}, DEFAULT_STATE.themes, parsed.themes||{}),
     });
     // Migration (2026-05-26): flat state.settings → state.ui + state.sync.
     // Also folds in two older legacy fixups: filter 'personlig' → 'privat',
@@ -727,26 +749,13 @@ function loadState(){
     (merged.events||[]).forEach(migrateCat);
     (merged.tasks||[]).forEach(migrateCat);
     (merged.outlookEvents||[]).forEach(migrateCat);
-    (merged.habits||[]).forEach(migrateCat);
     (merged.projects||[]).forEach(p=>{
       migrateCat(p);
       (p.tasks||[]).forEach(migrateCat);
     });
-    // Migration: legacy themes (array per year) -> yearFocus (string per year)
-    Object.entries(merged.themes||{}).forEach(([y, arr])=>{
-      if (Array.isArray(arr) && arr.length && !merged.yearFocus[y]){
-        merged.yearFocus[y] = arr.filter(Boolean).join(' · ');
-      }
-    });
-    // Migration: legacy quarterly (array) -> quarterFocus (string)
-    Object.entries(merged.quarterly||{}).forEach(([q, arr])=>{
-      if (Array.isArray(arr) && arr.length && !merged.quarterFocus[q]){
-        merged.quarterFocus[q] = arr.filter(Boolean).join(' · ');
-      }
-    });
     // Ensure each project has the new fields (for partial v1->v2 data)
     (merged.projects||[]).forEach(p=>{
-      p.tasks = p.tasks||[]; p.milestones = p.milestones||[]; p.people = p.people||[]; p.links = p.links||[];
+      p.milestones = p.milestones||[]; p.people = p.people||[]; p.links = p.links||[];
       if (!p.status) p.status = 'active';
       // Migrate old single notes string → noteList array (multiple named notes)
       if (!p.noteList){
@@ -759,13 +768,67 @@ function loadState(){
         }
       }
     });
-    // Stamp the schema version so a future version-gated migration has something to
-    // gate on. It was never written back before, so every load reported the stored
-    // value (or undefined) forever. See ADR 0022.
+    // ---- v4 → v5: ETT oppgavelager (ADR 0049) ----
+    // Prosjektenes egne underoppgaver flyttes fra p.tasks inn i state.tasks og merkes
+    // kind:'sub'. Frie To Do-er merkes kind:'free'. Rekkefølgen innenfor hvert prosjekt
+    // bevares. Steget er idempotent: et v5-blob har ingen p.tasks igjen, og kind står
+    // allerede, så andre gjennomkjøring gjør ingenting.
+    if (!Array.isArray(merged.tasks)) merged.tasks = [];
+    merged.tasks.forEach(t=>{ if (t && t.kind !== 'sub' && t.kind !== 'free') t.kind = 'free'; });
+    (merged.projects||[]).forEach(p=>{
+      if (!Array.isArray(p.tasks)){ delete p.tasks; return; }
+      p.tasks.forEach(t=>{
+        if (!t || !t.id) return;
+        // Id-kollisjon ville betydd at blobben alt er migrert én gang. Hopp over
+        // framfor å lage en dublett — migreringen må tåle å kjøre to ganger.
+        if (merged.tasks.some(x=>x && x.id===t.id)) return;
+        t.kind = 'sub';
+        t.projectId = p.id;
+        merged.tasks.push(t);
+      });
+      delete p.tasks;
+    });
+    // Døde felter fjernes til slutt — `goals` er lest som migreringskilde over.
+    _DEAD_V4_FIELDS.forEach(k=>{ delete merged[k]; });
     // The List view was removed 2026-08-10 (ADR 0024) — send anyone parked there home.
     if (merged.ui && merged.ui.view === 'list') merged.ui.view = 'home';
     if (!merged.meta) merged.meta = {};
     merged.meta.version = STATE_VERSION;
+  return merged;
+}
+
+// Har vi allerede tatt vare på v4-blobben? Én er nok — nettet skal ikke vokse for
+// hver last, og det skal ikke spise kvoten hun trenger til data.
+function _hasPreV5Snapshot(){
+  try {
+    for (let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if (k && k.indexOf('planlegger.preV5.') === 0) return true;
+    }
+  } catch(_){}
+  return false;
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return structuredClone(DEFAULT_STATE);
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)){
+      throw new Error('Stored state is not an object');
+    }
+    // Engangs sikkerhetsnett før v5: ta vare på de rå v4-bytene. Migreringen er
+    // testet, men den flytter alle oppgavene hennes, og et blob er billig å beholde.
+    // ADR 0049. Feiler skrivingen (full kvote), går lastingen videre — nettet er en
+    // bonus, ikke en forutsetning, og feilen er hørbar i konsollen.
+    try {
+      const storedVer = (parsed.meta && parsed.meta.version) || 0;
+      if (storedVer < 5 && !_hasPreV5Snapshot()){
+        localStorage.setItem('planlegger.preV5.' + new Date().toISOString(), raw);
+        console.info('[migrering] v4-øyeblikksbilde lagret før overgang til v5');
+      }
+    } catch (err){ console.error('[migrering] klarte ikke lagre v4-øyeblikksbilde', err); }
+    const merged = migrateState(parsed);
     // Outlook-cachen: egen nøkkel vinner. Finnes den ikke, men hovedblobben har en
     // cache, er dette første load etter oppgraderingen — skriv den over, og la
     // originalen ligge i hovedblobben til neste saveState fjerner den. Verste utfall
@@ -1031,7 +1094,7 @@ function _mergeSnapshot(parsed){
   const carried = {};
   for (const k of omitted) carried[k] = state[k];   // behold det som står nå
   delete parsed._snapshotOmits;
-  const next = Object.assign(structuredClone(DEFAULT_STATE), parsed);
+  const next = migrateState(parsed);   // ADR 0049 — samme dør som loadState
   for (const k of omitted) if (carried[k] !== undefined) next[k] = carried[k];
   return next;
 }
@@ -1135,7 +1198,7 @@ HANDLERS.restoreCloudBackup = async (key)=>{
     // Behold den lokale Outlook-cachen: sky-blobber lagd etter ADR 0032 inneholder den
     // ikke, og DEFAULT_STATE ville da tømt kalenderen.
     const keepCache = state.outlookEvents || [];
-    state = Object.assign(structuredClone(DEFAULT_STATE), data);
+    state = migrateState(data);        // ADR 0049 — et gammelt sky-blob migreres nå
     state.sync = Object.assign({}, state.sync, localSync);
     if (!(data.outlookEvents||[]).length) state.outlookEvents = keepCache;
     state.meta.lastModified = Date.now();
@@ -1191,7 +1254,7 @@ async function pullFromRemote(silent, force){
       // Behold den lokale Outlook-cachen — se ADR 0032. Uten dette ville hvert pull
       // tømt kalenderen inntil neste ICS-synk.
       const keepCache = state.outlookEvents || [];
-      state = Object.assign(structuredClone(DEFAULT_STATE), remote);
+      state = migrateState(remote);    // ADR 0049 — et gammelt sky-blob migreres nå
       state.sync = Object.assign({}, state.sync, localSync);
       if (!(remote.outlookEvents||[]).length) state.outlookEvents = keepCache;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(_stateWithoutCache()));
@@ -1391,14 +1454,14 @@ function tasksOnDay(key){
   // Free-floating tasks. If a task is tagged to a project (via t.projectId), set
   // _projectTitle so downstream renderers (calendar, Forfaller-i-dag, list-view)
   // show the "· project-title" tag the same way they already do for project subtasks.
-  const free = state.tasks.filter(t=>t.due===key && passesFilter(t)).map(t=>{
+  const free = _freeTasks().filter(t=>t.due===key && passesFilter(t)).map(t=>{
     const p = t.projectId ? state.projects.find(x=>x.id===t.projectId) : null;
     return { ...t, _kind:'task', _projectTitle: p ? p.title : '' };
   });
   // Project sub-tasks (with multi-day support)
   const proj = [];
   state.projects.filter(p=>!p.archived && passesFilter(p)).forEach(p=>{
-    (p.tasks||[]).forEach(t=>{
+    _projectSubtasks(p.id).forEach(t=>{
       if (!t.due) return;
       const start = t.due;
       const end = t.endDate && t.endDate >= start ? t.endDate : start;
@@ -1424,7 +1487,7 @@ function projectNextDate(p){
   const today = todayKey();
   const items = [];
   if (p.targetDate && p.targetDate >= today) items.push({date:p.targetDate, label:'måldato'});
-  (p.tasks||[]).forEach(t=>{
+  _projectSubtasks(p.id).forEach(t=>{
     if (t.due && !t.done && t.due >= today) items.push({date:t.due, label:t.title});
   });
   (p.milestones||[]).forEach(m=>{
@@ -1443,7 +1506,7 @@ function projectEventCoversDay(p, key){
 }
 function projectProgress(p){
   // Taggede To Do's teller med, slik at fremdriftslinja og «x/y oppgaver» stemmer med
-  // lista kortet nå viser. Før regnet den bare på `p.tasks`, så et kort kunne liste tre
+  // lista kortet nå viser. Før regnet den bare på prosjektets egne, så et kort kunne liste tre
   // To Do's og samtidig si «0/1 oppgaver». ADR 0033.
   const items = [...projectTasksMerged(p), ...(p.milestones||[])];
   if (!items.length) return 0;
@@ -1663,14 +1726,14 @@ function renderTopbar(){
   const nav = document.getElementById('nav');
   // Compute badge counts
   const today = todayKey();
-  const urgentCount = state.tasks.filter(t=>t.priority==='urgent' && !t.done && passesFilter(t)).length;
+  const urgentCount = _freeTasks().filter(t=>t.priority==='urgent' && !t.done && passesFilter(t)).length;
   const inboxCount = (state.inbox||[]).length;
   const todoBadge = urgentCount + inboxCount;
   // Projects with overdue items (tasks or milestones with past dates, not done)
   let overdueProjects = 0;
   state.projects.forEach(p=>{
     if (p.archived || !passesFilter(p)) return;
-    const hasOverdue = (p.tasks||[]).some(t=>t.due && !t.done && t.due < today)
+    const hasOverdue = _projectSubtasks(p.id).some(t=>t.due && !t.done && t.due < today)
       || (p.milestones||[]).some(m=>m.date && !m.done && m.date < today);
     if (hasOverdue) overdueProjects++;
   });
@@ -1808,14 +1871,14 @@ function _homeNoDateHTML(items){
 // Alt som gjenstår og mangler dato: frie To Do's og prosjektenes egne oppgaver.
 function tasksWithoutDate(){
   const out = [];
-  (state.tasks||[]).forEach(t=>{
+  _freeTasks().forEach(t=>{
     if (t.done || t.due || !passesFilter(t)) return;
     const p = t.projectId ? (state.projects||[]).find(x=>x.id===t.projectId) : null;
     out.push({ ...t, _kind:'task', _projectTitle: p ? p.title : '' });
   });
   (state.projects||[]).forEach(p=>{
     if (p.archived || !passesFilter(p)) return;
-    (p.tasks||[]).forEach(t=>{
+    _projectSubtasks(p.id).forEach(t=>{
       if (t.done || t.due) return;
       out.push({ ...t, _kind:'projectTask', _projectId:p.id, _projectTitle:p.title });
     });
@@ -1891,7 +1954,7 @@ function _homeActiveProjectsHTML(activeProjects){
             <div class="cd-label"><span class="pcat cat-${p.category}" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--${p.category==='arbeid'?'work':'privat'});margin-right:5px;vertical-align:middle"></span>${escapeHTML(CAT_BY_ID[p.category]?.label||'')}</div>
             <div class="cd-title">${escapeHTML(p.title)}</div>
             <div class="cd-days" style="font-size:28px">${days === 0 ? 'i dag' : days}${days !== 0 ? `<small>${dayLabel.replace(/^om|i dag|i morgen/,'').trim() || (days===1?'dag til neste':'dager til neste')}</small>` : `<small>neste: ${escapeHTML(nextLabel.slice(0,30))}</small>`}</div>
-            <div style="font-size:11.5px;color:var(--ink-muted);margin-top:6px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(nextLabel)}</div>
+            <div class="cd-next">${escapeHTML(nextLabel)}</div>
           </div>`;
         }).join('')}
       </div>
@@ -1967,7 +2030,7 @@ function renderHome(){
     .filter(p=>{
       if (p.archived || !passesFilter(p)) return false;
       if (p.targetDate && p.targetDate >= todayK && p.targetDate <= horizon30) return true;
-      if ((p.tasks||[]).some(t => !t.done && t.due && t.due >= todayK && t.due <= horizon30)) return true;
+      if (_projectSubtasks(p.id).some(t => !t.done && t.due && t.due >= todayK && t.due <= horizon30)) return true;
       if ((p.milestones||[]).some(m => !m.done && m.date && m.date >= todayK && m.date <= horizon30)) return true;
       return false;
     })
@@ -1976,7 +2039,7 @@ function renderHome(){
     .sort((a,b) => a.nd.date.localeCompare(b.nd.date));
 
   // Urgent To Do's — dates ascending, then manual order for ties
-  const urgent = state.tasks.filter(t=>t.priority==='urgent' && !t.done && passesFilter(t))
+  const urgent = _freeTasks().filter(t=>t.priority==='urgent' && !t.done && passesFilter(t))
     .sort((a,b)=>{
       const aDue = a.due || '';
       const bDue = b.due || '';
@@ -1992,7 +2055,7 @@ function renderHome(){
   viewEl.innerHTML = `
     <div class="home-greeting">${greeting}</div>
     <div class="home-date">${I18N.weekdaysLong[monIdx(today)]} ${today.getDate()}. ${I18N.months[today.getMonth()]} ${y}${HOLIDAYS[todayK] ? ' · ' + HOLIDAYS[todayK] : ''}
-      <button data-action="openWeekReview" style="margin-left:10px;padding:2px 9px;font-size:11.5px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer">Ukesoppsummering</button>
+      <button data-action="openWeekReview" class="wr-btn">Ukesoppsummering</button>
     </div>
     ${_homeQuickCaptureHTML()}
     ${_homeUrgentHTML(urgent, todayK)}
@@ -2045,12 +2108,12 @@ function _renumberOrder(list){ list.forEach((item, i) => { item.order = i; }); }
 // Reorder free tasks within a priority bucket. Date trumps, order is tiebreaker.
 // Also handles cross-bucket drop (changes priority) and inbox-item drop (converts to free task).
 function reorderFreeTasksByPriority(priority, draggedId, targetId, insertBefore){
-  let dragged = state.tasks.find(t=>t.id===draggedId);
+  let dragged = _taskById(draggedId);
   if (!dragged){
     // Maybe an inbox item being dragged onto a bucket row — convert
     const inboxItem = (state.inbox||[]).find(i=>i.id===draggedId);
     if (inboxItem){
-      dragged = { id: uid(), title: inboxItem.text, category: 'arbeid', priority, done: false, due: '' };
+      dragged = { id: uid(), title: inboxItem.text, category: 'arbeid', priority, done: false, due: '', kind: 'free' };
       state.tasks.push(dragged);
       state.inbox = state.inbox.filter(i=>i.id !== draggedId);
     } else {
@@ -2059,7 +2122,7 @@ function reorderFreeTasksByPriority(priority, draggedId, targetId, insertBefore)
   } else if (dragged.priority !== priority){
     dragged.priority = priority;
   }
-  const sorted = state.tasks.filter(t=>t.priority===priority && !t.done && passesFilter(t)).sort(_dateThenOrderCmp);
+  const sorted = _freeTasks().filter(t=>t.priority===priority && !t.done && passesFilter(t)).sort(_dateThenOrderCmp);
   let result = _spliceByTargetId(sorted, dragged.id, targetId, insertBefore);
   if (!result){
     // Target not found in this bucket — fall back to appending dragged at end
@@ -2082,7 +2145,7 @@ function reorderInbox(draggedId, targetId, insertBefore){
 function reorderProjectTasksList(projectId, draggedId, targetId, insertBefore){
   const p = state.projects.find(x=>x.id===projectId);
   if (!p) return;
-  const sorted = (p.tasks||[]).slice().sort((a,b)=>{
+  const sorted = _projectSubtasks(projectId).sort((a,b)=>{
     if (a.done !== b.done) return a.done ? 1 : -1;
     return _dateThenOrderCmp(a, b);
   });
@@ -2110,7 +2173,7 @@ function reorderProjectMilestones(projectId, draggedId, targetId, insertBefore){
 // Reorder urgent tasks — same as priority bucket but adds a toast if the
 // post-reorder result will still be re-sorted by date in the next render.
 function reorderUrgent(draggedId, targetId, insertBefore){
-  const urgentSorted = state.tasks.filter(t=>t.priority==='urgent' && !t.done && passesFilter(t)).sort(_dateThenOrderCmp);
+  const urgentSorted = _freeTasks().filter(t=>t.priority==='urgent' && !t.done && passesFilter(t)).sort(_dateThenOrderCmp);
   const result = _spliceByTargetId(urgentSorted, draggedId, targetId, insertBefore);
   if (!result) return;
   _renumberOrder(result);
@@ -2204,7 +2267,7 @@ function projectCardHTML(p){
   const nextIsMilestone = !!(next && next.label && next.label.startsWith('◆'));
   const showNext = next && next.date !== p.targetDate && (!todosHTML || nextIsMilestone);
   const nextHTML = showNext
-    ? `<div style="font-size:11.5px;color:var(--ink-soft);border-top:1px solid var(--line-soft);padding-top:6px;margin-top:2px"><strong style="color:var(--ink)">${fmtDateShort(fromKey(next.date))}</strong> · ${escapeHTML(next.label)}</div>`
+    ? `<div class="pnext"><strong>${fmtDateShort(fromKey(next.date))}</strong> · ${escapeHTML(next.label)}</div>`
     : '';
   return `<div class="pcard cat-${p.category} ${p.archived?'archived':''}" data-id="${p.id}" style="--pc-h:${projectHue(p.title)}">
     <h3>${escapeHTML(p.title)}</h3>
@@ -2763,7 +2826,7 @@ function _setDone(t, done){
 function taskStatus(t){ return t.status || (t.done ? 'done' : 'todo'); }
 
 function renderProjectKanban(p){
-  // Leste før bare `p.tasks`, så taggede frie To Do's manglet på brettet — det siste stedet
+  // Leste før bare prosjektets egne, så taggede frie To Do's manglet på brettet — det siste stedet
   // som ikke brukte `projectTasksMerged`. Dealflow-prosjektet hennes er en pipeline av
   // selskaper som ligger som taggede To Do's, så brettet var tomt for nettopp den bruken
   // det passer best til. `_origin` følger med, slik at klikk og drag treffer riktig lager.
@@ -2799,7 +2862,8 @@ function renderProjectKanban(p){
 
 HANDLERS.kanbanDragStart = (e, id, origin)=>{
   // Opprinnelsen må med: en tagget fri To Do bor i `state.tasks`, en undernoppgave i
-  // `p.tasks`. Uten den skrev slippet til feil lager — eller ingenting. ADR 0037.
+  // prosjektets egne. Etter ADR 0049 er det ett lager, men opprinnelsen styrer
+  // fortsatt hvilket skjema og hvilke handlere raden bruker. ADR 0037.
   e.dataTransfer.setData('text/plain', JSON.stringify({ id, origin: origin || 'sub' }));
   e.dataTransfer.effectAllowed = 'move';
   e.target.style.opacity = '.5';
@@ -2819,12 +2883,21 @@ HANDLERS.kanbanDrop = (e, pid, status)=>{
   let id = raw, origin = 'sub';
   try { const parsed = JSON.parse(raw); if (parsed && parsed.id){ id = parsed.id; origin = parsed.origin || 'sub'; } }
   catch(_){ /* en ren id er arv fra før ADR 0037 — behandles som undernoppgave */ }
-  const t = origin === 'free'
-    ? (state.tasks||[]).find(x=>x.id===id)
-    : (state.projects.find(x=>x.id===pid)?.tasks||[]).find(x=>x.id===id);
+  // Opprinnelsen styrer fortsatt hvilket skjema ✎ åpner og hvilken handler raden
+  // bruker, men selve oppslaget går mot ett lager nå (ADR 0049).
+  const t = _taskById(id);
   if (!t) return;
   t.status = status;
   _setDone(t, status === 'done');
+  render();
+};
+
+// Åpner Dag-visningen på en gitt dato. Brukes av ukeagendaen (ADR 0050); Måned-cellene
+// gjør det samme inline i renderMonth.
+HANDLERS.openDay = (key)=>{
+  if (!_isDateKey(key)) return;
+  state.ui.anchor = key;
+  state.ui.view = 'day';
   render();
 };
 
@@ -2833,16 +2906,23 @@ HANDLERS.setProjectViewMode = (mode)=>{
   render();
 };
 
-// Merge two sources: the project's own subtasks (p.tasks) and free tasks tagged to this
-// project via the "▸ Prosjekt"-dropdown in To Do's (state.tasks with t.projectId === p.id)
-// — ADR 0016/0017. Each origin uses different HANDLERS for toggle/edit/delete, so
-// `_origin` must follow along.
-// Én kilde, brukt av både prosjektsiden og prosjektkortet, slik at de ikke kan drifte fra
-// hverandre: kortet regnet før bare på `p.tasks` mens siden viste begge. ADR 0033.
+// Alle oppgaver som hører til prosjektet: dets egne underoppgaver (kind:'sub') og frie
+// To Do's tagget hit via «▸ Prosjekt» i To Do's (kind:'free' med projectId) — ADR
+// 0016/0017. De to bruker fortsatt hver sine HANDLERS for kryss av / rediger / slett,
+// så `_origin` må følge med ut.
+// Én kilde, brukt av både prosjektsiden og prosjektkortet, slik at de ikke kan drifte
+// fra hverandre — kortet regnet en gang bare på prosjektets egne. ADR 0033/0049.
 function projectTasksMerged(p){
-  const subtasks = (p.tasks || []).map(t => ({ ...t, _origin: 'sub' }));
-  const tagged = (state.tasks || []).filter(t => t.projectId === p.id).map(t => ({ ...t, _origin: 'free' }));
-  return [...subtasks, ...tagged];
+  // Ett lager nå (ADR 0049), så «to kilder» er blitt ett filter. Rekkefølgen beholdes —
+  // egne underoppgaver først, taggede frie To Do's etter — så prosjektsiden og kortet
+  // ser nøyaktig ut som før.
+  const own = [], tagged = [];
+  (state.tasks || []).forEach(t => {
+    if (!t || t.projectId !== p.id) return;
+    if (t.kind === 'sub') own.push({ ...t, _origin: 'sub' });
+    else tagged.push({ ...t, _origin: 'free' });
+  });
+  return [...own, ...tagged];
 }
 
 function renderProjectTasks(p){
@@ -2901,7 +2981,7 @@ function renderProjectPeople(p){
   return p.people.map(pp=>`<div class="pperson">
     <span class="ppname">${escapeHTML(pp.name)}</span>
     ${pp.role?`<span class="pprole">${escapeHTML(pp.role)}</span>`:''}
-    <select onchange="HANDLERS.setPersonStatus('${p.id}','${pp.id}',this.value)" style="font-size:11px;padding:2px 6px;border:1px solid var(--line);border-radius:6px;background:#fff">
+    <select onchange="HANDLERS.setPersonStatus('${p.id}','${pp.id}',this.value)" style="font-size:11px;padding:2px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface)">
       <option value="">– status –</option>
       <option value="pending" ${pp.status==='pending'?'selected':''}>Avventer</option>
       <option value="confirmed" ${pp.status==='confirmed'?'selected':''}>Bekreftet</option>
@@ -2921,7 +3001,7 @@ function renderProjectLinks(p){
 // Project mutations
 HANDLERS.toggleProjectTask = (pid,tid,ev)=>{
   const p = state.projects.find(x=>x.id===pid);
-  const t = p?.tasks.find(x=>x.id===tid);
+  const t = _taskById(tid);
   if (!t) return;
   if (!t.done && t.recurring && t.due){
     const cur = fromKey(t.due);
@@ -2951,8 +3031,8 @@ HANDLERS.toggleProjectTask = (pid,tid,ev)=>{
 };
 HANDLERS.deleteProjectTask = (pid,tid)=>{
   const p=state.projects.find(x=>x.id===pid); if(!p) return;
-  const t=(p.tasks||[]).find(x=>x.id===tid);
-  if (!deleteWithUndo(()=>_projectArr(pid,'tasks'), tid, `«${t ? t.title : 'oppgaven'}»`)) return;
+  const t=_taskById(tid);
+  if (!deleteWithUndo(()=>state.tasks, tid, `«${t ? t.title : 'oppgaven'}»`)) return;
   render();
 };
 HANDLERS.toggleProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); const m=p?.milestones.find(x=>x.id===mid); if(m){m.done=!m.done; render();} };
@@ -3142,19 +3222,22 @@ HANDLERS.saveProjectForm = id=>{
     if (!ex){ _warnVanished(); closeModal(); render(); return; }
     Object.assign(ex, data);
   } else {
-    const np = Object.assign({id:uid(),tasks:[],milestones:[],people:[],links:[],notes:'',status:'active',archived:false}, data);
+    const np = Object.assign({id:uid(),milestones:[],people:[],links:[],notes:'',status:'active',archived:false}, data);
     // Apply pending template (if any)
     if (_pendingTemplate){
       const tpl = _pendingTemplate;
       const targetD = data.targetDate ? fromKey(data.targetDate) : null;
-      np.tasks = tpl.tasks.map(t=>{
+      // Maloppgavene går rett i det felles lageret (ADR 0049), merket som prosjektets
+      // egne underoppgaver. Prosjektet har ikke lenger noen egen tasks-liste.
+      tpl.tasks.forEach(t=>{
         let due = '';
         if (t.offset !== null && targetD){
           const d = new Date(targetD);
           d.setDate(d.getDate() + t.offset);
           due = dKey(d);
         }
-        return { id:uid(), title:t.title, due, endDate:'', notes:'', done:false };
+        state.tasks.push({ id:uid(), title:t.title, due, endDate:'', notes:'', done:false,
+                           kind:'sub', projectId:np.id });
       });
       np.milestones = tpl.milestones.map(m=>{
         let date = '';
@@ -3179,7 +3262,7 @@ HANDLERS.saveProjectForm = id=>{
 function openProjectTaskForm(pid, tid){
   const p = state.projects.find(x=>x.id===pid);
   if (!p) return;
-  const t = tid ? p.tasks.find(x=>x.id===tid) : null;
+  const t = tid ? _taskById(tid) : null;
   const data = t || { title:'', due:'', endDate:'', notes:'', done:false };
   const hasAdvanced = !!(data.endDate || data.recurring || data.remindBefore || (data.notes||'').trim());
   openModal(`
@@ -3236,13 +3319,13 @@ HANDLERS.saveProjectTaskForm = (pid, tid)=>{
   }
   if (!p) { closeModal(); render(); return; }
   if (tid){
-    const ex = p.tasks.find(x=>x.id===tid);
+    const ex = _taskById(tid);
     // Posten forsvant mellom åpning og lagring — typisk fordi 60-sekunders-pullet
     // erstattet hele state mens dialogen sto åpen. Før lukket dialogen seg helt som
     // ved suksess, så redigeringen var borte uten et ord. ADR 0031.
     if (!ex){ _warnVanished(); closeModal(); render(); return; }
     Object.assign(ex, data);
-  } else { p.tasks.push(Object.assign({id:uid(),done:false}, data)); }
+  } else { state.tasks.push(Object.assign({id:uid(),done:false,kind:'sub',projectId:p.id}, data)); }
   closeModal(); render();
 };
 
@@ -3251,7 +3334,7 @@ HANDLERS.saveProjectTaskForm = (pid, tid)=>{
 // ============================================================
 function renderTodos(){
   const today = todayKey();
-  const allFree = state.tasks.filter(passesFilter);
+  const allFree = _freeTasks().filter(passesFilter);
   const uncategorized = allFree.filter(t=>!t.priority && !t.done);
   const urgent = allFree.filter(t=>t.priority==='urgent' && !t.done);
   const shortTerm = allFree.filter(t=>t.priority==='short' && !t.done);
@@ -3280,7 +3363,7 @@ function renderTodos(){
         <button class="urgent" data-action="quickAddTodo" data-args='["urgent"]'>⚠ Urgent</button>
         <button class="short" data-action="quickAddTodo" data-args='["short"]'>↗ Short term</button>
         <button class="long" data-action="quickAddTodo" data-args='["long"]'>⤳ Long term</button>
-        <select id="qt-project" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;background:#fff;color:var(--ink-soft)" onchange="if(this.value)HANDLERS.quickAddTodo('project',this.value);this.value=''">
+        <select id="qt-project" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;background:var(--surface);color:var(--ink-soft)" onchange="if(this.value)HANDLERS.quickAddTodo('project',this.value);this.value=''">
           <option value="">▸ Til prosjekt…</option>${projectsList}
         </select>
         <button data-action="startVoiceCapture" title="Snakk inn et notat (lagres i innboks)" style="margin-left:auto">🎤 Tale</button>
@@ -3366,7 +3449,7 @@ function renderTodos(){
       // Right swipe → complete (or undo)
       ()=>{
         if (kind === 'freetask'){
-          const t = state.tasks.find(x=>x.id===id); if (!t) return;
+          const t = _taskById(id); if (!t) return;
           row.classList.add('completing');
           setTimeout(()=>{ _setDone(t, !t.done); render(); }, 380);
         } else if (kind === 'projecttask'){
@@ -3406,13 +3489,13 @@ function _selReset(){ _selMode = false; _selIds.clear(); }
 // Oppgavene velg-modus opererer på: frie, ikke fullførte, og synlige under
 // gjeldende filter — nøyaktig de radene som faktisk står på skjermen.
 function _selectableTasks(){
-  return (state.tasks || []).filter(t => !t.done && passesFilter(t));
+  return _freeTasks().filter(t => !t.done && passesFilter(t));
 }
 
 // Bare id-er som fortsatt finnes. Et sky-pull kan ha fjernet noe mens utvalget sto.
 function _selectedTasks(){
   const ids = _selIds;
-  return (state.tasks || []).filter(t => ids.has(t.id));
+  return _freeTasks().filter(t => ids.has(t.id));
 }
 
 HANDLERS.toggleSelectMode = ()=>{
@@ -3537,7 +3620,7 @@ function projectTodoGroups(){
   const groups = [];
   (state.projects || []).forEach(p=>{
     if (p.archived || !passesFilter(p)) return;
-    const own = p.tasks || [];
+    const own = _projectSubtasks(p.id);
     const open = own.filter(t=>!t.done).sort(_dateThenOrderCmp);
     const done = state.ui.showCompletedTodos ? own.filter(t=>t.done).sort(_dateThenOrderCmp) : [];
     if (!open.length && !done.length) return;
@@ -3702,10 +3785,10 @@ HANDLERS.quickAddTodo = (kind, projectId)=>{
     state.inbox.push({id:uid(), text, createdAt:new Date().toISOString()});
   } else if (kind==='project' && projectId){
     const p = state.projects.find(x=>x.id===projectId);
-    if (p) p.tasks.push({id:uid(), title:text, due:'', endDate:'', notes:'', done:false});
+    if (p) state.tasks.push({id:uid(), title:text, due:'', endDate:'', notes:'', done:false, kind:'sub', projectId:p.id});
   } else {
     // priority bucket: urgent / short / long
-    state.tasks.push({id:uid(), title:text, due:'', category:'arbeid', priority:kind, done:false});
+    state.tasks.push({id:uid(), title:text, due:'', category:'arbeid', priority:kind, done:false, kind:'free'});
   }
   inp.value = '';
   inp.focus();
@@ -3736,7 +3819,7 @@ HANDLERS.toggleInboxCategory = (id) => {
 };
 
 HANDLERS.setTaskPriority = (id, prio)=>{
-  const t = state.tasks.find(x=>x.id===id);
+  const t = _taskById(id);
   if (t){ t.priority = prio; render(); }
 };
 
@@ -3744,7 +3827,7 @@ HANDLERS.setTaskPriority = (id, prio)=>{
 // 'arbeid' — this button lets Maria flip individual to-dos to Privat (and back)
 // without opening the edit form. Added 2026-05-27 (reported by Maria).
 HANDLERS.toggleTaskCategory = (id)=>{
-  const t = state.tasks.find(x=>x.id===id);
+  const t = _taskById(id);
   if (!t) return;
   t.category = (t.category === 'privat') ? 'arbeid' : 'privat';
   render();
@@ -3757,7 +3840,7 @@ HANDLERS.toggleTaskCategory = (id)=>{
 // she wanted a total overview with project-tags. Behaviour pre-2026-06-08 was to
 // splice + push, losing priority and identity; that's gone now.
 HANDLERS.taskToProject = (taskId, projectId)=>{
-  const t = state.tasks.find(x=>x.id===taskId);
+  const t = _taskById(taskId);
   if (!t) return;
   if (!state.projects.find(x=>x.id===projectId)) return;
   t.projectId = projectId;
@@ -3766,7 +3849,7 @@ HANDLERS.taskToProject = (taskId, projectId)=>{
 
 // Remove the project-tag from a free task (returns it to "uncategorized project").
 HANDLERS.untagTaskProject = (taskId)=>{
-  const t = state.tasks.find(x=>x.id===taskId);
+  const t = _taskById(taskId);
   if (!t) return;
   delete t.projectId;
   render();
@@ -3777,7 +3860,7 @@ HANDLERS.inboxToTodo = (inboxId, prio)=>{
   if (idx===-1) return;
   const i = state.inbox[idx];
   // Preserve category from the inbox item (set by toggleInboxCategory); default to arbeid
-  state.tasks.push({id:uid(), title:i.text, due:'', category:(i.category==='privat'?'privat':'arbeid'), priority:prio, done:false});
+  state.tasks.push({id:uid(), title:i.text, due:'', category:(i.category==='privat'?'privat':'arbeid'), priority:prio, done:false, kind:'free'});
   state.inbox.splice(idx, 1);
   render();
 };
@@ -3788,13 +3871,13 @@ HANDLERS.inboxToProject = (inboxId, projectId)=>{
   const i = state.inbox[idx];
   const p = state.projects.find(x=>x.id===projectId);
   if (!p){ return; }
-  p.tasks.push({id:uid(), title:i.text, due:'', endDate:'', notes:'', done:false});
+  state.tasks.push({id:uid(), title:i.text, due:'', endDate:'', notes:'', done:false, kind:'sub', projectId:p.id});
   state.inbox.splice(idx, 1);
   render();
 };
 
 HANDLERS.deleteFreeTask = (id)=>{
-  const t = (state.tasks||[]).find(x=>x.id===id);
+  const t = _taskById(id);
   if (!deleteWithUndo(()=>state.tasks, id, `«${t ? t.title : 'oppgaven'}»`)) return;
   render();
 };
@@ -3816,7 +3899,7 @@ function _postponeDue(t, by){
 }
 
 HANDLERS.postponeTask = (id, by)=>{
-  const t = state.tasks.find(x=>x.id===id);
+  const t = _taskById(id);
   if (!_postponeDue(t, by)) return;
   render();
 };
@@ -3824,7 +3907,7 @@ HANDLERS.postponeTask = (id, by)=>{
 // Samme utsettelse for en prosjektoppgave, fra «Fra prosjekter»-bøtta. ADR 0045.
 HANDLERS.postponeProjectTask = (pid, tid, by)=>{
   const p = (state.projects||[]).find(x=>x.id===pid);
-  const t = p ? (p.tasks||[]).find(x=>x.id===tid) : null;
+  const t = p ? _taskById(tid) : null;
   if (!_postponeDue(t, by)) return;
   render();
 };
@@ -3835,14 +3918,14 @@ HANDLERS.inlineEditStart = (e, id, kind)=>{
   const span = e.currentTarget;
   let original;
   if (kind === 'task'){
-    const t = state.tasks.find(x=>x.id===id); if (!t) return; original = t.title;
+    const t = _taskById(id); if (!t) return; original = t.title;
   } else if (kind === 'inbox'){
     const i = state.inbox.find(x=>x.id===id); if (!i) return; original = i.text;
   } else if (kind === 'projectTask'){
     // id encoded as projectId:taskId
     const [pid, tid] = id.split(':');
     const p = state.projects.find(x=>x.id===pid); if (!p) return;
-    const t = p.tasks.find(x=>x.id===tid); if (!t) return; original = t.title;
+    const t = _taskById(tid); if (!t) return; original = t.title;
   } else return;
 
   const input = document.createElement('input');
@@ -3864,13 +3947,13 @@ HANDLERS.inlineEditStart = (e, id, kind)=>{
     const newVal = input.value.trim();
     if (newVal && newVal !== original){
       if (kind === 'task'){
-        const t = state.tasks.find(x=>x.id===id); if (t) t.title = newVal;
+        const t = _taskById(id); if (t) t.title = newVal;
       } else if (kind === 'inbox'){
         const i = state.inbox.find(x=>x.id===id); if (i) i.text = newVal;
       } else if (kind === 'projectTask'){
         const [pid, tid] = id.split(':');
         const p = state.projects.find(x=>x.id===pid);
-        const t = p?.tasks.find(x=>x.id===tid); if (t) t.title = newVal;
+        const t = _taskById(tid); if (t) t.title = newVal;
       }
       saveState();
     }
@@ -4123,6 +4206,67 @@ function goToday(){ state.ui.anchor = todayKey(); render(); }
 // ============================================================
 // VIEW: WEEK
 // ============================================================
+// Telefon eller ikke avgjøres av samme grense som stilarket bruker (700 px), så JS og
+// CSS aldri er uenige om hvilken modus vi er i. Én dør — ikke `innerWidth` spredt rundt.
+// ADR 0050.
+function _isPhone(){
+  try { return !!(window.matchMedia && window.matchMedia('(max-width: 700px)').matches); }
+  catch(_) { return false; }
+}
+
+// Uke som AGENDA på telefon (ADR 0050). Timerutenettet med sju kolonner à 45 px er
+// uleselig på 390 px — ett ord per linje, og hendelsene tegnet seg over bunnmenyen.
+// Agendaen viser de sju dagene nedover, hver med hendelsene og oppgavene sine som rader.
+// Samme datakilder og samme handlere som rutenettet: eventsOnDay, tasksOnDay, act().
+// Desktop-visningen er uendret — dette er en annen tegning av samme uke, ikke en annen uke.
+function _renderWeekAgenda(wg, days, today){
+  const todayK = dKey(today);
+  const html = days.map(d=>{
+    const key = dKey(d);
+    const evs = eventsOnDay(key);
+    const tks = tasksOnDay(key).filter(t=>!t.done);
+    const hol = HOLIDAYS[key];
+    const isToday = key === todayK;
+    const rows = [
+      ...evs.map(e=>{
+        const isProj = e._kind === 'project';
+        const click = e._ics ? act('openOutlookEvent', e.id)
+                    : isProj ? act('openProject', e._projectId)
+                    : act('editEvent', e.id);
+        const time = e._isContinuation ? '↳' : (e.start ? `${e.start}${e.end ? '–'+e.end : ''}` : 'hele dagen');
+        const cls = `wa-row ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}`;
+        return `<div class="${cls}" ${click} data-stop="1">
+          <span class="wa-time">${escapeHTML(time)}</span>
+          <span class="wa-title">${isProj ? '📍 ' : ''}${escapeHTML(e.title)}${e.location ? `<small>${escapeHTML(e.location)}</small>` : ''}</span>
+        </div>`;
+      }),
+      ...tks.map(t=>{
+        const isProj = t._kind === 'projectTask' || t._kind === 'milestone';
+        const label = isProj ? `${escapeHTML(t._projectTitle)}: ${escapeHTML(t.title)}` : escapeHTML(t.title);
+        const click = t._kind === 'task' ? act('openTaskForm', t.id)
+                    : t._kind === 'projectTask' ? act('openProjectTaskForm', t._projectId, t.id)
+                    : act('openProject', t._projectId);
+        const mark = t._kind === 'milestone' ? '◆' : '☐';
+        return `<div class="wa-row task cat-${t.category||'arbeid'}" ${click} data-stop="1">
+          <span class="wa-time">${mark}</span>
+          <span class="wa-title">${t._isContinuation ? '↳ ' : ''}${label}</span>
+        </div>`;
+      }),
+    ];
+    return `<section class="wa-day${isToday?' today':''}" data-key="${key}">
+      <header class="wa-head" ${act('openDay', key)}>
+        <span class="wa-dow">${I18N.weekdaysShort[monIdx(d)]}</span>
+        <span class="wa-num">${d.getDate()}</span>
+        ${hol ? `<span class="wa-hol">${escapeHTML(hol)}</span>` : ''}
+        <span class="wa-count">${rows.length ? rows.length : ''}</span>
+      </header>
+      ${rows.length ? rows.join('') : '<div class="wa-empty">—</div>'}
+    </section>`;
+  }).join('');
+  wg.className = 'week-agenda';
+  wg.innerHTML = html;
+}
+
 function renderWeek(){
   const anchor = fromKey(state.ui.anchor||todayKey());
   const wk = startOfWeek(anchor);
@@ -4146,6 +4290,7 @@ function renderWeek(){
   );
 
   const wg = document.getElementById('weekgrid');
+  if (_isPhone()){ _renderWeekAgenda(wg, days, today); return; }
   let html = `<div class="wh"></div>` + days.map(d=>{
     const cls = sameDay(d,today)?'today':'';
     const hol = HOLIDAYS[dKey(d)];
@@ -4292,7 +4437,9 @@ function renderDay(){
         : isProj
           ? act('openProject', e._projectId)
           : act('editEvent', e.id);
-      const icon = e._isContinuation ? '' : (e._ics?'📧 ':(isProj?'📍 ':'📌 '));
+      // Outlook-ikonet settes av CSS (`.ev.ics::before`) — å legge det på her òg ga
+      // «📧 📧» på heldagshendelsene i Dag. ADR 0050.
+      const icon = e._isContinuation ? '' : (e._ics ? '' : (isProj?'📍 ':'📌 '));
       return `<div class="${cls}" ${click}>${icon}${escapeHTML(e.title)}</div>`;
     }).join('');
     dh.innerHTML = `<div class="hl">hele</div><div class="hslot" style="min-height:auto;padding:6px">${ad}</div>` + html;
@@ -4374,12 +4521,12 @@ HANDLERS.taskToTimeDrop = (e, h, key)=>{
     const data = JSON.parse(e.dataTransfer.getData('application/json'));
     const time = pad(h) + ':00';
     if (data.kind === 'task'){
-      const t = state.tasks.find(x=>x.id===data.id);
+      const t = _taskById(data.id);
       if (t){ t.scheduledTime = time; if (!t.due) t.due = key; render(); }
     } else if (data.kind === 'projectTask'){
       const [pid, tid] = data.id.split(':');
       const p = state.projects.find(x=>x.id===pid);
-      const t = p?.tasks.find(x=>x.id===tid);
+      const t = _taskById(tid);
       if (t){ t.scheduledTime = time; if (!t.due) t.due = key; render(); }
     }
   } catch(_){}
@@ -4390,9 +4537,9 @@ HANDLERS.setTaskScheduledTime = (idStr, kind)=>{
   if (kind === 'projectTask'){
     const [pid, tid] = idStr.split(':');
     const p = state.projects.find(x=>x.id===pid);
-    t = p?.tasks.find(x=>x.id===tid);
+    t = _taskById(tid);
   } else {
-    t = state.tasks.find(x=>x.id===idStr);
+    t = _taskById(idStr);
   }
   if (!t) return;
   const time = prompt('Tidspunkt for tidsblokk (HH:MM, f.eks. 14:00).\nLa stå tom for å fjerne.', t.scheduledTime || '');
@@ -4411,11 +4558,11 @@ HANDLERS.setTaskScheduledTime = (idStr, kind)=>{
 
 HANDLERS.clearScheduledTime = (kind, pid, tid)=>{
   if (kind === 'task'){
-    const t = state.tasks.find(x=>x.id===tid);
+    const t = _taskById(tid);
     if (t) delete t.scheduledTime;
   } else if (kind === 'projectTask'){
     const p = state.projects.find(x=>x.id===pid);
-    const t = p?.tasks.find(x=>x.id===tid);
+    const t = _taskById(tid);
     if (t) delete t.scheduledTime;
   }
   render();
@@ -4431,7 +4578,7 @@ function _animateCompletion(ev, callback){
   }
 }
 HANDLERS.toggleTask = (id, ev) => {
-  const t = state.tasks.find(x=>x.id===id);
+  const t = _taskById(id);
   if (!t) return;
   // For recurring tasks: completing advances to next instance instead of marking done
   if (!t.done && t.recurring && t.due){
@@ -4538,7 +4685,7 @@ HANDLERS.deleteEvent = id => {
 // TASK FORM
 // ============================================================
 function openTaskForm(id, defaults={}){
-  const t = id ? state.tasks.find(x=>x.id===id) : null;
+  const t = id ? _taskById(id) : null;
   const data = t || Object.assign({title:'',due:'',category:'arbeid',priority:'',notes:'',done:false}, defaults);
   // Auto-expand advanced if any advanced field is set
   const hasAdvanced = !!(data.recurring || data.remindBefore || (data.notes||'').trim());
@@ -4599,17 +4746,17 @@ HANDLERS.saveTaskForm = id=>{
     return;
   }
   if (id){
-    const ex = state.tasks.find(x=>x.id===id);
+    const ex = _taskById(id);
     // Posten forsvant mellom åpning og lagring — typisk fordi 60-sekunders-pullet
     // erstattet hele state mens dialogen sto åpen. Før lukket dialogen seg helt som
     // ved suksess, så redigeringen var borte uten et ord. ADR 0031.
     if (!ex){ _warnVanished(); closeModal(); render(); return; }
     Object.assign(ex, data);
-  } else { state.tasks.push(Object.assign({id:uid(),done:false}, data)); }
+  } else { state.tasks.push(Object.assign({id:uid(),done:false,kind:'free'}, data)); }
   closeModal(); render();
 };
 HANDLERS.deleteTask = id => {
-  const t = (state.tasks||[]).find(x=>x.id===id);
+  const t = _taskById(id);
   if (!deleteWithUndo(()=>state.tasks, id, `«${t ? t.title : 'oppgaven'}»`)) return;
   closeModal(); render();
 };
@@ -4635,7 +4782,7 @@ function openQuickCapture(){
           <button data-action="qcSave" data-args='["event"]' class="btn-sec-lg">📅 Ny hendelse</button>
           <button data-action="closeModalThenVoice" class="btn-sec-lg" title="Snakk inn et notat">🎤 Tale</button>
         </div>
-        <select id="qc-project" onchange="if(this.value){HANDLERS.qcSave('project',this.value);this.value=''}" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;color:var(--ink-soft)">
+        <select id="qc-project" onchange="if(this.value){HANDLERS.qcSave('project',this.value);this.value=''}" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--surface);color:var(--ink-soft)">
           <option value="">▸ Eller legg som oppgave i prosjekt…</option>${projectsList}
         </select>
       </div>
@@ -4656,11 +4803,11 @@ HANDLERS.qcSave = (kind, projectId)=>{
   if (kind==='event'){ closeModal(); openEventForm(null,{title:text}); return; }
   if (kind==='project' && projectId){
     const p = state.projects.find(x=>x.id===projectId);
-    if (p) p.tasks.push({id:uid(),title:text,due:'',endDate:'',notes:'',done:false});
+    if (p) state.tasks.push({id:uid(),title:text,due:'',endDate:'',notes:'',done:false, kind:'sub', projectId:p.id});
   } else if (kind==='inbox'){
     state.inbox.push({id:uid(),text,createdAt:new Date().toISOString()});
   } else {
-    state.tasks.push({id:uid(),title:text,category:'arbeid',priority:kind,done:false,due:''});
+    state.tasks.push({id:uid(),title:text,category:'arbeid',priority:kind,done:false,due:'',kind:'free'});
   }
   closeModal(); render();
 };
@@ -4700,7 +4847,7 @@ function openMoreMenu(){
 // SEARCH
 // ============================================================
 function openSearch(){
-  const sel = 'padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;background:#fff;color:var(--ink-soft)';
+  const sel = 'padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;background:var(--surface);color:var(--ink-soft)';
   openModal(`
     <h3>Søk</h3>
     <div class="body">
@@ -4789,7 +4936,7 @@ function doSearch(filt){
     if (!inDateRange(e.date)) return;
     hits.push({type:'outlook',ref:e,date:e.date,title:e.title,sub:`📧 Outlook · ${fmtDateShort(fromKey(e.date))}${e.start?' · '+e.start:''}${e.location?' · '+e.location:''}`});
   });
-  if (includeType('task')) state.tasks.forEach(t=>{
+  if (includeType('task')) _freeTasks().forEach(t=>{
     if (!matchesText(t.title+' '+(t.notes||''))) return;
     if (t.due && !inDateRange(t.due)) return;
     if (!matchesCat(t.category)) return;
@@ -4807,7 +4954,7 @@ function doSearch(filt){
       }
     }
     if (includeType('projectTask')){
-      (p.tasks||[]).forEach(t=>{
+      _projectSubtasks(p.id).forEach(t=>{
         if (!matchesText(t.title+' '+(t.notes||''))) return;
         if (t.due && !inDateRange(t.due)) return;
         if (!matchesStatus(t.done)) return;
@@ -4870,14 +5017,14 @@ function _weekReviewData(){
   const to = dKey(addDays(new Date(), 7));
 
   const all = [];
-  (state.tasks||[]).forEach(t=>{
+  _freeTasks().forEach(t=>{
     if (!passesFilter(t)) return;
     const p = t.projectId ? (state.projects||[]).find(x=>x.id===t.projectId) : null;
     all.push({ ...t, _kind:'task', _projectTitle: p ? p.title : '' });
   });
   (state.projects||[]).forEach(p=>{
     if (p.archived || !passesFilter(p)) return;
-    (p.tasks||[]).forEach(t=> all.push({ ...t, _kind:'projectTask', _projectId:p.id, _projectTitle:p.title }));
+    _projectSubtasks(p.id).forEach(t=> all.push({ ...t, _kind:'projectTask', _projectId:p.id, _projectTitle:p.title }));
     (p.milestones||[]).forEach(m=> all.push({ ...m, due:m.date, _kind:'milestone', _projectId:p.id, _projectTitle:p.title }));
   });
 
@@ -4976,7 +5123,7 @@ function openSettings(){
         <div class="flex-row-gap">
           <button id="sync-now" class="btn-sec">Oppdater nå</button>
           <div class="pos-rel-ib">
-            <button type="button" style="padding:6px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);pointer-events:none">Importer .ics-fil</button>
+            <button type="button" style="padding:6px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);pointer-events:none">Importer .ics-fil</button>
             <input id="ics-file" type="file" accept=".ics,text/calendar" class="input-overlay">
           </div>
           <span class="sync-status" id="sync-status">${outlookCount} hendelser · ${lastSyncLabel()}</span>
@@ -4997,7 +5144,7 @@ function openSettings(){
         ${notifyNote ? `<div style="font-size:12px;color:${notifyNote.startsWith('✓')?'var(--ink-muted)':'var(--alert)'};padding:2px 0">${notifyNote}</div>` : ''}
       </div>
       <div class="sl"><span>Eksporter til JSON</span><button data-action="exportData">Last ned</button></div>
-      <div class="sl"><span>Importer fra JSON</span><div class="pos-rel-ib"><button type="button" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);color:var(--ink-soft);background:#fff;pointer-events:none">Velg fil</button><input id="imp" type="file" accept=".json,application/json" class="input-overlay"></div></div>
+      <div class="sl"><span>Importer fra JSON</span><div class="pos-rel-ib"><button type="button" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);color:var(--ink-soft);background:var(--surface);pointer-events:none">Velg fil</button><input id="imp" type="file" accept=".json,application/json" class="input-overlay"></div></div>
       <div class="sl flex-col-stretch">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <span>Ukentlig backup-mappe (lokal fil)</span>
@@ -5005,8 +5152,8 @@ function openSettings(){
         </div>
         <div class="text-muted-italic">Lagrer en JSON-fil hver 7. dag. Velg en mappe (f.eks. OneDrive\Claude\Planner\backups) for å lagre direkte der — ellers lander filen i Nedlastinger. Bare på PC (Edge/Chrome).</div>
         <div style="display:flex;gap:6px">
-          <button data-action="chooseBackupFolder" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Velg mappe</button>
-          <button data-action="clearBackupFolder" id="clear-backup-dir-btn" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);display:none">Fjern</button>
+          <button data-action="chooseBackupFolder" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Velg mappe</button>
+          <button data-action="clearBackupFolder" id="clear-backup-dir-btn" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);display:none">Fjern</button>
         </div>
       </div>
       <div class="sl flex-col-stretch"><span>Sky-backups (automatisk hver uke, siste 12 uker)</span>
@@ -5018,7 +5165,7 @@ function openSettings(){
           const isPre = k.startsWith('planlegger.preSync.');
           const dateStr = k.replace('planlegger.backup.','').replace('planlegger.preSync.','');
           const label = isPre ? '↓ Før synk: '+dateStr.replace('T',' ').slice(0,16) : dateStr;
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:var(--ink-soft)"><span>${label}</span><button data-action="restoreBackup" data-args='["${k}"]' style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Gjenopprett</button></div>`;
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:var(--ink-soft)"><span>${label}</span><button data-action="restoreBackup" data-args='["${k}"]' style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Gjenopprett</button></div>`;
         }).join('') : '<span class="text-muted-italic">Ingen backups ennå (lages automatisk daglig + før hver sync overskriver lokal)</span>'}
       </div>
       <div class="sl"><span>Slett alt</span><button data-action="resetAll" class="text-alert">Tilbakestill</button></div>
@@ -5368,8 +5515,8 @@ function setupNotifications(){
     });
     // Task reminders — fire at 09:00 on the offset day
     const allTasks = [
-      ...state.tasks.map(t=>({ ...t, _kind:'task' })),
-      ...state.projects.flatMap(p=>(p.tasks||[]).map(t=>({ ...t, _kind:'projectTask', _projectTitle:p.title }))),
+      ..._freeTasks().map(t=>({ ...t, _kind:'task' })),
+      ...state.projects.flatMap(p=>_projectSubtasks(p.id).map(t=>({ ...t, _kind:'projectTask', _projectTitle:p.title }))),
     ];
     allTasks.forEach(t=>{
       if (!t.due || !t.remindBefore || t.done) return;
@@ -5665,7 +5812,7 @@ function _rruleOccurrences(baseStart, params, winEnd, maxOcc){
   return out;
 }
 
-function expandRRule(baseEv, baseDate, rrule, exdates, endSpec){
+function expandRRule(baseEv, baseDate, rrule, exdates, endSpec, overrideKeys){
   const params = {};
   rrule.split(';').forEach(p=>{ const [k,v]=p.split('='); params[k]=v; });
   // COUNT is an occurrence limit counted from DTSTART. It used to default to 500 and
@@ -5691,6 +5838,12 @@ function expandRRule(baseEv, baseDate, rrule, exdates, endSpec){
       if (p) exSet.add(p.srcDate);
     });
   });
+  // Overstyrte forekomster (RECURRENCE-ID, ADR 0048). En forekomst som er flyttet,
+  // endret eller avlyst enkeltvis skal IKKE genereres fra serien — den kommer enten
+  // som sin egen hendelse fra overstyrings-VEVENT-en, eller ikke i det hele tatt.
+  // Samme nøkkel som EXDATE: kildekalenderens dato, så den billige hoppesjekken
+  // under kan gjøres før tidssonekonverteringen.
+  (overrideKeys || []).forEach(k => { if (k) exSet.add(k); });
   // Duration in whole days (multi-day events) and in minutes (so each occurrence's end
   // time is derived from its own start instant instead of inheriting a converted clock).
   const durationDays = baseEv.endDate
@@ -5735,10 +5888,131 @@ function expandRRule(baseEv, baseDate, rrule, exdates, endSpec){
   return instances;
 }
 
+// Bygger én hendelse av én VEVENT-post. Skilt ut fra parseICS fordi ICS-en må leses
+// i to omganger (ADR 0048): overstyringer med RECURRENCE-ID kan stå hvor som helst i
+// filen, også FØR serien de hører til, så ingenting kan avgjøres mens vi leser.
+// Returnerer { ev, startD, endD } eller null om DTSTART mangler eller er ugyldig.
+function _buildICSEvent(cur){
+  const startD = parseICSDate(cur.dtstart, cur.dtstartTz);
+  const endD = cur.dtend ? parseICSDate(cur.dtend, cur.dtendTz) : null;
+  if (startD){
+    // Compute endDate for multi-day events.
+    // For all-day: DTEND is EXCLUSIVE per iCal spec, so subtract 1 day.
+    // For timed: only set endDate if DTEND falls on a different day than DTSTART.
+    let endDate = '';
+    if (endD){
+      if (startD.allDay && endD.allDay){
+        const ed = fromKey(endD.date);
+        ed.setDate(ed.getDate() - 1);
+        const edKey = dKey(ed);
+        if (edKey > startD.date) endDate = edKey;
+      } else if (!startD.allDay && !endD.allDay && endD.date !== startD.date){
+        endDate = endD.date;
+      }
+    }
+    // No DTEND but a DURATION: derive the end. Whole days extend endDate,
+    // an intraday duration gives the end time.
+    let durEnd = null;
+    if (!endD && cur.duration){
+      const mins = parseICSDuration(cur.duration);
+      if (mins && mins > 0){
+        const startMin = startD.allDay ? 0
+    : (parseInt(startD.time.slice(0,2))*60 + parseInt(startD.time.slice(3,5)));
+        const dayShift = Math.floor((startMin + mins) / 1440);
+        if (dayShift > 0) endDate = dKey(addDays(fromKey(startD.date), dayShift));
+        if (!startD.allDay){
+    const em = (startMin + mins) % 1440;
+    durEnd = pad(Math.floor(em/60)) + ':' + pad(em%60);
+        }
+      }
+    }
+    const ev = {
+      id: 'ics-' + (cur.uid || (Math.random().toString(36).slice(2))),
+      title: cur.summary || '(uten tittel)',
+      date: startD.date,
+      endDate,
+      start: startD.allDay?'':startD.time,
+      end: endD && !endD.allDay ? endD.time : (durEnd || ''),
+      location: cur.location||'',
+      description: cur.description||'',
+      category: 'arbeid',
+      _ics: true,
+    };
+    return { ev, startD, endD };
+  }
+  return null;
+}
+
+// Setter sammen hendelseslista av de rå VEVENT-postene (ADR 0048).
+//
+// En gjentakende serie i Outlook består av én master-VEVENT med RRULE, pluss én egen
+// VEVENT per forekomst som er flyttet, endret eller avlyst. De deler UID, og peker på
+// forekomsten de erstatter med RECURRENCE-ID. Før dette ble ingen av delene koblet:
+// masteren genererte forekomsten på det opprinnelige tidspunktet, og overstyringen ble
+// lagt til som en HELT egen hendelse — så et flyttet møte sto to steder samtidig, og et
+// enkeltavlyst møte ble stående fordi avlysnings-VEVENT-en bare ble kastet.
+//
+// Koblingsnøkkelen er kildekalenderens dato, samme nøkkel som EXDATE bruker (ADR 0028).
+// Konsekvens, med vilje og dokumentert: to forekomster av samme serie på samme dato i
+// kildekalenderen kan ikke skilles fra hverandre. RANGE=THISANDFUTURE behandles som en
+// vanlig enkeltoverstyring — Outlook avslutter i praksis serien med UNTIL og starter en
+// ny UID når man endrer «denne og påfølgende», så den veien er dekket.
+function _assembleICS(records){
+  const events = [];
+  const overridesByUid = new Map();
+  const masters = [];
+  records.forEach(rec => {
+    if (rec.recurrenceId){
+      const p = parseICSDate(rec.recurrenceId, rec.recurrenceIdTz);
+      if (!p){
+        // Uleselig RECURRENCE-ID: behandle posten som en frittstående hendelse i stedet
+        // for å miste den. Høres i konsollen, forsvinner ikke stille.
+        console.error('RECURRENCE-ID kunne ikke tolkes for', rec.summary || rec.uid);
+        masters.push(rec);
+        return;
+      }
+      const uid = rec.uid || '';
+      if (!overridesByUid.has(uid)) overridesByUid.set(uid, []);
+      overridesByUid.get(uid).push({ srcKey: p.srcDate || p.date, rec });
+      return;
+    }
+    masters.push(rec);
+  });
+
+  masters.forEach(rec => {
+    if (rec.status === 'CANCELLED') return;     // hele hendelsen/serien er avlyst
+    const built = _buildICSEvent(rec);
+    if (!built) return;
+    const ovr = overridesByUid.get(rec.uid || '') || [];
+    if (rec.rrule){
+      const keys = ovr.map(o => o.srcKey);
+      try { events.push(...expandRRule(built.ev, built.startD, rec.rrule, rec.exdates, built.endD, keys)); }
+      catch(e){ console.error('RRULE expansion failed for', built.ev.title, e); events.push(built.ev); }
+    } else {
+      events.push(built.ev);
+    }
+  });
+
+  // Overstyringene selv. En avlyst forekomst gir ingen hendelse — den er allerede
+  // hoppet over i serien. En flyttet eller endret forekomst blir sin egen hendelse med
+  // en id som ikke kan kollidere med seriens `<id>-<n>`.
+  overridesByUid.forEach((list, uid) => {
+    list.forEach(o => {
+      if (o.rec.status === 'CANCELLED') return;
+      const built = _buildICSEvent(o.rec);
+      if (!built) return;
+      built.ev.id = 'ics-' + (uid || Math.random().toString(36).slice(2)) + '-ovr-' + o.srcKey;
+      events.push(built.ev);
+    });
+  });
+
+  return events;
+}
+
 function parseICS(text){
   text = unfoldICS(text);
   const lines = text.split(/\r?\n/);
-  const events = [];
+  const records = [];
   let cur = null;
   let inAlarm = false;
   for (const line of lines){
@@ -5749,60 +6023,9 @@ function parseICS(text){
     if (line==='END:VALARM'){ inAlarm = false; continue; }
     if (inAlarm) continue;
     if (line==='END:VEVENT'){
-      if (cur && cur.dtstart && cur.status!=='CANCELLED'){
-        const startD = parseICSDate(cur.dtstart, cur.dtstartTz);
-        const endD = cur.dtend ? parseICSDate(cur.dtend, cur.dtendTz) : null;
-        if (startD){
-          // Compute endDate for multi-day events.
-          // For all-day: DTEND is EXCLUSIVE per iCal spec, so subtract 1 day.
-          // For timed: only set endDate if DTEND falls on a different day than DTSTART.
-          let endDate = '';
-          if (endD){
-            if (startD.allDay && endD.allDay){
-              const ed = fromKey(endD.date);
-              ed.setDate(ed.getDate() - 1);
-              const edKey = dKey(ed);
-              if (edKey > startD.date) endDate = edKey;
-            } else if (!startD.allDay && !endD.allDay && endD.date !== startD.date){
-              endDate = endD.date;
-            }
-          }
-          // No DTEND but a DURATION: derive the end. Whole days extend endDate,
-          // an intraday duration gives the end time.
-          let durEnd = null;
-          if (!endD && cur.duration){
-            const mins = parseICSDuration(cur.duration);
-            if (mins && mins > 0){
-              const startMin = startD.allDay ? 0
-                : (parseInt(startD.time.slice(0,2))*60 + parseInt(startD.time.slice(3,5)));
-              const dayShift = Math.floor((startMin + mins) / 1440);
-              if (dayShift > 0) endDate = dKey(addDays(fromKey(startD.date), dayShift));
-              if (!startD.allDay){
-                const em = (startMin + mins) % 1440;
-                durEnd = pad(Math.floor(em/60)) + ':' + pad(em%60);
-              }
-            }
-          }
-          const ev = {
-            id: 'ics-' + (cur.uid || (Math.random().toString(36).slice(2))),
-            title: cur.summary || '(uten tittel)',
-            date: startD.date,
-            endDate,
-            start: startD.allDay?'':startD.time,
-            end: endD && !endD.allDay ? endD.time : (durEnd || ''),
-            location: cur.location||'',
-            description: cur.description||'',
-            category: 'arbeid',
-            _ics: true,
-          };
-          if (cur.rrule){
-            try { events.push(...expandRRule(ev, startD, cur.rrule, cur.exdates, endD)); }
-            catch(e){ console.error('RRULE expansion failed for', ev.title, e); events.push(ev); }
-          } else {
-            events.push(ev);
-          }
-        }
-      }
+      // Pass 1 samler bare rå poster. En avlyst post kastes IKKE her lenger: er den en
+      // overstyring, er den nettopp beskjeden om at én forekomst er avlyst (ADR 0048).
+      if (cur && (cur.dtstart || cur.recurrenceId)) records.push(cur);
       cur = null; continue;
     }
     if (!cur) continue;
@@ -5827,8 +6050,9 @@ function parseICS(text){
     else if (propName==='rrule') cur.rrule = rhs;
     else if (propName==='duration') cur.duration = rhs.trim();
     else if (propName==='exdate') (cur.exdates = cur.exdates || []).push({ value: rhs, tz: tzidOf(lhs) });
+    else if (propName==='recurrence-id'){ cur.recurrenceId = rhs; cur.recurrenceIdTz = tzidOf(lhs); }
   }
-  return events;
+  return _assembleICS(records);
 }
 
 async function syncOutlook(silent){
@@ -6495,7 +6719,7 @@ HANDLERS.startVoiceCapture = ()=>{
   // Visual indicator while listening
   const indicator = document.createElement('div');
   indicator.style.cssText = 'position:fixed;bottom:90px;right:24px;background:var(--alert);color:#fff;padding:14px 22px;border-radius:30px;font-size:14px;z-index:200;box-shadow:0 6px 20px rgba(0,0,0,.2);display:flex;align-items:center;gap:10px';
-  indicator.innerHTML = '<span style="width:10px;height:10px;background:#fff;border-radius:50%;display:inline-block;animation:pulse 1s ease-in-out infinite"></span>🎤 Lytter — snakk nå';
+  indicator.innerHTML = '<span style="width:10px;height:10px;background:var(--accent);border-radius:50%;display:inline-block;animation:pulse 1s ease-in-out infinite"></span>🎤 Lytter — snakk nå';
   document.body.appendChild(indicator);
 
   const recognition = new SR();
@@ -6789,9 +7013,9 @@ function _backupStatusHTML(){
 // Hvor plassen faktisk går. Uten dette var «4951 kB brukt» et tall uten handling bak.
 function _storageBreakdownHTML(){
   const kb = o => Math.round(JSON.stringify(o == null ? null : o).length / 1024);
-  const doneCount = (state.tasks||[]).filter(t=>t.done).length;
-  const totalTasks = (state.tasks||[]).length;
-  const doneKB = kb((state.tasks||[]).filter(t=>t.done));
+  const doneCount = _freeTasks().filter(t=>t.done).length;
+  const totalTasks = _freeTasks().length;
+  const doneKB = kb(_freeTasks().filter(t=>t.done));
   const parts = [
     `Outlook-cache ${kb(state.outlookEvents||[])} kB`,
     `oppgaver ${kb(state.tasks||[])} kB`,
@@ -6805,7 +7029,7 @@ function _storageBreakdownHTML(){
     // først, slik at det kan rulles tilbake. ADR 0032.
     html += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;padding:3px 0">
       <span style="color:var(--ink-muted)">${doneCount} av ${totalTasks} oppgaver er fullført (${doneKB} kB)</span>
-      <button data-action="purgeDoneTasks" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Rydd bort</button>
+      <button data-action="purgeDoneTasks" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Rydd bort</button>
     </div>`;
   }
   // Titler som gjentar prosjektnavnet. Raden vises bare når det finnes noe å gjøre. ADR 0035.
@@ -6813,7 +7037,7 @@ function _storageBreakdownHTML(){
   if (dupes){
     html += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;padding:3px 0">
       <span style="color:var(--ink-muted)">${dupes} ${dupes===1?'tittel gjentar':'titler gjentar'} prosjektnavnet (taggen viser det alt)</span>
-      <button data-action="cleanProjectPrefixes" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink-soft)">Rydd opp</button>
+      <button data-action="cleanProjectPrefixes" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Rydd opp</button>
     </div>`;
   }
   return html;
@@ -6853,14 +7077,14 @@ function _stripProjectPrefix(title, projectTitle){
 // Alle titler som ville blitt endret, med nok kilde til å gjøre endringen.
 function findRedundantPrefixes(){
   const out = [];
-  (state.tasks||[]).forEach(t=>{
+  _freeTasks().forEach(t=>{
     if (!t.projectId) return;
     const p = (state.projects||[]).find(x=>x.id===t.projectId);
     if (!p) return;
     const stripped = _stripProjectPrefix(t.title, p.title);
     if (stripped) out.push({ kind:'free', id:t.id, project:p.title, from:t.title, to:stripped });
   });
-  (state.projects||[]).forEach(p=>(p.tasks||[]).forEach(t=>{
+  (state.projects||[]).forEach(p=>_projectSubtasks(p.id).forEach(t=>{
     const stripped = _stripProjectPrefix(t.title, p.title);
     if (stripped) out.push({ kind:'sub', id:t.id, projectId:p.id, project:p.title, from:t.title, to:stripped });
   }));
@@ -6885,11 +7109,11 @@ HANDLERS.cleanProjectPrefixes = ()=>{
   let n = 0;
   hits.forEach(h=>{
     if (h.kind === 'free'){
-      const t = (state.tasks||[]).find(x=>x.id===h.id);
+      const t = _taskById(h.id);
       if (t && t.title === h.from){ t.title = h.to; n++; }
     } else {
       const p = (state.projects||[]).find(x=>x.id===h.projectId);
-      const t = p && (p.tasks||[]).find(x=>x.id===h.id);
+      const t = p && _taskById(h.id);
       if (t && t.title === h.from){ t.title = h.to; n++; }
     }
   });
@@ -6901,12 +7125,14 @@ HANDLERS.cleanProjectPrefixes = ()=>{
 // Fjerner fullførte oppgaver fra state — etter et øyeblikksbilde, så det kan angres via
 // «Lokale backups» under. Aldri automatisk, aldri uten bekreftelse.
 HANDLERS.purgeDoneTasks = ()=>{
-  const done = (state.tasks||[]).filter(t=>t.done);
+  // Bare frie To Do's. Prosjektenes egne underoppgaver ryddes inne i prosjektet —
+  // en «rydd bort fullførte»-knapp i Innstillinger skal ikke tømme prosjekthistorikk.
+  const done = _freeTasks().filter(t=>t.done);
   if (!done.length){ if (typeof showToast === 'function') showToast('Ingen fullførte oppgaver å rydde bort.', 4000); return; }
   if (!confirm(`Fjerne ${done.length} fullførte oppgaver?\n\nEt øyeblikksbilde lagres først, så du kan rulle tilbake fra «Lokale backups» i Innstillinger.`)) return;
   const snap = _writePreSyncSnapshot();
   if (!snap.ok && !confirm('Øyeblikksbildet kunne ikke lagres, så dette kan IKKE angres. Fortsette likevel?')) return;
-  state.tasks = (state.tasks||[]).filter(t=>!t.done);
+  state.tasks = (state.tasks||[]).filter(t=>!(t.kind !== 'sub' && t.done));
   saveState();
   if (typeof showToast === 'function') showToast(`✓ ${done.length} fullførte oppgaver ryddet bort. Angre via «Lokale backups».`, 8000);
   closeModal(); openSettings(); render();
@@ -6940,7 +7166,7 @@ function autoArchivePastProjects(){
     if (!p.targetDate) return;
     const endDate = p.targetEndDate || p.targetDate;
     if (endDate >= today) return;
-    const hasIncompleteTasks = (p.tasks||[]).some(t=>!t.done);
+    const hasIncompleteTasks = _projectSubtasks(p.id).some(t=>!t.done);
     const hasIncompleteMilestones = (p.milestones||[]).some(m=>!m.done);
     if (hasIncompleteTasks || hasIncompleteMilestones) return;
     p.archived = true;
