@@ -54,6 +54,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0048](0048-recurrence-id-overrides.md) | `RECURRENCE-ID`: flyttede og enkeltavlyste forekomster kobles til serien; `parseICS` leser i to omganger | Accepted (utvider 0025/0028) |
 | [0049](0049-one-task-store-version-5.md) | Ett oppgavelager bak `version: 5`, `kind` skiller slagene, `migrateState` er eneste dør inn i state | Accepted (avløser modelldelen av 0045) |
 | [0050](0050-mobile-model.md) | Mobilmodellen: to smale bånd, minikalender, ukeagenda, `minmax(0,1fr)`, skriftgulv 12 px, 44 px mål | Accepted (bygger på 0046/0047) |
+| [0051](0051-remaining-list.md) | Restlista: angring for endringer, dagsagenda i Måned, ekte 44 px avkryssingsboks, én forekomst per kildedato | Accepted (bygger på 0039/0042/0048/0050) |
 
 ## How to add a new ADR
 
