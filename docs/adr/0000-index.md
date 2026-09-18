@@ -49,6 +49,11 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0043](0043-actionable-empty-states.md) | Tomme tilstander med handling — `emptyAction` og `focusField` | Accepted |
 | [0044](0044-mobile-overrides-last.md) | Mobiloverstyringer må ligge sist i stilarket; to media-regler var døde. Radhøyde 172 → 60 px | Accepted |
 | [0045](0045-project-tasks-in-todos.md) | Prosjektoppgaver i To Do's: egen bøtte gruppert per prosjekt, samme objekt begge veier | Accepted (bygger på 0033/0037) |
+| [0046](0046-all-media-queries-last.md) | Alle media-spørringer ligger sist i stilarket; 78 døde erklæringer våknet | Accepted (kurerer 0044) |
+| [0047](0047-dark-mode-follows-variables.md) | Ingen hardkodede lyse flater — mørk modus følger variablene. Hurtigfeltet hadde lys tekst på hvitt | Accepted (bygger på 0046) |
+| [0048](0048-recurrence-id-overrides.md) | `RECURRENCE-ID`: flyttede og enkeltavlyste forekomster kobles til serien; `parseICS` leser i to omganger | Accepted (utvider 0025/0028) |
+| [0049](0049-one-task-store-version-5.md) | Ett oppgavelager bak `version: 5`, `kind` skiller slagene, `migrateState` er eneste dør inn i state | Accepted (avløser modelldelen av 0045) |
+| [0050](0050-mobile-model.md) | Mobilmodellen: to smale bånd, minikalender, ukeagenda, `minmax(0,1fr)`, skriftgulv 12 px, 44 px mål | Accepted (bygger på 0046/0047) |
 
 ## How to add a new ADR
 
