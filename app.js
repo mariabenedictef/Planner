@@ -3813,17 +3813,23 @@ HANDLERS.todoLeave = (e)=>{ e.currentTarget.style.outline = ''; };
 HANDLERS.todoDrop = (e, prio)=>{
   e.preventDefault();
   e.currentTarget.style.outline = '';
+  // Én try/catch(_){} dekket både parsingen og selve flyttingen. De to trenger
+  // motsatt oppførsel: parsingen MÅ kunne feile stille (en omrokkeringsdrag bærer
+  // `text/x-reorder` og ingen JSON, og den lander også her), mens en flytting som
+  // feiler skal si fra — ellers spretter oppgaven tilbake uten et ord. ADR 0022/0053.
+  let data = null;
+  try { data = JSON.parse(e.dataTransfer.getData('application/json')); }
+  catch(_){ return; }                       // ikke vår nyttelast — stille, med vilje
+  if (!data || !data.kind) return;
+  // Dropping a task on Innboks (prio='') with no priority makes no sense — keep it as is
+  if (prio === '__inbox__') return;
   try {
-    const data = JSON.parse(e.dataTransfer.getData('application/json'));
-    if (data.kind === 'task'){
-      // Dropping a task on Innboks (prio='') with no priority makes no sense — keep it as is
-      if (prio === '__inbox__') return;
-      HANDLERS.setTaskPriority(data.id, prio);
-    } else if (data.kind === 'inbox'){
-      if (prio === '__inbox__') return;
-      HANDLERS.inboxToTodo(data.id, prio);
-    }
-  } catch(_){}
+    if (data.kind === 'task') HANDLERS.setTaskPriority(data.id, prio);
+    else if (data.kind === 'inbox') HANDLERS.inboxToTodo(data.id, prio);
+  } catch (err){
+    console.error('[todoDrop] flytting feilet', err);
+    showToast('⚠ Kunne ikke flytte oppgaven. Åpne den og endre prioritet i skjemaet.', 8000);
+  }
 };
 
 HANDLERS.quickAddTodo = (kind, projectId)=>{
@@ -4591,19 +4597,26 @@ HANDLERS.taskToTimeLeave = (e)=>{ e.currentTarget.classList.remove('drop-target'
 HANDLERS.taskToTimeDrop = (e, h, key)=>{
   e.preventDefault();
   e.currentTarget.classList.remove('drop-target');
+  // Samme deling som i todoDrop: parsingen stille, tidsettingen høylytt. ADR 0053.
+  let data = null;
+  try { data = JSON.parse(e.dataTransfer.getData('application/json')); }
+  catch(_){ return; }
+  if (!data || !data.kind) return;
   try {
-    const data = JSON.parse(e.dataTransfer.getData('application/json'));
     const time = pad(h) + ':00';
-    if (data.kind === 'task'){
-      const t = _taskById(data.id);
-      if (t){ t.scheduledTime = time; if (!t.due) t.due = key; render(); }
-    } else if (data.kind === 'projectTask'){
-      const [pid, tid] = data.id.split(':');
-      const p = state.projects.find(x=>x.id===pid);
-      const t = _taskById(tid);
-      if (t){ t.scheduledTime = time; if (!t.due) t.due = key; render(); }
-    }
-  } catch(_){}
+    // Begge slag slås opp med _taskById — ett lager siden ADR 0049. `projectTask`
+    // bærer fortsatt `pid:tid` i nyttelasten, så id-en må deles først. Prosjektet
+    // selv ble slått opp i en `const p` som ingen leste; den er borte.
+    const id = data.kind === 'projectTask' ? data.id.split(':')[1] : data.id;
+    const t = (data.kind === 'task' || data.kind === 'projectTask') ? _taskById(id) : null;
+    if (!t) return;
+    t.scheduledTime = time;
+    if (!t.due) t.due = key;
+    render();
+  } catch (err){
+    console.error('[taskToTimeDrop] tidsetting feilet', err);
+    showToast('⚠ Kunne ikke sette tidspunkt. Åpne oppgaven og sett det i skjemaet.', 8000);
+  }
 };
 // Tap-to-set time (iPhone-friendly alternative to drag-drop)
 HANDLERS.setTaskScheduledTime = (idStr, kind)=>{
@@ -7363,7 +7376,20 @@ function _schedulePoll(delay){
       return;
     }
     let changed = false;
-    try { const r = await pullFromRemote(true); changed = !!(r && r.pulled); } catch(_){}
+    try {
+      const r = await pullFromRemote(true);
+      changed = !!(r && r.pulled);
+    } catch (err){
+      // `pullFromRemote` kaster ikke — den fanger selv og returnerer {ok:false}. Den
+      // gamle `catch(_){}` her kunne altså aldri kjøre, og så ut som et sikkerhetsnett
+      // den ikke var. Havner vi likevel her, er feilen i pollingen selv, og da må to
+      // ting skje: loopen skal overleve (derfor fanger vi i det hele tatt) og
+      // indikatoren skal bli rød (det gjorde den ikke før). ADR 0022/0053.
+      console.error('[sync] bakgrunnssynk feilet', err);
+      _syncStatus.state = 'error';
+      _syncStatus.error = 'Bakgrunnssynk feilet: ' + ((err && err.message) || err);
+      updateSyncIndicator();
+    }
     _pollDelay = _nextPollDelay(_pollDelay, changed);
     _schedulePoll(_pollDelay);
   }, delay);

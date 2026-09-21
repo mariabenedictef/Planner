@@ -6,6 +6,22 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-09-21 (ettermiddag) — Opprydding: mappa, dokumentene, og tre stille feil
+
+Maria ba om en gjennomgang. ADR 0053.
+
+- **`todoDrop` og `taskToTimeDrop` pakket parsingen og handlingen inn i samme `try/catch(_){}`.** De to trenger motsatt oppførsel: parsingen *må* kunne feile stille (en omrokkeringsdrag bærer `text/x-reorder` og lander i samme sone), men en flytting som feiler skal si fra. Drar du en oppgave til en annen prioritet og noe kaster, spratt den bare tilbake uten et ord. Nå: parsingen stille, handlingen med toast som sier hva du kan gjøre i stedet.
+- **`_schedulePoll` hadde en `catch(_){}` som aldri kunne kjøre** — `pullFromRemote` kaster ikke, den returnerer `{ok:false}`. Død kode som så ut som et sikkerhetsnett. Erstattet med en som holder poll-loopen i live *og* gjør synkindikatoren rød; uten den første ville en feil i pollingen selv stoppet bakgrunnssynken for godt, stille.
+- **`taskToTimeDrop` slo opp et prosjekt ingen leste** — levning fra v5-migreringen. Begge slag går nå gjennom `_taskById`.
+- **De 13 gjenværende tomme `catch(_){}` er vurdert én for én og står oppført i `CONTEXT.md`** med hvorfor hver enkelt skal være stille. Uten en skrevet grense blir dette en runde noen kjører om igjen.
+- **Mappa:** `backups/` fra 101 filer / 9,7 MB til 32 / 3,4 MB — tre nyeste per fil, og pre-v5 og pre-adr0052 beholdes alltid. `_to_delete/`, `Claude outputs/` og `starter.json` slettet. `docs/` er *ikke* rørt: `CHANGELOG.md` viser til to av filene der ved navn i historiske innslag, og en endringslogg er en protokoll.
+
+Bugjakten fant ellers ingenting: 105 handlere uten duplikater, ingen døde, ingen bare `HANDLERS`-kall, ingen `console.log`, ingen TODO, og alle sju `p.tasks`-treffene ligger inne i `migrateState` der de skal.
+
+Testsuiten: 609 → 626 assertions. 6 feiler mot forrige commit.
+
+---
+
 ## 2026-09-21 — Masseredigering når underoppgavene, delmål får tidsstempel
 
 De tre siste punktene på restlista. Samme tråd i alle tre: en dør bygget for ett slag oppgave, aldri utvidet da det andre kom. ADR 0052.
