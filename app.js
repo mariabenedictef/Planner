@@ -3657,6 +3657,15 @@ function bulkBarHTML(projectsList){
 
 // Bare prosjektenes EGNE underoppgaver. Taggede frie To Do's står allerede i
 // prioritetsbøttene over; å ta dem med her ville vist dem to ganger på samme side.
+// Delmål sorteres på `date` — ikke `due`; feltnavnet er forskjellen på et delmål og en
+// oppgave (ADR 0037). Uten dato sist, deretter tittel, så rekkefølgen er stabil.
+function _milestoneCmp(a, b){
+  const ad = a && a.date ? a.date : '9999-99-99';
+  const bd = b && b.date ? b.date : '9999-99-99';
+  if (ad !== bd) return ad.localeCompare(bd);
+  return String((a&&a.title)||'').localeCompare(String((b&&b.title)||''), 'nb');
+}
+
 function projectTodoGroups(){
   const groups = [];
   (state.projects || []).forEach(p=>{
@@ -3664,11 +3673,24 @@ function projectTodoGroups(){
     const own = _projectSubtasks(p.id);
     const open = own.filter(t=>!t.done).sort(_dateThenOrderCmp);
     const done = state.ui.showCompletedTodos ? own.filter(t=>t.done).sort(_dateThenOrderCmp) : [];
-    if (!open.length && !done.length) return;
+    // Delmål sto i ingen To Do-visning i det hele tatt — bare på prosjektsiden, i
+    // kalenderen og på Hjem for i dag. De bærer `date`, ikke `due`, og de har ingen
+    // prioritet, så de hører ikke hjemme i prioritetsbøttene. Men her, under sitt eget
+    // prosjekt, trenger de ingen oppfunnet prioritet. Egen liste — ikke blandet inn
+    // blant oppgavene — fordi et delmål er en markering av framdrift, ikke arbeid
+    // noen skal utføre. ADR 0054.
+    const ms = (p.milestones || []);
+    const msOpen = ms.filter(m=>!m.done).slice().sort(_milestoneCmp);
+    const msDone = state.ui.showCompletedTodos ? ms.filter(m=>m.done).slice().sort(_milestoneCmp) : [];
+    if (!open.length && !done.length && !msOpen.length && !msDone.length) return;
     // Gruppene sorteres etter tidligste åpne frist, som prosjektkortene — det som
     // forfaller først skal stå øverst. Uten frist sist.
     const first = open.find(t=>t.due);
-    groups.push({ p, open, done, sortKey: first ? first.due : '9999-99-99' });
+    // Sorteringsnøkkelen ser på delmålene også: et prosjekt hvis nærmeste hendelse er
+    // et delmål skal ikke havne nederst fordi ingen av oppgavene har frist.
+    const firstMs = msOpen.find(m=>m.date);
+    const keys = [first ? first.due : null, firstMs ? firstMs.date : null].filter(Boolean).sort();
+    groups.push({ p, open, done, msOpen, msDone, sortKey: keys[0] || '9999-99-99' });
   });
   groups.sort((a,b)=> a.sortKey !== b.sortKey
     ? a.sortKey.localeCompare(b.sortKey)
@@ -3679,6 +3701,29 @@ function projectTodoGroups(){
 // Rad for en prosjektoppgave i To Do's. Bevisst færre handlinger enn en fri To Do:
 // krysse av, utsette frist, åpne. Ingen slett — å slette prosjektinnhold fra en liste
 // der resten av saken ikke er synlig er lettere å gjøre ved et uhell enn å angre.
+// Rad for et delmål i «Fra prosjekter». Bevisst ulik en oppgaverad: rombe i stedet for
+// avkryssingsboksens firkant, og ingen utsett-knapp — et delmål er en dato man når eller
+// bommer på, ikke en frist man skyver. **Ikke valgbar i velg-modus**: masseoperasjonene
+// setter `due` og `projectId`, og et delmål har ingen av delene. ADR 0054.
+function projectMilestoneRowHTML(p, m){
+  const todayK = todayKey();
+  const overdue = m.date && !m.done && m.date < todayK;
+  const when = m.date
+    ? `<span class="due${overdue?' overdue':''}" title="${escapeAttr(absDateTitle(m.date))}">· ${escapeHTML(relDateLabel(m.date, todayK))}</span>`
+    : '';
+  if (_selMode){
+    return `<div class="todo-row ptodo-row ms-row ${m.done?'done':''}" data-milestone-id="${m.id}" data-project-id="${p.id}" title="Delmål — kan ikke masseredigeres">
+      <span class="ms-mark" aria-hidden="true">◆</span>
+      <span class="ttitle">${escapeHTML(m.title)} ${when}</span>
+    </div>`;
+  }
+  return `<div class="todo-row ptodo-row ms-row ${m.done?'done':''}" data-milestone-id="${m.id}" data-project-id="${p.id}">
+    <input type="checkbox" ${m.done?'checked':''} ${act('toggleProjectMilestone', p.id, m.id)} data-stop="1" title="${m.done?'Marker som ikke nådd':'Marker som nådd'}">
+    <span class="ms-mark" aria-hidden="true">◆</span>
+    <span class="ttitle" ${act('openProjectMilestoneForm', p.id, m.id)} title="Åpne delmålet">${escapeHTML(m.title)} ${when}</span>
+  </div>`;
+}
+
 function projectTaskRowHTML(p, t){
   const todayK = todayKey();
   const overdue = t.due && !t.done && t.due < todayK;
@@ -3727,6 +3772,8 @@ function projectTodosBucketHTML(){
         </div>
         ${g.open.map(t=>projectTaskRowHTML(g.p, t)).join('')}
         ${g.done.map(t=>projectTaskRowHTML(g.p, t)).join('')}
+        ${(g.msOpen||[]).map(m=>projectMilestoneRowHTML(g.p, m)).join('')}
+        ${(g.msDone||[]).map(m=>projectMilestoneRowHTML(g.p, m)).join('')}
       </div>`).join('')}
   </div>`;
 }
@@ -7408,6 +7455,71 @@ function _schedulePoll(delay){
       _schedulePoll(_pollDelay);
     });
   }
+})();
+
+// ============================================================
+// GAMMEL KODE I EN ÅPEN FANE (ADR 0054)
+// ============================================================
+// Hver runde endte med «husk å laste appen på nytt på iPhonen». Det er en beskjed
+// appen kan gi selv — og den BØR gi den: en klient som kjører v4-kode og puller et
+// v5-blob plasserer underoppgavene feil (ADR 0049). En PWA på hjemskjermen kan stå
+// åpen i ukevis uten å hente `app.js` på nytt.
+//
+// Hvordan vi vet hva som KJØRER, uten et byggnummer å vedlikeholde: `cache:'force-cache'`
+// gir bytene nettleseren allerede har — altså dem som ble kjørt — uten å røre nettet.
+// `cache:'no-store'` gir det som ligger ute nå. Ulike, så er det deployet noe nytt.
+// Ingen konstant å glemme å bumpe, og ingen ekstra fil som kan komme ut av synk.
+const UPDATE_CHECK_MS = 6*60*60*1000;      // maks fire ganger i døgnet
+let _updateCheckedAt = 0;
+let _updateBannerUp = false;
+
+// Ingen krypto-krav — vi trenger bare å se at to strenger er ULIKE. FNV-1a pluss lengden
+// holder, og `crypto.subtle` finnes ikke over http på eldre iOS.
+function _sourceFingerprint(str){
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(16) + ':' + str.length;
+}
+
+async function checkForNewVersion(force){
+  if (_updateBannerUp) return false;
+  const now = Date.now();
+  if (!force && now - _updateCheckedAt < UPDATE_CHECK_MS) return false;
+  _updateCheckedAt = now;
+  try {
+    const [kjører, ute] = await Promise.all([
+      fetch('app.js', { cache: 'force-cache' }).then(r=>r.ok ? r.text() : ''),
+      fetch('app.js', { cache: 'no-store'   }).then(r=>r.ok ? r.text() : '')
+    ]);
+    // Tom på en av dem: vi vet ikke nok. En falsk «ny versjon» er verre enn ingen.
+    if (!kjører || !ute) return false;
+    if (_sourceFingerprint(kjører) === _sourceFingerprint(ute)) return false;
+    _updateBannerUp = true;
+    // Lang varighet i stedet for et eget banner-element: toasten har allerede en
+    // knapp (ADR 0039), og en ny komponent for én melding er ikke verdt det.
+    showToast('Ny versjon av Planleggeren er lagt ut — denne fanen kjører fortsatt den gamle.',
+              24*60*60*1000, { label: 'Last på nytt', action: 'reloadForUpdate' });
+    return true;
+  } catch(_){
+    // Offline, eller serveren svarer ikke. Ingen beskjed; neste sjekk kommer uansett.
+    return false;
+  }
+}
+
+HANDLERS.reloadForUpdate = ()=>{
+  // `saveState()` først: alt hun har skrevet i denne økta skal ligge i localStorage før
+  // vi kaster vinduet. Den nye koden leser det gjennom `migrateState` som vanlig.
+  try { saveState(); } catch(_){}
+  location.reload();
+};
+
+(function bootUpdateCheck(){
+  if (typeof document === 'undefined' || typeof fetch !== 'function') return;
+  // 20 sekunder ut: oppstarten skal ikke konkurrere med første tegning og første pull.
+  setTimeout(()=>{ checkForNewVersion(true); }, 20000);
+  document.addEventListener('visibilitychange', ()=>{
+    if (!document.hidden) checkForNewVersion(false);
+  });
 })();
 
 // Auto-sync Outlook on load if URL is set and last sync > 1 hour ago (or never)

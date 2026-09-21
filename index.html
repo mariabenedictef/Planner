@@ -949,6 +949,16 @@
      overkjøre en media-regel ved et uhell.
      REGELEN: nye media-spørringer skrives HER, aldri oppe i arket. */
 
+/* Delmålsrad i «Fra prosjekter» (ADR 0054). Bevisst ulik en oppgaverad: romben sier
+   at dette er en markering av framdrift, ikke arbeid noen skal utføre. Fargen er
+   --ink-muted, ikke --accent — den skal ikke konkurrere med oppgavene over. */
+.todo-row.ms-row .ms-mark{ color:var(--ink-muted); font-size:11px; flex:0 0 auto; margin-right:2px }
+.todo-row.ms-row .ttitle{ cursor:pointer }
+.todo-row.ms-row.done .ms-mark{ opacity:.5 }
+/* I velg-modus står delmålene der uten avkryssingsboks — de kan ikke masseredigeres.
+   Innrykket erstatter boksen så titlene fortsatt står i linje med oppgavene over. */
+.todo-row.ms-row:not(:has(input)) { padding-left:calc(var(--sp,10px) + 22px) }
+
   @media (max-width:1100px){.overview{grid-template-columns:repeat(3,1fr)}}
 
   @media (max-width:680px){.overview{grid-template-columns:repeat(2,1fr)}}

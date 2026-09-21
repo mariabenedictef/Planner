@@ -6,6 +6,22 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-09-21 (kveld) — Appen sier selv fra når den er utdatert, og restlista er gjort opp
+
+ADR 0054.
+
+- **Du slipper å huske «last appen på nytt».** Hver runde har endt med den beskjeden, og å glemme den er ikke kosmetisk: en klient med gammel kode som puller et nytt blob plasserer underoppgavene feil. Appen sammenligner nå koden som kjører med koden som ligger ute — `cache:'force-cache'` gir bytene nettleseren allerede har, `no-store` gir det som er deployet — og sier fra med en «Last på nytt»-knapp. Ingen versjonsnummer å vedlikeholde, ingen ekstra fil som kan komme ut av synk: filen sammenlignes med seg selv. Knappen lagrer før den laster. Sjekken kjører 20 sekunder etter oppstart og når fanen blir synlig, maks fire ganger i døgnet, og sier ingenting hvis nettet svikter — en falsk «ny versjon» er verre enn ingen.
+- **Delmål står i To Do's nå.** De var usynlige i hele visningen — bare på prosjektsiden, i kalenderen og på Hjem for i dag. De ligger i «Fra prosjekter» under sitt eget prosjekt, med rombe i stedet for avkryssingsfirkant og uten utsett-nedtrekk: et delmål er en dato du når eller bommer på, ikke en frist du skyver. Ikke valgbare i velg-modus, siden masseoperasjonene setter `due` og `projectId` og et delmål har ingen av delene.
+- **Verifikasjonshullene er lukket.** Delmål-`doneAt` og den høylytte veien i drop-handlerne var bare testet i jsdom. Nå kjører en egen suite ekte Chromium mot en fixtur av dine data: ekte klikk på avkryssingsboksen, `doneAt` lest tilbake fra lagringen, og den høylytte veien med feilinjeksjon i en kopi som legges tilbake og byte-sjekkes etterpå. 23 assertions.
+- **Resten av lista er gjennomgått punkt for punkt** og står som en tabell i ADR 0054. Sju punkter er avvist på nytt med begrunnelse — blant annet prioritet på prosjektunderoppgaver, kalenderpiler i historikken og lagret ukesoppsummering. Ett kan ikke lukkes: delmål du krysset av før i dag har ikke `doneAt`, og tidspunktet finnes ikke noe sted. Å sette dagens dato ville vært å finne på data.
+- To eldre assertions er snudd med vilje, av samme grunn som i ADR 0052: begge beskrev oppførselen vi nettopp rettet.
+
+Bugjakten fant ingenting nytt: 106 handlere uten duplikater eller døde, ingen `data-action` uten handler, ingen lytterlekkasje, ingen ufangede `await`.
+
+Testsuiten: 626 → 649 assertions, pluss 23 i nettleser. 11 av 642 feiler mot forrige commit.
+
+---
+
 ## 2026-09-21 (ettermiddag) — Opprydding: mappa, dokumentene, og tre stille feil
 
 Maria ba om en gjennomgang. ADR 0053.
