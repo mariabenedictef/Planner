@@ -57,6 +57,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0051](0051-remaining-list.md) | Restlista: angring for endringer, dagsagenda i Måned, ekte 44 px avkryssingsboks, én forekomst per kildedato | Accepted (bygger på 0039/0042/0048/0050) |
 | [0052](0052-bulk-edit-reaches-subtasks.md) | Masseredigering når prosjektunderoppgavene; delmål gjennom `_setDone` med ett navngitt unntak; angring i skjemaet | Accepted (bygger på 0037/0042/0045/0049/0051) |
 | [0053](0053-one-catch-cannot-do-two-jobs.md) | Én `catch` kan ikke dekke både en parsing som skal feile stille og en handling som skal si fra; de 13 legitime står oppført | Accepted (bygger på 0022/0031/0032) |
+| [0054](0054-the-tab-that-runs-old-code.md) | Appen oppdager selv at fanen kjører gammel kode (filen sammenlignet med seg selv, ingen byggnummer); delmål i To Do's; hele restlista gjort opp | Accepted (bygger på 0036/0037/0039/0049/0052/0053) |
 
 ## How to add a new ADR
 
