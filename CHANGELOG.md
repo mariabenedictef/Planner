@@ -6,6 +6,19 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-09-21 — Masseredigering når underoppgavene, delmål får tidsstempel
+
+De tre siste punktene på restlista. Samme tråd i alle tre: en dør bygget for ett slag oppgave, aldri utvidet da det andre kom. ADR 0052.
+
+- **Velg-modus skjulte «Fra prosjekter»-bøtta.** `_selectableTasks` leste bare frie oppgaver — uendret siden ADR 0042, mens 0045 og 0049 gjorde de to slagene til én liste. Trykket du «Velg», mistet To Do's en tredjedel av innholdet uten forklaring. Nå er prosjektunderoppgavene valgbare, og massefrist og masseflytting treffer dem. Filteret spør **prosjektet** for en underoppgave, ikke oppgaven: den har ingen egen kategori, den arver. Å spørre oppgaven ville skjult alle sammen under både Jobb og Privat.
+- **«Fjern prosjekt» er skjult når utvalget inneholder en underoppgave.** En underoppgave uten prosjekt er hjemløs — den vises verken i prioritetsbøttene eller under «Fra prosjekter». Nedtrekket utelater valget, og handleren avviser det med en forklaring om noen kaller den direkte.
+- **Delmål får `doneAt`.** De gikk utenom `_setDone` og fikk aldri tidsstempel. Konsekvensen var stille: ukesoppsummeringen sorterer «gjort denne uka» på `doneAt`, så et avkrysset delmål dukket aldri opp der — det økte bare telleren «gjort uten tidsstempel». `_setDone` har fått ett navngitt unntak (`skipStatus`) med ett kallsted; `status` er kanban-vokabular og delmål står ikke på brettet. Gamle delmål får ikke historikken tilbake — den kan ikke gjenskapes.
+- **Angring dekker nå skjemaet også**, ikke bare masseoperasjonene. `saveTaskForm` gjør `Object.assign` og overskriver alt skjemaet dekker på én gang; øyeblikksbildet tas før tilordningen og bare av de feltene skjemaet rører.
+
+Testsuiten: 588 → 609 assertions. 11 feiler mot forrige commit — og den negative kontrollen trengte **ingen skimmer** denne runden, så alle elleve måler forskjell i oppførsel, ikke et manglende navn. ADR 0045s assertion «velg-modus skjuler «Fra prosjekter»» er snudd med vilje: den vernet om feilen vi nettopp rettet.
+
+---
+
 ## 2026-09-18 — Restlista gjort opp
 
 Punktene som sto igjen etter mobilrunden. ADR 0051.

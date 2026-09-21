@@ -2810,16 +2810,18 @@ HANDLERS.deleteProjectNote = (pid, nid)=>{
 // Og ingen sted registrerte NÅR noe ble gjort, så en ukesoppsummering var umulig å regne ut.
 // `doneAt` fylles fra nå av; oppgaver som var ferdige før dette har den ikke, og
 // oppsummeringen sier det i stedet for å late som lista er tom.
-function _setDone(t, done){
+function _setDone(t, done, opts){
   if (!t) return t;
   t.done = !!done;
-  if (done){
-    t.doneAt = new Date().toISOString();
-    t.status = 'done';
-  } else {
-    delete t.doneAt;
-    if (t.status === 'done') t.status = 'todo';
-  }
+  if (done) t.doneAt = new Date().toISOString();
+  else delete t.doneAt;
+  // `status` er et kanban-begrep. Delmål står ikke på brettet, så å gi dem et
+  // status-felt ville vært å legge tilbake nettopp den typen dødt felt ADR 0049
+  // ryddet bort. Unntaket er navngitt og har ETT kallsted — det er forskjellen på
+  // et dokumentert unntak og en andre dør inn til «ferdig». ADR 0037/0052.
+  if (opts && opts.skipStatus) return t;
+  if (done) t.status = 'done';
+  else if (t.status === 'done') t.status = 'todo';
   return t;
 }
 
@@ -3035,7 +3037,16 @@ HANDLERS.deleteProjectTask = (pid,tid)=>{
   if (!deleteWithUndo(()=>state.tasks, tid, `«${t ? t.title : 'oppgaven'}»`)) return;
   render();
 };
-HANDLERS.toggleProjectMilestone = (pid,mid)=>{ const p=state.projects.find(x=>x.id===pid); const m=p?.milestones.find(x=>x.id===mid); if(m){m.done=!m.done; render();} };
+// Delmål gikk utenom _setDone og fikk derfor aldri `doneAt`. Konsekvensen var stille:
+// ukesoppsummeringen sorterer «gjort» på doneAt, så et avkrysset delmål dukket aldri opp
+// der — det bare økte telleren «gjort uten tidsstempel». ADR 0052.
+HANDLERS.toggleProjectMilestone = (pid,mid)=>{
+  const p = state.projects.find(x=>x.id===pid);
+  const m = p && (p.milestones||[]).find(x=>x.id===mid);
+  if (!m) return;
+  _setDone(m, !m.done, { skipStatus: true });
+  render();
+};
 HANDLERS.deleteProjectMilestone = (pid,mid)=>{
   const p=state.projects.find(x=>x.id===pid); if(!p) return;
   const m=(p.milestones||[]).find(x=>x.id===mid);
@@ -3324,7 +3335,9 @@ HANDLERS.saveProjectTaskForm = (pid, tid)=>{
     // erstattet hele state mens dialogen sto åpen. Før lukket dialogen seg helt som
     // ved suksess, så redigeringen var borte uten et ord. ADR 0031.
     if (!ex){ _warnVanished(); closeModal(); render(); return; }
+    const snap = _snapshotFields([ex], Object.keys(data));
     Object.assign(ex, data);
+    registerFieldUndo(snap, Object.keys(data), `«${ex.title}»`, 'Endret');
   } else { state.tasks.push(Object.assign({id:uid(),done:false,kind:'sub',projectId:p.id}, data)); }
   closeModal(); render();
 };
@@ -3401,7 +3414,7 @@ function renderTodos(){
     ${todoBucketHTML('↗ Short term', 'short', shortTerm, projectsList)}
     ${todoBucketHTML('⤳ Long term', 'long', longTerm, projectsList)}
 
-    ${_selMode ? '' : projectTodosBucketHTML()}
+    ${projectTodosBucketHTML()}
 
     ${done.length && !_selMode ? `
       <div style="margin:18px 0 0;text-align:center">
@@ -3486,16 +3499,28 @@ const _selIds = new Set();
 
 function _selReset(){ _selMode = false; _selIds.clear(); }
 
-// Oppgavene velg-modus opererer på: frie, ikke fullførte, og synlige under
-// gjeldende filter — nøyaktig de radene som faktisk står på skjermen.
+// Oppgavene velg-modus opererer på: alle ikke-fullførte rader som faktisk står på
+// skjermen — frie To Do's OG prosjektenes egne underoppgaver (ADR 0052).
+//
+// Filteret spørres ulikt for de to slagene, og det er ikke en detalj: en underoppgave
+// har ingen egen `category`, den arver prosjektets. Å kjøre passesFilter på selve
+// underoppgaven ville skjult alle sammen under Jobb og Privat. Samme regel som
+// projectTodoGroups bruker — arkiverte prosjekter er utelatt begge steder.
 function _selectableTasks(){
-  return _freeTasks().filter(t => !t.done && passesFilter(t));
+  return (state.tasks || []).filter(t => {
+    if (!t || t.done) return false;
+    if (t.kind === 'sub'){
+      const p = (state.projects || []).find(x => x.id === t.projectId);
+      return !!p && !p.archived && passesFilter(p);
+    }
+    return passesFilter(t);
+  });
 }
 
 // Bare id-er som fortsatt finnes. Et sky-pull kan ha fjernet noe mens utvalget sto.
 function _selectedTasks(){
   const ids = _selIds;
-  return _freeTasks().filter(t => ids.has(t.id));
+  return (state.tasks || []).filter(t => ids.has(t.id));
 }
 
 HANDLERS.toggleSelectMode = ()=>{
@@ -3537,6 +3562,10 @@ HANDLERS.bulkSetProject = (val)=>{
   const none = val === '__none__';
   const p = none ? null : (state.projects || []).find(x=>x.id===val);
   if (!none && !p) return;
+  if (none && sel.some(t => t.kind === 'sub')){
+    showToast('En prosjektoppgave kan ikke stå uten prosjekt — den ville blitt usynlig. Flytt den til et annet prosjekt, eller slett den.', 7000);
+    return;
+  }
   const snap = _snapshotFields(sel, ['projectId']);
   sel.forEach(t=>{ if (none) delete t.projectId; else t.projectId = p.id; });
   registerFieldUndo(snap, ['projectId'],
@@ -3587,6 +3616,11 @@ HANDLERS.bulkDelete = ()=>{
 function bulkBarHTML(projectsList){
   const n = _selIds.size;
   const all = _selectableTasks();
+  // En underoppgave UTEN projectId er hjemløs: den vises verken i prioritetsbøttene
+  // (de leser kind:'free') eller under «Fra prosjekter» (den grupperer på prosjekt).
+  // «Fjern prosjekt» skjules derfor når utvalget inneholder en underoppgave, og
+  // bulkSetProject avviser det også om noen kaller handleren direkte. ADR 0052.
+  const hasSub = _selectedTasks().some(t => t.kind === 'sub');
   const allSelected = all.length > 0 && all.every(t=>_selIds.has(t.id));
   return `<div class="bulkbar" id="bulkbar">
     <span class="bb-count">${n} valgt</span>
@@ -3595,7 +3629,7 @@ function bulkBarHTML(projectsList){
       <label class="bb-field">Frist <input type="date" id="bulk-due" onchange="HANDLERS.bulkSetDue(this.value)"></label>
       <select id="bulk-proj" onchange="if(this.value)HANDLERS.bulkSetProject(this.value)">
         <option value="">▸ Prosjekt…</option>
-        <option value="__none__">— fjern prosjekt —</option>
+        ${hasSub ? '' : '<option value="__none__">— fjern prosjekt —</option>'}
         ${projectsList}
       </select>
       <button data-action="bulkDone">✓ Merk gjort</button>
@@ -3651,6 +3685,15 @@ function projectTaskRowHTML(p, t){
   const due = t.due
     ? `<span class="due${overdue?' overdue':''}" title="${escapeAttr(absDateTitle(t.due))}">· ${escapeHTML(relDateLabel(t.due, todayK))}</span>`
     : '';
+  // Velg-modus: samme bytte som frie rader (ADR 0042) — én avkryssingsboks, ingen
+  // handlinger. Uten dette sto underoppgavene der som rader man ikke kunne velge.
+  if (_selMode){
+    const on = _selIds.has(t.id);
+    return `<div class="todo-row ptodo-row selectable ${on?'selected':''} ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="projecttask" data-project-id="${p.id}" ${act('toggleSelectTask', t.id)}>
+      <input type="checkbox" class="selbox" ${on?'checked':''} ${act('toggleSelectTask', t.id)} data-stop="1">
+      <span class="ttitle">${escapeHTML(t.title)} ${due}</span>
+    </div>`;
+  }
   return `<div class="todo-row ptodo-row ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="projecttask" data-project-id="${p.id}">
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleProjectTask('${p.id}','${t.id}',event)">
     <span class="ttitle" ${act('openProjectTaskForm', p.id, t.id)}>${escapeHTML(t.title)} ${due}</span>
@@ -4782,7 +4825,11 @@ HANDLERS.saveTaskForm = id=>{
     // erstattet hele state mens dialogen sto åpen. Før lukket dialogen seg helt som
     // ved suksess, så redigeringen var borte uten et ord. ADR 0031.
     if (!ex){ _warnVanished(); closeModal(); render(); return; }
+    // `Object.assign` overskriver alt skjemaet dekker på én gang. Øyeblikksbildet tas
+    // FØR tilordningen, og bare av de feltene skjemaet faktisk rører — ADR 0052.
+    const snap = _snapshotFields([ex], Object.keys(data));
     Object.assign(ex, data);
+    registerFieldUndo(snap, Object.keys(data), `«${ex.title}»`, 'Endret');
   } else { state.tasks.push(Object.assign({id:uid(),done:false,kind:'free'}, data)); }
   closeModal(); render();
 };
