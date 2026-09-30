@@ -3709,18 +3709,24 @@ function projectMilestoneRowHTML(p, m){
   const todayK = todayKey();
   const overdue = m.date && !m.done && m.date < todayK;
   const when = m.date
-    ? `<span class="due${overdue?' overdue':''}" title="${escapeAttr(absDateTitle(m.date))}">· ${escapeHTML(relDateLabel(m.date, todayK))}</span>`
+    ? `<span class="due due-tap${overdue?' overdue':''}" ${act('milestoneDateToday', p.id, m.id)} data-stop="1" title="${escapeAttr(absDateTitle(m.date))} — trykk for å flytte til i dag">· ${escapeHTML(relDateLabel(m.date, todayK))}</span>`
     : '';
+  const star = _isStarred(m) ? '<span class="star-mark" aria-hidden="true">★</span> ' : '';
   if (_selMode){
-    return `<div class="todo-row ptodo-row ms-row ${m.done?'done':''}" data-milestone-id="${m.id}" data-project-id="${p.id}" title="Delmål — kan ikke masseredigeres">
+    return `<div class="todo-row ptodo-row ms-row ${m.done?'done':''} ${_isStarred(m)?'starred':''}" data-milestone-id="${m.id}" data-project-id="${p.id}" title="Delmål — kan ikke masseredigeres">
       <span class="ms-mark" aria-hidden="true">◆</span>
-      <span class="ttitle">${escapeHTML(m.title)} ${when}</span>
+      <span class="ttitle">${star}${escapeHTML(m.title)} ${when}</span>
     </div>`;
   }
-  return `<div class="todo-row ptodo-row ms-row ${m.done?'done':''}" data-milestone-id="${m.id}" data-project-id="${p.id}">
+  return `<div class="todo-row ptodo-row ms-row ${m.done?'done':''} ${_isStarred(m)?'starred':''}" data-milestone-id="${m.id}" data-project-id="${p.id}">
     <input type="checkbox" ${m.done?'checked':''} ${act('toggleProjectMilestone', p.id, m.id)} data-stop="1" title="${m.done?'Marker som ikke nådd':'Marker som nådd'}">
     <span class="ms-mark" aria-hidden="true">◆</span>
-    <span class="ttitle" ${act('openProjectMilestoneForm', p.id, m.id)} title="Åpne delmålet">${escapeHTML(m.title)} ${when}</span>
+    <span class="ttitle" ${act('openProjectMilestoneForm', p.id, m.id)} title="Åpne delmålet">${star}${escapeHTML(m.title)} ${when}</span>
+    <div class="actions">
+      <button class="star-btn ${_isStarred(m)?'on':''}" ${act('toggleMilestoneStar', p.id, m.id)} title="${_isStarred(m)?'Fjern stjernen':'Stjernemerk — prioriter først'}">${_isStarred(m)?'★':'☆'}</button>
+      <button class="btn-sec-xs idag-btn" ${act('milestoneDateToday', p.id, m.id)} title="Flytt delmålsdatoen til i dag">Sett i dag</button>
+      <button class="ag" ${act('openProjectMilestoneForm', p.id, m.id)} title="Rediger delmålet">✎</button>
+    </div>
   </div>`;
 }
 
@@ -3728,21 +3734,23 @@ function projectTaskRowHTML(p, t){
   const todayK = todayKey();
   const overdue = t.due && !t.done && t.due < todayK;
   const due = t.due
-    ? `<span class="due${overdue?' overdue':''}" title="${escapeAttr(absDateTitle(t.due))}">· ${escapeHTML(relDateLabel(t.due, todayK))}</span>`
+    ? `<span class="due due-tap${overdue?' overdue':''}" ${act('dueToday', t.id)} data-stop="1" title="${escapeAttr(absDateTitle(t.due))} — trykk for å sette til i dag">· ${escapeHTML(relDateLabel(t.due, todayK))}</span>`
     : '';
   // Velg-modus: samme bytte som frie rader (ADR 0042) — én avkryssingsboks, ingen
   // handlinger. Uten dette sto underoppgavene der som rader man ikke kunne velge.
   if (_selMode){
     const on = _selIds.has(t.id);
-    return `<div class="todo-row ptodo-row selectable ${on?'selected':''} ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="projecttask" data-project-id="${p.id}" ${act('toggleSelectTask', t.id)}>
+    return `<div class="todo-row ptodo-row selectable ${on?'selected':''} ${t.done?'done':''} ${_isStarred(t)?'starred':''}" data-task-id="${t.id}" data-task-kind="projecttask" data-project-id="${p.id}" ${act('toggleSelectTask', t.id)}>
       <input type="checkbox" class="selbox" ${on?'checked':''} ${act('toggleSelectTask', t.id)} data-stop="1">
-      <span class="ttitle">${escapeHTML(t.title)} ${due}</span>
+      <span class="ttitle">${_isStarred(t) ? '<span class="star-mark" aria-hidden="true">★</span> ' : ''}${escapeHTML(t.title)} ${due}</span>
     </div>`;
   }
-  return `<div class="todo-row ptodo-row ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="projecttask" data-project-id="${p.id}">
+  return `<div class="todo-row ptodo-row ${t.done?'done':''} ${_isStarred(t)?'starred':''}" data-task-id="${t.id}" data-task-kind="projecttask" data-project-id="${p.id}">
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleProjectTask('${p.id}','${t.id}',event)">
-    <span class="ttitle" ${act('openProjectTaskForm', p.id, t.id)}>${escapeHTML(t.title)} ${due}</span>
+    <span class="ttitle" ${act('openProjectTaskForm', p.id, t.id)}>${_isStarred(t) ? '<span class="star-mark" aria-hidden="true">★</span> ' : ''}${escapeHTML(t.title)} ${due}</span>
     <div class="actions">
+      <button class="star-btn ${_isStarred(t)?'on':''}" ${act('toggleStar', t.id)} title="${_isStarred(t)?'Fjern stjernen':'Stjernemerk — prioriter først'}">${_isStarred(t)?'★':'☆'}</button>
+      <button class="btn-sec-xs idag-btn" ${act('dueToday', t.id)} title="Sett frist til i dag">I dag</button>
       <select onchange="if(this.value){HANDLERS.postponeProjectTask('${p.id}','${t.id}',this.value);this.value=''}" class="btn-sec-xs" title="Utsett frist">
         <option value="">▸ Utsett</option>
         <option value="1d">+1 dag</option>
@@ -3791,8 +3799,15 @@ function todoRowHTML(t, projectsList){
   // ordene alene («2 dager på overtid») bærer det, men fargen fanger blikket først.
   const todayK = todayKey();
   const overdue = t.due && !t.done && t.due < todayK;
+  // Paa telefon bærer datochipen «sett til i dag» i stedet for en egen knapp. Målt på
+  // 390 px: raden har råd til ÉN knapp til i handlingsraden, ikke to (ADR 0055), og
+  // chipen koster null bredde fordi den alt står der.
+  //
+  // En oppgave UTEN dato faar ingen chip. En «+ i dag»-chip der ble prøvd og målt:
+  // den løftet median radhøyde fra 80 til 99 px fordi den wrapper til ny linje på
+  // rader med lang tittel — og i Marias egne bøtter har så godt som alt en dato.
   const due = t.due
-    ? `<span class="due${overdue?' overdue':''}" title="${escapeAttr(absDateTitle(t.due))}">· ${escapeHTML(relDateLabel(t.due, todayK))}</span>`
+    ? `<span class="due due-tap${overdue?' overdue':''}" ${act('dueToday', t.id)} data-stop="1" title="${escapeAttr(absDateTitle(t.due))} — trykk for å sette til i dag">· ${escapeHTML(relDateLabel(t.due, todayK))}</span>`
     : '';
   // Project-tag — clicking removes the tag (returns the task to an untagged state).
   // Title attribute documents the click behaviour.
@@ -3812,21 +3827,23 @@ function todoRowHTML(t, projectsList){
     // Chipen rendres UTEN fjern-taggen-handlingen her: hele raden er en velg-flate, og et
     // klikk på chipen skal velge raden — ikke stille fjerne prosjekttilknytningen.
     const plainTag = proj ? projChipHTML(proj.title) : '';
-    return `<div class="todo-row selectable ${on?'selected':''} ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="freetask" ${act('toggleSelectTask', t.id)}>
+    return `<div class="todo-row selectable ${on?'selected':''} ${t.done?'done':''} ${_isStarred(t)?'starred':''}" data-task-id="${t.id}" data-task-kind="freetask" ${act('toggleSelectTask', t.id)}>
       <input type="checkbox" class="selbox" ${on?'checked':''} ${act('toggleSelectTask', t.id)} data-stop="1">
-      <span class="ttitle">${escapeHTML(t.title)} ${due} ${plainTag}</span>
+      <span class="ttitle">${_isStarred(t) ? '<span class="star-mark" aria-hidden="true">★</span> ' : ''}${escapeHTML(t.title)} ${due} ${plainTag}</span>
     </div>`;
   }
-  return `<div class="todo-row ${t.done?'done':''}" data-task-id="${t.id}" data-task-kind="freetask" draggable="true" ondragstart="HANDLERS.todoDragStart(event,'${t.id}','task')" ondragend="HANDLERS.todoDragEnd(event)">
+  return `<div class="todo-row ${t.done?'done':''} ${_isStarred(t)?'starred':''}" data-task-id="${t.id}" data-task-kind="freetask" draggable="true" ondragstart="HANDLERS.todoDragStart(event,'${t.id}','task')" ondragend="HANDLERS.todoDragEnd(event)">
     <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
-    <span class="ttitle" data-edit-id="${t.id}" data-edit-kind="task" ondblclick="HANDLERS.inlineEditStart(event,'${t.id}','task')">${escapeHTML(t.title)} ${due} ${projTag}</span>
+    <span class="ttitle" data-edit-id="${t.id}" data-edit-kind="task" ondblclick="HANDLERS.inlineEditStart(event,'${t.id}','task')">${_isStarred(t) ? '<span class="star-mark" aria-hidden="true">★</span> ' : ''}${escapeHTML(t.title)} ${due} ${projTag}</span>
     <div class="actions">
       <button data-action="setTaskPriority" data-args='["${t.id}","urgent"]' title="Urgent">⚠</button>
       <button data-action="setTaskPriority" data-args='["${t.id}","short"]' title="Short term">↗</button>
       <button data-action="setTaskPriority" data-args='["${t.id}","long"]' title="Long term">⤳</button>
       <button data-action="setTaskPriority" data-args='["${t.id}",""]' title="Fjern prioritet">○</button>
       <button data-action="toggleTaskCategory" data-args='["${t.id}"]' title="${catTitle}" style="color:${catColor};font-size:14px;line-height:1">●</button>
+      <button class="star-btn ${_isStarred(t)?'on':''}" ${act('toggleStar', t.id)} title="${_isStarred(t)?'Fjern stjernen':'Stjernemerk — prioriter først'}">${_isStarred(t)?'★':'☆'}</button>
+      <button class="btn-sec-xs idag-btn" ${act('dueToday', t.id)} title="Sett frist til i dag">I dag</button>
       <select onchange="if(this.value){HANDLERS.postponeTask('${t.id}',this.value);this.value=''}" class="btn-sec-xs" title="Utsett frist">
         <option value="">▸ Utsett</option>
         <option value="1d">+1 dag</option>
@@ -3988,6 +4005,42 @@ HANDLERS.deleteFreeTask = (id)=>{
 // Flytter én frist framover. Egen funksjon fordi to handlere trenger den — frie
 // To Do's og prosjektoppgaver (ADR 0045) — og en kopi ville drevet fra originalen.
 // Returnerer false på ukjent intervall, så kallstedet kan la staten stå urørt.
+// ---------------------------------------------------------------------------
+// STJERNEMERKING OG «I DAG» (ADR 0055)
+// ---------------------------------------------------------------------------
+// `starred` settes bare når det er SANT og slettes når det slaas av. Samme regel som
+// `doneAt`: et felt som alltid står der med `false` er bytes i hvert eneste blob, i hver
+// sky-push og i hvert øyeblikksbilde — for informasjon fraværet allerede bærer.
+// Ingen migrering trengs: fraværende felt betyr «ikke stjernemerket».
+function _setStarred(o, on){
+  if (!o) return null;
+  if (on) o.starred = true; else delete o.starred;
+  return o;
+}
+function _isStarred(o){ return !!(o && o.starred); }
+
+// Delmål bor i prosjektene, ikke i `state.tasks`, saa `_taskById` finner dem ikke.
+// Egen dør, samme form som de tre andre (ADR 0049).
+function _milestoneById(mid){
+  for (const p of (state.projects || [])){
+    const m = (p.milestones || []).find(x => x && x.id === mid);
+    if (m) return m;
+  }
+  return null;
+}
+
+// Oppgaver bærer `due`, delmål bærer `date` — feltnavnet ER forskjellen på dem
+// (ADR 0037), saa feltet sendes inn i stedet for aa gjettes på objektets form.
+// Returnerer false når datoen allerede er i dag: da er det ingenting å angre, og et
+// angrepunkt som ikke gjoer noe ville brent det forrige.
+function _setDateToday(o, field){
+  if (!o || !field) return false;
+  const k = todayKey();
+  if (o[field] === k) return false;
+  o[field] = k;
+  return true;
+}
+
 function _postponeDue(t, by){
   if (!t) return false;
   const base = t.due ? fromKey(t.due) : new Date();
@@ -4000,6 +4053,45 @@ function _postponeDue(t, by){
   t.due = dKey(newDue);
   return true;
 }
+
+HANDLERS.toggleStar = (id)=>{
+  const t = _taskById(id);
+  if (!t) return;
+  _setStarred(t, !_isStarred(t));
+  render();
+};
+
+HANDLERS.toggleMilestoneStar = (pid, mid)=>{
+  const m = _milestoneById(mid);
+  if (!m) return;
+  _setStarred(m, !_isStarred(m));
+  render();
+};
+
+// «I dag» overskriver en dato, saa den faar angring — i motsetning til stjernen, som er
+// ett klikk aa reversere og synlig med det samme. ADR 0051/0055.
+HANDLERS.dueToday = (id)=>{
+  const t = _taskById(id);
+  if (!t) return;
+  const snap = _snapshotFields([t], ['due']);
+  if (!_setDateToday(t, 'due')) return;
+  registerFieldUndo(snap, ['due'], `«${t.title}»`, 'Satt til i dag');
+  render();
+};
+
+// Delmål: samme knapp, men den setter `date`, og angringen maa slaa opp i prosjektene.
+// ADR 0054 ga delmålene ingen utsett-nedtrekk med vilje — «en dato du når eller bommer
+// på, ikke en frist du skyver». «I dag» er ikke en utsettelse: den flytter datoen hit,
+// og det er noe man gjoer når noe FAKTISK skjedde i dag. Knappen heter derfor ikke det
+// samme på de to radtypene.
+HANDLERS.milestoneDateToday = (pid, mid)=>{
+  const m = _milestoneById(mid);
+  if (!m) return;
+  const snap = _snapshotFields([m], ['date']);
+  if (!_setDateToday(m, 'date')) return;
+  registerFieldUndo(snap, ['date'], `delmålet «${m.title}»`, 'Satt til i dag', _milestoneById);
+  render();
+};
 
 HANDLERS.postponeTask = (id, by)=>{
   const t = _taskById(id);
@@ -6835,11 +6927,15 @@ function _snapshotFields(tasks, fields){
   });
 }
 
-function registerFieldUndo(snapshot, fields, label, verb){
+// `find` lar angringen brukes på noe annet enn oppgaver — delmål bor i prosjektene
+// og finnes ikke av `_taskById` (ADR 0055). Standarden er uendret, saa alle eksisterende
+// kallsteder oppfører seg som før.
+function registerFieldUndo(snapshot, fields, label, verb, find){
+  const lookup = typeof find === 'function' ? find : _taskById;
   registerUndo(label, ()=>{
     let n = 0;
     (snapshot || []).forEach(snap => {
-      const t = _taskById(snap.id);
+      const t = lookup(snap.id);
       if (!t) return;
       // Feltene skrives tilbake samlet. For done/doneAt/status betyr det at vi IKKE går
       // via _setDone (ADR 0037): den ville stemplet et ferskt doneAt, og poenget her er

@@ -6,6 +6,22 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-09-30 — Stjernemerking og «i dag» i To Do's
+
+ADR 0055.
+
+- **Stjernemerk det du skal gjøre først.** Klikk stjernen i handlingsraden, og raden får en gullkant, en dempet bakgrunn og en ★ foran tittelen. Den **flytter seg ikke** — du valgte at rekkefølgen skal stå — den blir bare synlig der den står. Gjelder frie To Do's, prosjektunderoppgaver og delmål. En oppgave som krysses av mister markeringen; da er det ikke lenger noe å prioritere.
+- **«I dag» setter fristen til i dag med ett klikk**, i handlingsraden ved siden av utsett. Den kan angres i åtte sekunder, i motsetning til stjernen, som er ett klikk å reversere uansett. På et delmål heter knappen «Sett i dag» — et delmål er en dato du når eller bommer på, ikke en frist du skyver, og knappen skal ikke låne ordlyd fra en frist.
+- **På telefonen ligger «i dag» på selve datoen.** Dette er et avvik fra det som ble bestilt, og det er målt, ikke ment: en fri To Do har allerede ✎ og × i handlingsraden på 390 px. Med stjerne *og* «I dag» ble det fire knapper — tittelen falt fra 194 til 98 px og median radhøyde steg fra 61 til 101. Det er nøyaktig regresjonen ADR 0050 ble skrevet for å hindre. Stjernen slipper gjennom (den er både kontrollen og markeringen, og koster 19 px); «I dag» flyttet til datochipen, som koster null bredde fordi den alt står der. Stiplet understrek som hint, og tittelen sier hva trykket gjør.
+- En «+ i dag»-chip for oppgaver uten dato ble bygget, målt og forkastet: den løftet radhøyden fra 80 til 99 px, og i bøttene dine har så godt som alt en dato.
+- `starred` settes bare når det er sant og **slettes** når du fjerner det — samme regel som `doneAt`. Ingen migrering: fraværende felt betyr «ikke merket».
+
+Nettlesersuiten måler nå tittelbredde, radhøyde og knappestørrelse på en ekte 390 px-telefon. Det var den som fant at «I dag» ikke fikk plass.
+
+Testsuiten: 649 → 677 assertions, nettleser 23 → 40. 19 av 677 feiler mot forrige commit.
+
+---
+
 ## 2026-09-21 (kveld) — Appen sier selv fra når den er utdatert, og restlista er gjort opp
 
 ADR 0054.

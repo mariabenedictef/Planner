@@ -38,6 +38,10 @@
     --reise:#c9a87a;
     /* Bøtteoverskrifter i To Do's. Egne variabler framfor hardkodet hex, slik
        .bh.proj alt gjorde: ellers følger de ikke med i mørk modus. ADR 0047. */
+    /* Stjernemerking (ADR 0055). Egne variabler, ikke hardkodet hex — ellers foelger
+       de ikke med i moerk modus (ADR 0047). Dempet gull: den skal loefte raden ut av
+       lista uten aa slaass med den roede fristfargen rett ved siden av. */
+    --star:#a8801f; --star-bg:#fdf7e8; --star-line:#e0cc93;
     --bh-urgent-bg:#fce8e8; --bh-urgent-ink:#883333;
     --bh-short-bg:#fbf1e1;  --bh-short-ink:#7a5a30;
     --bh-long-bg:#e8eef7;   --bh-long-ink:#3a4a66;
@@ -73,6 +77,7 @@
     --personlig:#d4a8aa;
     --helse:#9ebd9e;
     --reise:#d6b88f;
+    --star:#d9b96a; --star-bg:#2e2a1e; --star-line:#5a4f30;
     --bh-urgent-bg:#3b2826; --bh-urgent-ink:#e3a79f;
     --bh-short-bg:#3a3226;  --bh-short-ink:#dcbd8d;
     --bh-long-bg:#28303d;   --bh-long-ink:#adc0dc;
@@ -959,6 +964,30 @@
    Innrykket erstatter boksen så titlene fortsatt står i linje med oppgavene over. */
 .todo-row.ms-row:not(:has(input)) { padding-left:calc(var(--sp,10px) + 22px) }
 
+/* Stjernemerking og «I dag» (ADR 0055).
+   Stjernemerkede rader sorteres IKKE om — de blir staaende og fremheves der de er.
+   Markeringen er tredelt med vilje: en kantstripe fanger blikket naar man skummer
+   kolonnen, bakgrunnen holder den fremhevet mens man leser raden, og stjernen foran
+   tittelen baerer betydningen for den som ikke ser farger. */
+.todo-row.starred{
+  background:var(--star-bg);
+  box-shadow:inset 3px 0 0 var(--star);
+}
+.todo-row.starred + .todo-row.starred{ border-top-color:var(--star-line) }
+.todo-row .star-mark{ color:var(--star); font-size:12px; flex:0 0 auto }
+.todo-row.done.starred{ background:none; box-shadow:none }   /* gjort = ikke lenger noe aa prioritere */
+.todo-row.done .star-mark{ opacity:.45 }
+/* Stjerneknappen i handlingsraden. Kant og bakgrunn arves fra `.actions button`;
+   her settes bare farge og bredde, slik at ☆ og ★ ikke gir raden to ulike bredder. */
+.todo-row .actions .star-btn{ color:var(--ink-muted); min-width:26px; text-align:center; line-height:1 }
+.todo-row .actions .star-btn.on{ color:var(--star); border-color:var(--star-line) }
+.todo-row .actions .star-btn:hover{ color:var(--star) }
+.todo-row .actions .idag-btn{ white-space:nowrap }
+/* Datochipen er «sett til i dag» der knappen ikke får plass — se telefonblokka.
+   Affordansen vises bare på telefon: på desktop står den ekte knappen, og en stiplet
+   strek under datoen der ville vært to måter å si det samme på. */
+.todo-row .due-tap{ cursor:pointer }
+
   @media (max-width:1100px){.overview{grid-template-columns:repeat(3,1fr)}}
 
   @media (max-width:680px){.overview{grid-template-columns:repeat(2,1fr)}}
@@ -1334,9 +1363,20 @@
     .todo-row:not([data-task-kind="inbox"]) .actions{
       opacity:1; flex:0 0 auto; padding-left:0; gap:4px; justify-content:flex-end}
     .todo-row:not([data-task-kind="inbox"]) .actions > *{display:none}
-    .todo-row:not([data-task-kind="inbox"]) .actions > .ag{
+    /* ADR 0050 skar raden ned fra ni kontroller til én, og det var riktig. Stjernen
+       slipper likevel gjennom — den er BÅDE kontrollen og markeringen, og ett trykk.
+       «I dag» gjør det ikke, og det er målt, ikke ment: en fri To Do har alt ✎ og ×
+       i handlingsraden på telefon, så stjernen er den tredje knappen. Med «I dag» som
+       den fjerde falt tittelen fra 150 til 98 px og median radhøyde steg 80 → 101 px.
+       «I dag» ligger i stedet på selve datochipen, som koster null bredde. ADR 0055.
+       Endrer du dette: mål tittelbredden og radhøyden på 390 px først. */
+    .todo-row:not([data-task-kind="inbox"]) .actions > .ag,
+    .todo-row:not([data-task-kind="inbox"]) .actions > .star-btn{
       display:inline-flex; align-items:center; justify-content:center;
       min-width:40px; min-height:40px; font-size:16px}
+    .todo-row:not([data-task-kind="inbox"]) .actions > .idag-btn{ display:none }
+    .todo-row .due-tap{ text-decoration:underline dotted; text-underline-offset:3px }
+    .todo-row.done .due-tap{ text-decoration:none }
     /* ✎ er ikke destruktiv. `.ag` farget begge røde, og på telefonen — der de er de
        eneste knappene — leste blyanten som en slett-knapp nummer to. */
     .todo-row:not([data-task-kind="inbox"]) .actions > .ag[data-action="openTaskForm"],
