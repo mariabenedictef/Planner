@@ -989,7 +989,14 @@
    tittelen baerer betydningen for den som ikke ser farger. */
 .todo-row.starred{
   background:var(--star-bg);
-  box-shadow:inset 3px 0 0 var(--star);
+  /* ADR 0056: radene har ikke lenger egen polstring, så en innvendig stripe ville ligget
+     oppå avkryssingsboksen. Flaten forlenges 8 px ut på hver side, og stripen står ytterst
+     til venstre — utenfor tekstkolonnen, som draghåndtaket. Første skygge ligger øverst. */
+  box-shadow:-8px 0 0 var(--star-bg), -11px 0 0 var(--star), 8px 0 0 var(--star-bg);
+}
+.todo-row.starred:hover{
+  background:var(--surface-2);
+  box-shadow:-8px 0 0 var(--surface-2), -11px 0 0 var(--star), 8px 0 0 var(--surface-2);
 }
 .todo-row.starred + .todo-row.starred{ border-top-color:var(--star-line) }
 .todo-row .star-mark{ color:var(--star); font-size:12px; flex:0 0 auto }
@@ -1458,6 +1465,10 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
       display:inline-flex; align-items:center; justify-content:center;
       min-width:40px; min-height:40px; font-size:16px}
     .todo-row:not([data-task-kind="inbox"]) .actions > .idag-btn{ display:none }
+    /* Stjernen foran tittelen ble en egen linje på telefon (tittelen er et flex-element som
+       wrapper som helhet). Her viser stjerneknappen rett ved siden av allerede ★ fylt, så
+       merket er overflødig — stripe, flate og knapp bærer det (ADR 0056). */
+    .todo-row:not([data-task-kind="inbox"]) .star-mark{ display:none }
     .todo-row .due-tap{ text-decoration:underline dotted; text-underline-offset:3px }
     .todo-row.done .due-tap{ text-decoration:none }
     /* ✎ er ikke destruktiv. `.ag` farget begge røde, og på telefonen — der de er de

@@ -18,6 +18,7 @@ ADR 0056. Du valgte retning A «Ren» av to prototyper, og at ordene skal stå s
 - **Topplinja:** tekstfaner med strek under den aktive, tellerne som rene tall, filteret som en rolig segmentkontroll.
 - **Telefonen:** hurtigfeltet har fire prioriteter på én rad (to rader før første oppgave, var tre). Innboksraden viser alle handlinger på to linjer — prosjektvalget var klippet av før. Ukeagendaen og dagsagendaen er lister, ikke bokser.
 - **Detaljer:** draghåndtakene står i margen så alle rader starter i samme kolonne; avkryssingsboksen er tegnet på PC også (den var en hvit firkant i mørk modus); statuslinja på iPhonen følger mørk modus; app-ikonet har fått samme skrift.
+- **Stjernemerkede rader:** stripen står nå i margen, ikke oppå avkryssingsboksen, og på telefon er ★ foran tittelen borte (den ble en egen linje) — den fylte stjerneknappen viser det.
 - **To feil underveis:** ukedagsraden i Måned var et tomt bånd på ~55 px over datoene, og gantt-stolpene i mørk modus hadde hvit tekst på lyse farger.
 
 Telefonraden er innenfor budsjettet fra ADR 0055: tittel 152 px, median radhøyde 79 px.
