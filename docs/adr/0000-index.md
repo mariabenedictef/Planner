@@ -60,6 +60,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0054](0054-the-tab-that-runs-old-code.md) | Appen oppdager selv at fanen kjører gammel kode (filen sammenlignet med seg selv, ingen byggnummer); delmål i To Do's; hele restlista gjort opp | Accepted (bygger på 0036/0037/0039/0049/0052/0053) |
 | [0055](0055-star-and-due-today.md) | Stjernemerking (`starred`, ingen omsortering) og «i dag»; målt at telefonraden har råd til ÉN knapp til, så datochipen bærer «i dag» der | Accepted (bygger på 0037/0042/0050/0051/0054) |
 | [0056](0056-design-system.md) | Designsystemet: hvit flate, hårfine linjer, én skriftfamilie, åtte størrelser, alle tekstfarger over WCAG AA (1 340 brudd → 0) | Accepted (bygger på 0046/0047/0050/0051/0055) |
+| [0057](0057-second-design-pass.md) | Andre designgjennomgang: prosjektkort som rammede fliser (eneste boks, med vilje), Hjem-prosjekter som liste uten røde tall, prioritet som prikk i alle knapper, ingen kursiv, en advarsel byttes ikke ut av en beskjed | Accepted (bygger på 0041/0045/0055/0056) |
 
 ## How to add a new ADR
 
