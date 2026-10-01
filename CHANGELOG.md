@@ -13,7 +13,7 @@ ADR 0057. Du sa Prosjekter-fanen så rar ut og ba om en ny gjennomgang av hele a
 - **Prosjekter:** kortene har fått en tynn ramme igjen, så de står på linje i rutenettet. Prosjektets farge er en prikk foran navnet, kategori og dato står på én linje, og nedtellingen står i hjørnet som «12 dager igjen» (eller «ingen måldato»). Framdriften er en tynn strek.
 - **Prosjektsiden** ser ut som resten av appen: ingen boks, seksjoner med strek under, Liste/Kanban som en enkel bryter, «← Prosjekter» tilbake. Slett-knappen på oppgaver er dempet og blir rød først når du holder over den.
 - **Hjem «Aktive prosjekter»** er en liste: navn, hva som skjer neste, og når. De store røde tallene er borte — fem prosjekter som gikk etter planen var røde fordi de var under en uke unna.
-- **Hjem:** ingen «–» i datokolonnen når det ikke er noen frist (på telefonen får tittelen plassen). «+12 til uten frist» tar deg nå til To Do's.
+- **Hjem:** ingen «–» i datokolonnen når det ikke er noen frist (på telefonen får tittelen plassen). Det samme på prosjektkortene og i ukeoppsummeringen. «+12 til uten frist» tar deg nå til To Do's.
 - **Prioritetsknappene er prikker** i samme farge som bøttene — ⚠ ↗ ⤳ ○ er borte. I innboksen står ordet ved siden av. **Kategoriknappen sier «Jobb» eller «Privat»** i stedet for en blå prikk som lignet en prioritet.
 - **«Fra prosjekter»** uten ◈, og gruppehodene er rene tekstlinjer med prosjektprikk.
 - **Tom «Ukategorisert»** vises ikke lenger.

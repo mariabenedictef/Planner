@@ -2254,7 +2254,7 @@ function projectCardHTML(p){
         const overdue = t.due && t.due < todayK;
         // Kompakt relativ etikett (ADR 0040) — kolonnen er 68 px, og «5 d siden» er
         // det lengste relDateShort kan produsere.
-        const dateLabel = t.due ? relDateShort(t.due, todayK) : '–';
+        const dateLabel = t.due ? relDateShort(t.due, todayK) : '';   // tomt er tomt (ADR 0057)
         const dateTitle = t.due ? escapeAttr(absDateTitle(t.due)) : 'Ingen frist';
         return `<div class="ptodo"><span class="ptodo-date${overdue?' overdue':''}" title="${dateTitle}">${escapeHTML(dateLabel)}</span><span class="ptodo-title">${escapeHTML(t.title)}</span></div>`;
       }).join('')}
@@ -5283,8 +5283,8 @@ HANDLERS.openWeekReview = ()=>{
       : isProj ? act('openProjectTaskForm', t._projectId, t.id)
       : act('openTaskForm', t.id);
     const label = dateField === 'doneAt'
-      ? ((t.doneAt||'').slice(0,10) ? fmtDateShort(fromKey((t.doneAt||'').slice(0,10))) : '–')
-      : (t.due ? fmtDateShort(fromKey(t.due)) : '–');
+      ? ((t.doneAt||'').slice(0,10) ? fmtDateShort(fromKey((t.doneAt||'').slice(0,10))) : '')
+      : (t.due ? fmtDateShort(fromKey(t.due)) : '');
     const chip = projChipHTML(t._projectTitle);
     return `<div class="wr-row" ${click}>
       <span class="wr-date">${label}</span>
