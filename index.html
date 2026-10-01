@@ -136,7 +136,7 @@
   /* Sub-nav (date title + arrows) */
   .subnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap}
   .subnav h2{font-family:var(--font);font-weight:600;font-size:20px;margin:0;color:var(--ink);letter-spacing:-.015em}
-  .subnav h2 .yr{color:var(--ink-muted);font-style:italic;margin-left:6px;font-size:16px}
+  .subnav h2 .yr{color:var(--ink-muted);font-style:normal;font-weight:400;margin-left:8px;font-size:15px;letter-spacing:0}
   .subnav .arrows{display:flex;gap:4px}
   .subnav .arrows button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
   .subnav .arrows button:hover{background:var(--surface-2)}
@@ -145,7 +145,7 @@
   .strip{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
   .strip .group{display:flex;flex-direction:column;gap:2px;min-width:140px}
   .strip .label{font-size:11px;font-weight:600;letter-spacing:0;color:var(--ink-muted);}
-  .strip .value{font-family:var(--font);font-size:15px;color:var(--ink);font-style:italic}
+  .strip .value{font-family:var(--font);font-size:15px;color:var(--ink)}
   .strip .value.empty{font-style:normal;color:var(--ink-muted);font-family:var(--font);font-size:13px}
   .strip .edit{margin-left:auto}
 
@@ -223,9 +223,10 @@
   .day-layout{display:grid;grid-template-columns:1fr 320px;gap:16px}
   
   .day-main{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
-  .day-side{display:flex;flex-direction:column;gap:14px}
-  .day-side .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
-  .day-side .panel h4{margin:0 0 8px;font-family:var(--font);font-weight:600;font-size:15px;color:var(--ink)}
+  .day-side{display:flex;flex-direction:column;gap:28px}
+  /* ADR 0057: sidepanelene er seksjoner som resten av appen — overskrift med strek, ingen boks */
+  .day-side .panel{background:none;border:none;border-radius:0;padding:0}
+  .day-side .panel h4{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--ink);font-family:var(--font);font-weight:600;font-size:14px;color:var(--ink)}
   .day-hours{display:grid;grid-template-columns:50px 1fr;gap:0}
   .day-hours .hl{padding:4px;font-size:11px;color:var(--ink-muted);text-align:right;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
   .day-hours .hslot{border-bottom:1px solid var(--line-soft);height:48px;position:relative;cursor:pointer;padding-left:4px;overflow:visible}
@@ -256,9 +257,9 @@
   /* Goals & habits */
   .panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   
-  .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
-  .panel h3{font-family:var(--font);font-weight:600;font-size:16px;margin:0 0 12px;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
-  .panel h3 button{font-size:12px;color:var(--ink-soft);padding:4px 10px;border-radius:6px;border:1px solid var(--line)}
+  .panel{background:none;border:none;border-radius:0;padding:0 0 20px}
+  .panel h3{font-family:var(--font);font-weight:600;font-size:14px;margin:0 0 6px;padding-bottom:8px;border-bottom:1px solid var(--ink);color:var(--ink);display:flex;justify-content:space-between;align-items:center;letter-spacing:-.005em}
+  .panel h3 button{font-size:12px;font-weight:500;color:var(--ink-soft);padding:3px 9px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface)}
   .panel h3 button:hover{background:var(--surface-2)}
   .goal{padding:10px 0;border-top:1px solid var(--line-soft)}
   .goal:first-of-type{border-top:none}
@@ -349,7 +350,7 @@
      forteller hvor Enter kommer til å treffe. */
   .search-results .sr.active{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)}
   .search-results .sr .meta{font-size:12px;color:var(--ink-muted);margin-top:1px}
-  .search-results .empty{padding:14px;color:var(--ink-muted);font-style:italic;font-size:13px;text-align:center}
+  .search-results .empty{padding:14px;color:var(--ink-muted);font-size:13px;text-align:center}
   /* Ukesoppsummering (ADR 0038) */
   .wr-sec{margin-bottom:16px}
   .wr-sec h4{font-family:var(--font);font-weight:600;font-size:15px;margin:0 0 6px;color:var(--ink);display:flex;justify-content:space-between;align-items:baseline}
@@ -358,7 +359,7 @@
   .wr-row:hover{background:var(--surface-2)}
   .wr-date{flex:0 0 56px;font-size:12px;color:var(--ink-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
   .wr-title{flex:1;min-width:0}
-  .wr-empty{padding:8px 2px;font-size:13px;color:var(--ink-muted);font-style:italic}
+  .wr-empty{padding:8px 2px;font-size:13px;color:var(--ink-muted)}
   .wr-note{padding:7px 9px;margin-bottom:6px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);font-size:12px;color:var(--ink-soft);line-height:1.45}
 
   /* Notes panel */
@@ -385,46 +386,46 @@
   .hidden{display:none !important}
 
   /* Projects */
-  .projects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:28px 28px}
-  .pcard{background:none;border:none;border-radius:0;padding:14px 2px 16px;cursor:pointer;transition:transform .12s,box-shadow .12s;border-top:2px solid var(--line);display:flex;flex-direction:column;gap:10px;position:relative}
+  .projects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;cursor:pointer;transition:border-color .12s,box-shadow .12s;display:flex;flex-direction:column;gap:12px;min-width:0}
   /* Prosjektets egen farge som venstrekant — samme nyanse som chipen på taggede
      oppgaver, så kortet og oppgaven kjennes igjen som samme sak. ADR 0041. */
-  .pcard[style*="--pc-h"]{border-top-color:hsl(var(--pc-h), 36%, 58%)}
-  [data-theme="dark"] .pcard[style*="--pc-h"]{border-top-color:hsl(var(--pc-h), 30%, 50%)}
-  .pcard:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
-  .pcard.cat-arbeid{border-top-color:var(--work)}
-  .pcard.cat-privat{border-top-color:var(--privat)}
-  .pcard.cat-personlig{border-top-color:var(--personlig)}
-  .pcard.cat-helse{border-top-color:var(--helse)}
-  .pcard.cat-reise{border-top-color:var(--reise)}
-  .pcard h3{font-family:var(--font);font-weight:600;font-size:15px;margin:0;color:var(--ink);line-height:1.3;letter-spacing:-.01em}
-  .pcard .pmeta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink-muted);align-items:baseline}
-  .pcard .countdown{font-family:var(--font);font-size:20px;color:var(--ink);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  .pcard .countdown.past{color:var(--ink-muted);font-style:italic}
+  .pcard[style*="--pc-h"]{--pc-c:hsl(var(--pc-h), 38%, 50%)}
+  [data-theme="dark"] .pcard[style*="--pc-h"]{--pc-c:hsl(var(--pc-h), 34%, 62%)}
+  .pcard:hover{border-color:color-mix(in srgb,var(--ink-muted) 55%,var(--line));box-shadow:0 2px 12px rgba(15,20,30,.06)}
+  .pcard.cat-arbeid{}
+  .pcard.cat-privat{}
+  .pcard.cat-personlig{}
+  .pcard.cat-helse{}
+  .pcard.cat-reise{}
+  .pcard h3{font-family:var(--font);font-weight:600;font-size:15px;margin:0;color:var(--ink);line-height:1.3;letter-spacing:-.01em;display:flex;align-items:baseline;gap:8px;min-width:0}
+  .pcard .pmeta{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--ink-muted);align-items:baseline;margin-top:4px;padding-left:16px}
+  .pcard .countdown{font-family:var(--font);font-size:20px;color:var(--ink);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;text-align:right;line-height:1;flex:0 0 auto;white-space:nowrap}
+  .pcard .countdown.past{color:var(--ink-muted)}
   .pcard .countdown.urgent{color:var(--alert)}
   .pcard .pnext{font-size:12px;color:var(--ink-soft);border-top:1px solid var(--line-soft);padding-top:6px;margin-top:2px}
   .pcard .pnext strong{color:var(--ink)}
-  .pcard .countdown small{display:block;font-family:var(--font);font-size:12px;color:var(--ink-muted);letter-spacing:0;font-weight:400}
-  .pcard .pprog{height:5px;background:var(--surface-2);border-radius:3px;overflow:hidden}
-  .pcard .pprog i{display:block;height:100%;background:var(--accent)}
-  .pcard .pstats{display:flex;gap:12px;font-size:12px;color:var(--ink-muted)}
+  .pcard .countdown small{display:block;font-family:var(--font);font-size:12px;color:var(--ink-muted);letter-spacing:0;font-weight:400;margin-top:4px}
+  .pcard .pprog{flex:1;height:3px;background:var(--line-soft);border-radius:2px;overflow:hidden;min-width:40px}
+  .pcard .pprog i{display:block;height:100%;background:var(--ink)}
+  .pcard .pstats{display:flex;gap:12px;font-size:12px;color:var(--ink-muted);flex:0 0 auto;font-variant-numeric:tabular-nums}
   .pcard .pstats span strong{color:var(--ink)}
   /* To Do-liste på prosjektkortet (ADR 0033). Titler kappes på én linje med ellipse, så
      kortene beholder samme høyde og rutenettet står rolig. */
-  .pcard .ptodos{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line-soft);padding-top:8px;margin-top:2px;min-width:0}
-  .pcard .ptodo{display:flex;gap:8px;align-items:baseline;font-size:12px;line-height:1.35;color:var(--ink-soft);min-width:0}
+  .pcard .ptodos{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line-soft);padding-top:12px;min-width:0}
+  .pcard .ptodo{display:flex;gap:10px;align-items:baseline;font-size:13px;line-height:1.35;color:var(--ink);min-width:0}
   /* Fast bredde på datokolonnen, så titlene flukter fra rad til rad uansett om dagen er
      ett- eller tosifret. «+N mer» er en vanlig rad med tom datocelle, så den stiller seg
      opp med titlene av seg selv. */
   /* 68 px: «5 d siden» er den lengste etiketten relDateShort() kan produsere. ADR 0040. */
-  .pcard .ptodo-date{flex:0 0 68px;color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-  .pcard .ptodo-date.overdue{color:var(--alert);font-weight:600}
+  .pcard .ptodo-date{flex:0 0 64px;font-size:12px;color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pcard .ptodo-date.overdue{color:var(--alert);font-weight:500}
   .pcard .ptodo-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .pcard .ptodo-more .ptodo-title{font-size:11px;color:var(--ink-muted);font-style:italic}
+  .pcard .ptodo-more .ptodo-title{font-size:12px;color:var(--ink-muted);font-style:normal}
   .pcard.archived{opacity:.55}
 
-  .new-project-card{background:transparent;border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:14px;min-height:160px;cursor:pointer;border-radius:var(--radius);font-style:italic}
-  .new-project-card:hover{background:var(--surface);color:var(--ink)}
+  .new-project-card{background:transparent;border:1px dashed var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:13px;min-height:120px;cursor:pointer;transition:border-color .12s,color .12s}
+  .new-project-card:hover{border-color:var(--ink-muted);color:var(--ink)}
 
   /* Project bars on overview */
   .mo .pbars{margin-top:6px;display:flex;flex-direction:column;gap:2px;min-height:8px}
@@ -435,26 +436,26 @@
   .mo .pbar.cat-reise{background:var(--reise)}
 
   /* Project detail page */
-  .pdetail{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .pdetail .phead{padding:18px 22px;border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .pdetail{background:none;border:none;border-radius:0;overflow:visible}
+  .pdetail .phead{padding:2px 0 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
   .pdetail .phead .ptitle{flex:1;min-width:200px}
-  .pdetail .phead h2{font-family:var(--font);font-weight:600;font-size:20px;margin:0 0 4px;color:var(--ink)}
-  .pdetail .phead .pdesc{font-size:13px;color:var(--ink-soft);margin:4px 0 0}
-  .pdetail .phead .pcount{text-align:right;font-family:var(--font);font-size:26px;color:var(--ink);line-height:1}
-  .pdetail .phead .pcount small{display:block;font-family:var(--font);font-size:11px;color:var(--ink-muted);letter-spacing:0;margin-top:4px;font-weight:600}
+  .pdetail .phead h2{font-family:var(--font);font-weight:600;font-size:26px;letter-spacing:-.025em;margin:0 0 6px;color:var(--ink);line-height:1.2}
+  .pdetail .phead .pdesc{font-size:14px;color:var(--ink-soft);margin:10px 0 0;max-width:68ch;line-height:1.5}
+  .pdetail .phead .pcount{text-align:right;font-family:var(--font);font-size:26px;font-weight:600;letter-spacing:-.025em;color:var(--ink);line-height:1;font-variant-numeric:tabular-nums}
+  .pdetail .phead .pcount small{display:block;font-family:var(--font);font-size:12px;color:var(--ink-muted);letter-spacing:0;margin-top:6px;font-weight:400}
   .pdetail .phead .pcount.urgent{color:var(--alert)}
-  .pdetail .pbody{padding:6px 22px 22px}
-  .psection{padding:16px 0;border-top:1px solid var(--line-soft)}
+  .pdetail .pbody{padding:0}
+  .psection{padding:30px 0 0;border-top:none}
   .psection:first-of-type{border-top:none}
-  .psection h4{font-family:var(--font);font-weight:600;font-size:16px;margin:0 0 10px;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
-  .psection h4 button{font-size:12px;color:var(--ink-soft);padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface)}
+  .psection h4{font-family:var(--font);font-weight:600;font-size:14px;margin:0;padding-bottom:8px;border-bottom:1px solid var(--ink);color:var(--ink);display:flex;justify-content:space-between;align-items:center;gap:10px;letter-spacing:-.005em}
+  .psection h4 button{font-size:12px;font-weight:500;color:var(--ink-soft);padding:4px 10px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface)}
   .psection h4 button:hover{background:var(--surface-2)}
-  .ptask{padding:6px 0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13px}
+  .ptask{position:relative;padding:10px 0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:10px;font-size:14px}
   .ptask:first-of-type{border-top:none}
   .ptask.done .pttitle{text-decoration:line-through;color:var(--ink-muted)}
   .ptask .pttitle{flex:1;cursor:pointer}
-  .ptask .ptdate{font-size:12px;color:var(--ink-muted);font-family:var(--font)}
-  .ptask .ptdel{padding:3px 8px;color:var(--alert);font-size:12px;border:none;background:none}
+  .ptask .ptdate{font-size:12px;color:var(--ink-muted);font-family:var(--font);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ptask .ptdel{padding:3px 8px;color:var(--ink-muted);font-size:13px;border:none;background:none;opacity:0;transition:opacity .12s,color .12s}
   .ptask input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent)}
   .pperson{padding:8px 0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
   .pperson:first-of-type{border-top:none}
@@ -472,7 +473,7 @@
   .pinline-add input{flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px}
   .pinline-add input.small{flex:0 0 130px}
   .pinline-add button{padding:6px 12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:13px}
-  .pback{margin-bottom:12px;font-size:13px;color:var(--ink-soft);background:none;padding:4px 0}
+  .pback{margin-bottom:14px;font-size:13px;color:var(--ink-muted);background:none;padding:4px 0}
   .pback:hover{color:var(--ink)}
 
   /* Project sub-task badge in calendar */
@@ -480,10 +481,10 @@
   .ev.proj::before{content:'▸ ';color:var(--ink-muted);font-weight:400}
 
   /* Project view mode toggle */
-  .pview-toggle{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:12px;margin-right:8px}
-  .pview-toggle button{padding:4px 10px;background:var(--surface);color:var(--ink-soft);border:none;border-right:1px solid var(--line)}
-  .pview-toggle button:last-child{border-right:none}
-  .pview-toggle button.active{background:var(--accent);color:#fff}
+  .pview-toggle{display:inline-flex;border:1px solid var(--line);border-radius:7px;padding:2px;gap:2px;font-size:12px;margin-right:4px}
+  .pview-toggle button{padding:3px 10px;background:none;color:var(--ink-soft);border:none;border-radius:5px;font-weight:500}
+  .pview-toggle button:last-child{}
+  .pview-toggle button.active{background:var(--surface-2);color:var(--ink);font-weight:600}
 
   /* Kanban */
   .kanban{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
@@ -503,7 +504,7 @@
   .kcard-meta.overdue{color:var(--alert)}
 
   /* Outlook synced event style */
-  .ev.ics{background:var(--ics-bg);border-left-color:var(--ics-line) !important;font-style:italic;opacity:.95}
+  .ev.ics{background:var(--ics-bg);border-left-color:var(--ics-line) !important;opacity:.95}
   .ev.ics::before{content:'📧 ';font-style:normal}
 
   /* Multi-day event styling — continuous bar across day-cells within the same week-row.
@@ -603,7 +604,7 @@
   .keydates .kd .kdate strong{color:var(--ink);font-size:16px;display:block;font-weight:500}
   .keydates .kd .ktitle{flex:1;font-weight:500}
   .keydates .kd .ktitle .meta{display:block;font-size:12px;color:var(--ink-muted);margin-top:1px;font-weight:400}
-  .keydates .kd .kcountdown{font-size:12px;color:var(--ink-muted);font-style:italic;white-space:nowrap}
+  .keydates .kd .kcountdown{font-size:12px;color:var(--ink-muted);white-space:nowrap}
   .keydates .kd .kcountdown.urgent{color:var(--alert)}
 
   /* Animations */
@@ -649,7 +650,7 @@
   
 
   /* Time-blocked task in day view */
-  .day-hours .hslot .ev.task-block{background:var(--surface-2);border-left-style:dashed;font-style:italic}
+  .day-hours .hslot .ev.task-block{background:var(--surface-2);border-left-style:dashed}
   .day-hours .hslot .ev.task-block::before{content:'☐ ';font-style:normal;color:var(--ink-muted)}
   .day-hours .hslot.drop-target{background:var(--surface-2);outline:2px dashed var(--accent);outline-offset:-2px}
   .day-side .panel li[draggable="true"]{cursor:grab}
@@ -661,8 +662,8 @@
   .note-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
   .note-card-title{font-family:var(--font);font-weight:600;font-size:14px;color:var(--ink);line-height:1.25}
   .note-card-preview{font-size:12px;color:var(--ink-muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
-  .note-card-empty{font-size:12px;color:var(--ink-muted);font-style:italic}
-  .new-note-card{background:transparent;border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:13px;cursor:pointer;border-radius:var(--radius);min-height:90px;font-style:italic}
+  .note-card-empty{font-size:12px;color:var(--ink-muted)}
+  .new-note-card{background:transparent;border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:13px;cursor:pointer;border-radius:var(--radius);min-height:90px}
   .new-note-card:hover{background:var(--surface);color:var(--ink)}
   /* Rich text editor */
   .note-toolbar{display:flex;gap:4px;padding:6px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
@@ -680,7 +681,7 @@
   .note-editor p{margin:6px 0}
   .note-editor a{color:var(--accent);text-decoration:underline}
   .note-editor img{max-width:100%;border-radius:4px;margin:6px 0}
-  .note-editor:empty:before{content:attr(data-placeholder);color:var(--ink-muted);font-style:italic;pointer-events:none}
+  .note-editor:empty:before{content:attr(data-placeholder);color:var(--ink-muted);pointer-events:none}
   .note-title-input{font-family:var(--font);font-weight:600;font-size:16px;border:none;background:transparent;width:100%;color:var(--ink);outline:none;padding:4px 0;border-bottom:1px dashed var(--line-soft)}
   .note-title-input:focus{border-bottom-color:var(--accent)}
   /* Note modal view mode — clean reading view, hides toolbar + editor borders */
@@ -692,27 +693,27 @@
   .wl-ac-item{padding:7px 10px;border-radius:5px;cursor:pointer;white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
   .wl-ac-item[aria-selected="true"]{background:var(--surface-2)}
-  .wl-ac-item .wl-ac-cat{float:right;margin-left:12px;font-size:11px;color:var(--ink-muted);font-style:italic}
-  .wl-ac-empty{padding:7px 10px;color:var(--ink-muted);font-style:italic}
+  .wl-ac-item .wl-ac-cat{float:right;margin-left:12px;font-size:11px;color:var(--ink-muted)}
+  .wl-ac-empty{padding:7px 10px;color:var(--ink-muted)}
 
   [data-note-mode="view"] .note-toolbar{display:none!important}
   [data-note-mode="view"] .note-editor{border:none;padding:0;background:transparent;cursor:pointer;min-height:120px}
   [data-note-mode="view"] .note-title-input{border-bottom:none;font-size:20px;padding:2px 0;cursor:pointer;pointer-events:none}
   [data-note-mode="view"] .note-edit-hint{display:flex}
   [data-note-mode="edit"] .note-edit-hint{display:none}
-  .note-edit-hint{display:none;align-items:center;gap:6px;font-size:12px;color:var(--ink-muted);font-style:italic;padding:8px 0 4px;justify-content:flex-end}
+  .note-edit-hint{display:none;align-items:center;gap:6px;font-size:12px;color:var(--ink-muted);padding:8px 0 4px;justify-content:flex-end}
   .toggle-edit-btn{padding:5px 12px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer}
   .toggle-edit-btn:hover{background:var(--surface-2)}
 
   /* Wikilinks */
   .wikilink{color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent-soft);padding:0 1px}
   .wikilink:hover{background:var(--surface-2);border-bottom-style:solid}
-  .wikilink-broken{color:var(--ink-muted);border-bottom-color:var(--ink-muted);font-style:italic}
+  .wikilink-broken{color:var(--ink-muted);border-bottom-color:var(--ink-muted)}
   .backlinks{display:flex;flex-direction:column;gap:6px}
   .backlinks .bl{padding:8px 10px;background:var(--surface-2);border-radius:6px;font-size:13px;cursor:pointer;line-height:1.4}
   .backlinks .bl:hover{background:var(--line-soft)}
   .backlinks .bl strong{color:var(--ink);font-size:13px;display:block;margin-bottom:2px}
-  .backlinks .bl .snippet{color:var(--ink-muted);font-size:12px;font-style:italic}
+  .backlinks .bl .snippet{color:var(--ink-muted);font-size:12px}
 
   /* Markdown preview */
   .md-preview{padding:12px;background:var(--surface-2);border-radius:8px;font-size:14px;line-height:1.55;color:var(--ink)}
@@ -731,18 +732,7 @@
   .home-greeting{font-family:var(--font);font-size:26px;color:var(--ink);margin:0 0 4px;font-weight:600;letter-spacing:-.025em}
   .home-greeting .day{color:var(--accent)}
   .home-date{font-size:13px;color:var(--ink-muted);margin-bottom:24px}
-  .home-countdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:20px}
-  .countdown-card{background:none;border:none;border-top:2px solid var(--line);border-radius:0;padding:12px 2px 14px;cursor:pointer;transition:transform .12s, box-shadow .12s;position:relative;overflow:hidden}
-  .countdown-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
-  .countdown-card .cd-label{font-size:12px;letter-spacing:0;color:var(--ink-muted);font-weight:500;margin-bottom:6px}
-  .countdown-card .cd-title{font-family:var(--font);font-size:16px;font-weight:600;color:var(--ink);line-height:1.2;margin-bottom:8px}
-  .countdown-card .cd-days{font-family:var(--font);font-size:26px;font-weight:600;color:var(--ink);line-height:1;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
-  .countdown-card .cd-next{font-size:12px;color:var(--ink-muted);margin-top:6px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .home-date .wr-btn{margin-left:10px;padding:2px 9px;font-size:12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer}
-  .countdown-card .cd-days small{display:block;font-family:var(--font);font-size:11px;color:var(--ink-muted);margin-top:4px;font-weight:400;letter-spacing:0}
-  .countdown-card.featured{background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border-color:var(--accent-soft)}
-  .countdown-card.featured .cd-days{font-size:26px}
-  .countdown-card.urgent .cd-days{color:var(--alert)}
   .home-section{margin-bottom:32px}
   .home-section > h3{font-family:var(--font);font-weight:600;font-size:14px;margin:0;padding-bottom:8px;border-bottom:1px solid var(--ink);color:var(--ink);letter-spacing:-.005em;display:flex;align-items:center;gap:9px}
   .home-list{background:none;border:none;border-radius:0;overflow:visible}
@@ -752,8 +742,8 @@
   .home-item:hover{background:var(--surface-2)}
   .home-list-urgent .home-item{border-top-color:var(--line-soft)}
   .home-list-urgent .home-item:hover{background:var(--surface-2)}
-  .hi-date{min-width:60px;font-family:var(--font);font-size:13px;color:var(--ink-muted);flex-shrink:0}
-  .hi-date.overdue{color:var(--alert);font-weight:600}
+  .hi-date{flex:0 0 64px;font-family:var(--font);font-size:12px;color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .hi-date.overdue{color:var(--alert);font-weight:500}
   .hi-title{flex:1;color:var(--ink);line-height:1.35}
   .home-empty{padding:12px 0;color:var(--ink-muted);font-style:normal;font-size:13px;background:none;border:none;border-radius:0}
   .home-item input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;margin:0}
@@ -805,21 +795,21 @@
   .hjem-week-col.today{background:var(--today)}
   .hjem-week-col.weekend{background:var(--surface-2)}
   .hjem-week-col.today.weekend{background:var(--today)}
-  .hjem-week-col-h{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line-soft);background:var(--surface-2);position:sticky;top:0}
-  .hjem-week-col.weekend .hjem-week-col-h{background:var(--surface-2)}
+  .hjem-week-col-h{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line-soft);background:transparent;position:sticky;top:0}
+  .hjem-week-col.weekend .hjem-week-col-h{background:transparent}
   .hjem-week-col-h .wd{font-size:11px;color:var(--ink-muted);letter-spacing:0;display:block;margin-bottom:2px}
   .hjem-week-col-h .num{font-family:var(--font);font-size:16px;color:var(--ink);font-weight:600;display:block;line-height:1}
   .hjem-week-col.today .hjem-week-col-h .num{color:var(--accent)}
-  .hjem-week-col-h .hol{font-size:11px;color:var(--alert);font-style:italic;display:block;margin-top:2px;line-height:1.15;word-break:break-word}
+  .hjem-week-col-h .hol{font-size:11px;color:var(--alert);font-style:normal;display:block;margin-top:2px;line-height:1.15;word-break:break-word}
   .hjem-week-items{padding:6px;display:flex;flex-direction:column;gap:3px;flex:1;font-size:11px}
   .hjem-week-items .wke{background:var(--surface);border-left:2px solid var(--ink-muted);padding:3px 6px;border-radius:3px;cursor:pointer;line-height:1.3;word-break:break-word;color:var(--ink)}
   .hjem-week-items .wke:hover{filter:brightness(.95)}
   .hjem-week-items .wke strong{font-weight:600;font-size:11px}
   .hjem-week-items .wke.cat-arbeid{border-left-color:var(--work)}
   .hjem-week-items .wke.cat-privat{border-left-color:var(--privat)}
-  .hjem-week-items .wke.ics{font-style:italic;background:var(--ics-bg);border-left-color:var(--ics-line)}
+  .hjem-week-items .wke.ics{background:var(--ics-bg);border-left-color:var(--ics-line)}
   [data-theme="dark"] .hjem-week-items .wke.ics{background:#1f2935}
-  .hjem-week-items .wke-empty{font-size:11px;color:var(--ink-muted);font-style:italic;padding:4px 2px;text-align:center}
+  .hjem-week-items .wke-empty{font-size:11px;color:var(--ink-muted);padding:4px 2px;text-align:center}
   
   
   .home-quick{background:none;border:none;border-radius:0;padding:0;margin-bottom:30px}
@@ -845,7 +835,7 @@
   .dashboard .dash-item .dtitle{flex:1}
   .dashboard .dash-item .dtitle .dmeta{display:block;font-size:11px;color:var(--ink-muted);margin-top:1px}
   .dashboard .dash-urgent h4{color:var(--alert)}
-  .dashboard .dash-empty{font-size:12px;color:var(--ink-muted);font-style:italic;padding:4px 0}
+  .dashboard .dash-empty{font-size:12px;color:var(--ink-muted);padding:4px 0}
 
   /* Priority pills + To Do's view */
   .pill.prio-urgent{--dot:var(--pri-urgent);color:var(--ink-soft)}
@@ -891,7 +881,7 @@
     margin:0 0 12px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);
     border-radius:var(--radius);box-shadow:var(--shadow)}
   .bulkbar .bb-count{font-weight:600;font-size:13px;color:var(--ink);white-space:nowrap}
-  .bulkbar .bb-hint{font-size:12px;color:var(--ink-muted);font-style:italic}
+  .bulkbar .bb-hint{font-size:12px;color:var(--ink-muted)}
   .bulkbar .bb-field{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft)}
   .bulkbar button,.bulkbar select,.bulkbar input{padding:5px 10px;font-size:13px;border-radius:6px;
     border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
@@ -905,23 +895,24 @@
   .todo-row:hover .actions{opacity:1}
   .todo-row .actions button{padding:3px 7px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
   .todo-row .actions button:hover{background:var(--surface-2)}
-  .todo-row .actions .ag{color:var(--alert);border-color:transparent}
+  .todo-row .actions .ag{color:var(--ink-muted);border-color:transparent}
+  .todo-row .actions .ag:hover{color:var(--ink)}
+  .todo-row .actions .ag[data-action^="delete"]:hover{color:var(--alert)}
   .todo-row input[type=checkbox]{appearance:none;-webkit-appearance:none;width:16px;height:16px;flex:0 0 16px;margin:0;border:1.5px solid color-mix(in srgb,var(--ink-muted) 70%,transparent);border-radius:4px;background:var(--surface);display:grid;place-content:center;cursor:pointer;transition:background-color .12s,border-color .12s}
   .todo-empty{padding:11px 0;color:var(--ink-muted);font-style:normal;font-size:13px;text-align:left}
   /* «Fra prosjekter»-bøtta (ADR 0045). Dempet overskrift — den skal ikke konkurrere med
      Urgent/Short/Long, som er hennes egen prioritering. Gruppeoverskriften bærer
      prosjektets farge fra --pc-h (ADR 0041), så raden kjennes igjen fra kortet. */
   .todo-bucket .bh.proj{background:none;color:var(--ink);--dot:var(--pri-proj)}
-  .proj-bucket .ptgroup + .ptgroup{border-top:1px solid var(--line)}
-  .ptgroup-head{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;
-    background:var(--surface);border-top:1px solid var(--line-soft);
-    box-shadow:inset 3px 0 0 hsl(var(--pc-h, 220), 40%, 72%)}
-  .ptgroup-head:hover{background:var(--surface-2)}
-  .ptgroup-head .ptgroup-name{font-size:12px;font-weight:600;letter-spacing:.2px;
-    color:hsl(var(--pc-h, 220), 42%, 33%)}
-  .ptgroup-head .ptgroup-count{font-size:11px;color:var(--ink-muted)}
-  [data-theme="dark"] .ptgroup-head{box-shadow:inset 3px 0 0 hsl(var(--pc-h, 220), 30%, 46%)}
-  [data-theme="dark"] .ptgroup-head .ptgroup-name{color:hsl(var(--pc-h, 220), 46%, 76%)}
+  .proj-bucket .ptgroup + .ptgroup{border-top:none}
+  .ptgroup-head{display:flex;align-items:center;gap:8px;padding:16px 0 6px;cursor:pointer;background:none;
+    border-top:none;box-shadow:none;--pc-c:hsl(var(--pc-h, 220), 38%, 50%)}
+  .ptgroup-head::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pc-c);flex:0 0 8px}
+  .ptgroup-head:hover .ptgroup-name{text-decoration:underline;text-underline-offset:3px}
+  .ptgroup-head .ptgroup-name{font-size:13px;font-weight:600;letter-spacing:0;color:var(--ink)}
+  .ptgroup-head .ptgroup-count{font-size:12px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+  [data-theme="dark"] .ptgroup-head{--pc-c:hsl(var(--pc-h, 220), 34%, 62%)}
+
   /* Prosjektoppgaverader har to handlinger, ikke ni — de skal ikke hoppe i bredden. */
   .ptodo-row .actions{min-width:0}
   .ptodo-row.done .ttitle{text-decoration:line-through;color:var(--ink-muted)}
@@ -943,7 +934,7 @@
   /* ====== Utility classes (consolidated from repeated inline styles, added 2026-05-26) ====== */
   .text-alert{color:var(--alert)}
   .text-muted-sm{font-size:12px;color:var(--ink-muted)}
-  .text-muted-italic{font-size:12px;color:var(--ink-muted);font-style:italic}
+  .text-muted-italic{font-size:12px;color:var(--ink-muted)}
   .text-note{font-weight:400;color:var(--ink-muted);text-transform:none;letter-spacing:0}
   .text-mute-small{color:var(--ink-muted);font-size:11px}
   .btn-sec{padding:6px 12px;font-size:13px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);transition:border-color .12s,color .12s}
@@ -1033,6 +1024,11 @@
 .home-section > h3.hs-dot.urgent{--dot:var(--pri-urgent)}
 .home-section > h3.hs-dot.today{--dot:var(--ink)}
 .home-section > h3.hs-dot.none{--dot:var(--line)}
+.home-section > h3.hs-dot.cal{--dot:var(--ics-line)}
+/* «+N til uten frist» står i tittelkolonnen (avkryssing 16 + 12 + dato 64 + 12) og tar deg til To Do's */
+.home-item.hi-more-row{padding-left:104px}
+.home-item.hi-more-row .hi-more{color:var(--ink-soft)}
+.home-item.hi-more-row:hover .hi-more{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 .home-section > h3 small,.home-section > h3 .hs-note{margin-left:auto;font-size:12px;font-weight:400;color:var(--ink-muted);font-variant-numeric:tabular-nums}
 
 /* Raden: hover som en svak flate, ikke en ramme */
@@ -1063,12 +1059,70 @@
 .nav button:hover{color:var(--ink)}
 
 /* Prosjektkort: tittelen understrekes ved hover i stedet for at kortet hopper */
-.pcard:hover{transform:none;box-shadow:none;background:var(--surface-dim)}
-.countdown-card:hover{transform:none;box-shadow:none;background:var(--surface-dim)}
 
 /* Tall som skal stå i kolonne */
-.due,.ptodo-date,.hi-date,.pcount,.cd-days,.ptgroup-count,.badge{font-variant-numeric:tabular-nums}
+.due,.ptodo-date,.hi-date,.pcount,.ptgroup-count,.badge{font-variant-numeric:tabular-nums}
 body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
+
+
+/* ===== Prosjekter (ADR 0057) =============================================
+   Rutenett trenger kanter. Uten ramme fløt kortene som løse kolonner med en farget
+   strek over — i en liste holder overskrift + strek gruppene sammen, i to dimensjoner
+   gjør de det ikke. Kortet er derfor en hvit flate med hårfin ramme og 10 px hjørner,
+   uten fyll og uten skygge i ro. */
+.pc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;min-width:0}
+.pc-titles{min-width:0;flex:1}
+.pc-dot{width:8px;height:8px;border-radius:50%;background:var(--pc-c,var(--ink-muted));flex:0 0 8px;transform:translateY(-1px)}
+.pcard .pmeta .pill::before{display:none}
+.pcard .pmeta .pill{color:var(--ink-muted);font-weight:400}
+.pcard .pmeta > * + *::before{content:"·";margin-right:10px;color:var(--line)}
+.pcard .countdown.urgent{color:var(--alert)}
+.pcard .countdown.empty{font-size:12px;font-weight:400;color:var(--ink-muted)}
+.pcard .countdown.empty small{margin-top:0}
+.pc-prog{display:flex;align-items:center;gap:12px;min-width:0}
+.pcard .pstats span strong{color:var(--ink);font-weight:600}
+.pcard.archived{opacity:.7}
+/* Prosjektsiden */
+.pdetail .phead .pmeta{display:flex;gap:4px 10px;align-items:baseline;flex-wrap:wrap;font-size:13px;color:var(--ink-soft)}
+.pdetail .phead .pmeta .pm-soft{color:var(--ink-muted)}
+.pdetail .phead .pcount.past{color:var(--ink-muted)}
+.pdetail .phead .pcount.empty{font-size:13px;font-weight:400;color:var(--ink-muted)}
+.psection h4 + .ptask,.psection h4 + div > .ptask:first-child{border-top:none}
+.ptask:hover{background:var(--surface-2);box-shadow:-8px 0 0 var(--surface-2),8px 0 0 var(--surface-2)}
+.ptask:hover .ptdel{opacity:1}
+.ptask .ptdel:hover{color:var(--alert)}
+.ptask .drag-handle{position:absolute;left:-20px;top:50%;transform:translateY(-50%);opacity:0}
+.pview-toggle button:hover{color:var(--ink)}
+
+
+/* ===== Andre gjennomgang (ADR 0057) ===================================== */
+/* Prioritet som prikk, overalt. Samme farger som bøtteoverskriftene rett under, så
+   knappen forklarer seg selv uten å måtte lære ⚠ ↗ ⤳. Ordet står ved siden av der det
+   er plass (innboksen på PC); ellers bærer tittelen det. */
+.prio-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;--dot:var(--ink-muted)}
+.prio-btn::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--dot);flex:0 0 8px}
+.prio-btn.urgent{--dot:var(--pri-urgent)} .prio-btn.short{--dot:var(--pri-short)} .prio-btn.long{--dot:var(--pri-long)}
+.prio-btn.none::before{background:none;box-shadow:inset 0 0 0 1.5px var(--ink-muted)}
+.prio-btn:not(:has(.pb-l)){min-width:26px}
+.todo-row .actions .prio-btn{padding:4px 7px}
+.todo-row[data-task-kind="inbox"] .actions .prio-btn{padding:4px 10px;font-size:12px;color:var(--ink-soft)}
+/* Kategori i innboksen: ordet, ikke en blå prikk som ligner prioritetsprikkene ved siden av */
+.todo-row .actions .cat-btn{font-size:12px;color:var(--ink-soft);padding:4px 10px}
+.todo-row .actions .cat-btn::before{content:"";display:inline-block;width:6px;height:6px;border-radius:2px;margin-right:6px;vertical-align:1px;background:var(--work)}
+.todo-row .actions .cat-btn.privat::before{background:var(--privat)}
+/* Hjem: aktive prosjekter som liste */
+.home-projects .hp-row{gap:12px}
+.home-projects .hi-title{display:flex;gap:12px;align-items:baseline;min-width:0;flex:1 1 auto}
+.home-projects .hp-next{max-width:100%}
+.home-projects .hp-name{font-weight:500;color:var(--ink);white-space:nowrap}
+.home-projects .hp-next{color:var(--ink-muted);font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.home-projects .hp-when{flex:0 0 auto;font-size:12px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+.home-projects .hp-when.soon{color:var(--ink);font-weight:500}
+.home-projects .pc-dot{--pc-c:hsl(var(--pc-h,220),38%,50%)}
+[data-theme="dark"] .home-projects .pc-dot{--pc-c:hsl(var(--pc-h,220),34%,62%)}
+.hi-more{color:var(--ink-muted);font-size:13px}
+/* Tom «Ukategorisert» er borte — gruppa under trenger ikke ekstra luft over seg */
+.proj-bucket .ptgroup:first-of-type .ptgroup-head{padding-top:10px}
 
   @media (max-width:1100px){.overview{grid-template-columns:repeat(3,1fr)}}
 
@@ -1179,9 +1233,9 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
     /* Today dashboard stacks */
     .dashboard{grid-template-columns:1fr;padding:12px 14px;gap:12px}
     /* Project detail */
-    .pdetail .phead{flex-direction:column;padding:14px 16px}
-    .pdetail .phead .pcount{text-align:left;font-size:20px}
-    .pdetail .pbody{padding:6px 16px 16px}
+    .pdetail .phead{padding:0 0 18px}
+    .pdetail .phead .pcount{text-align:right;font-size:20px}
+    .pdetail .pbody{padding:0}
     /* Month-grid cells smaller */
     .month-grid .cell{min-height:54px;padding:3px 4px;font-size:11px}
     .month-grid .cell .ev{font-size:11px;padding:1px 3px}
@@ -1192,7 +1246,7 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
   /* On any touch device (hover not supported), keep action buttons visible */
   @media (hover: none){
     .todo-row .actions{opacity:1}
-    .ptask .ptdel{opacity:1}
+    .ptask .ptdel{opacity:1; color:var(--ink-muted)}
     .ptask .drag-handle, .todo-row .drag-handle{display:none}
     .keydates .kd:hover{background:inherit}
   }
@@ -1255,11 +1309,6 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
     .home-date { font-size:14px; margin-bottom: 18px; color: var(--ink-muted); }
     .home-section { margin-bottom: 24px; }
     .home-section > h3 { font-size:16px; margin-bottom: 12px; gap: 8px; }
-    .home-countdowns { grid-template-columns: 1fr; gap: 12px; }
-    .countdown-card { padding: 18px 20px; min-height: 100px; }
-    .countdown-card .cd-title { font-size:16px; line-height: 1.25; }
-    .countdown-card .cd-days { font-size:26px; }
-    .countdown-card.featured .cd-days { font-size:26px; }
     .home-quick { padding: 14px 16px; }
     .home-quick input { font-size:16px; padding: 14px 16px; min-height: 48px; border-radius: 10px; }
     .home-quick-hint { font-size:12px; margin-top: 8px; }
@@ -1268,7 +1317,10 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
     .home-item { padding: 14px 16px; gap: 12px; font-size:15px; min-height: 52px; }
     .home-item input[type=checkbox] { width: 22px; height: 22px; }
     .home-item .drag-handle { display: none; } /* drag handles hidden on touch */
-    .hi-date { min-width: 64px; font-size:13px; }
+    .home-item.hi-more-row { padding-left: 50px; } /* 16 + avkryssing 22 + 12 */
+    .hi-date { flex-basis: 64px; font-size:13px; }
+    /* Uten dato: ingen tom kolonne som spiser 64 px av tittelen på 390 px. */
+    .hi-date:empty { display:none; }
     .hi-title { font-size:15px; line-height: 1.4; }
     .home-empty { padding: 12px 0; font-size:14px; }
 
@@ -1334,17 +1386,17 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
 
     /* Projects grid */
     .projects-grid { grid-template-columns: 1fr; gap: 12px; }
-    .pcard { padding: 14px 2px 18px; min-height: 110px; border-radius: 0; }
-    .pcard h3 { font-size:16px; line-height: 1.3; }
+    .pcard { padding: 14px 16px 16px; min-height: 0; border-radius: 10px; }
+    .pcard h3 { font-size:15px; line-height: 1.3; }
     .pcard .countdown { font-size:20px; }
     .pcard .pstats { font-size:12px; gap: 14px; }
 
     /* Project detail page */
-    .pdetail { border-radius: 14px; }
-    .pdetail .phead { padding: 18px 18px; flex-direction: column; align-items: flex-start; gap: 12px; }
+    .pdetail { border-radius: 0; }
+    .pdetail .phead { padding: 0 0 18px; flex-direction: row; align-items: flex-start; gap: 12px; }
     .pdetail .phead h2 { font-size:20px; }
-    .pdetail .phead .pcount { text-align: left; font-size:26px; }
-    .pdetail .pbody { padding: 8px 18px 18px; }
+    .pdetail .phead .pcount { text-align: right; font-size:20px; }
+    .pdetail .pbody { padding: 8px 0 18px; }
     .psection { padding: 18px 0; }
     .psection h4 { font-size:16px; line-height: 1.3; }
     .pback { padding: 8px 0; font-size:14px; min-height: 36px; }
@@ -1428,7 +1480,6 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
   /* Even smaller screens (older iPhone SE etc) */
   @media (max-width: 380px) {
     .nav button { min-width: 60px; font-size:11px; padding: 10px 6px; }
-    .countdown-card .cd-days { font-size:26px; }
     .home-greeting { font-size:20px; }
     .modal h3 { font-size:16px; }
   }
@@ -1491,6 +1542,9 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
     .todo-row[data-task-kind="inbox"] .ttitle{flex:1 1 100%}
     .todo-row[data-task-kind="inbox"] .actions{flex:1 1 100%; flex-wrap:wrap; gap:6px; padding-left:0; justify-content:flex-start}
     .todo-row[data-task-kind="inbox"] .actions select{flex:1 1 140px; min-width:0}
+    .todo-row[data-task-kind="inbox"] .actions .prio-btn .pb-l{display:none}
+    .home-projects .hi-title{flex-direction:column;gap:1px}
+    .home-projects .hp-name{white-space:normal}
     /* Draghåndtak er en død kontroll på touch. */
     .ptask .drag-handle, .todo-row .drag-handle, .home-item .drag-handle{display:none}
     /* Bøtteoverskriften er `justify-content:space-between` på én linje. På 390 px la den
@@ -1565,15 +1619,13 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
     .todo-row .ttitle .due, .tasks-block .due, .ptask .due,
     .search-results .sr .meta, .keydates .kd .ktitle .meta,
     .strip .label, .gantt-headrow .label-col, .ptgroup-head .ptgroup-count,
-    .countdown-card .cd-label, .text-mute-small, .hjem-week-col-h .wd,
+    .text-mute-small, .hjem-week-col-h .wd,
     .gantt-months .mtick, .hjem-week-items .wke-empty, .nav button .badge{font-size:12px}
     .pill{font-size:12px; letter-spacing:.4px}
     .todo-bucket .bh small, .home-section small, .psection small, .pcard small{font-size:12px}
     .gantt-row .bar{height:24px; line-height:24px; font-size:12px}
     .gantt-row .label{font-size:13px}
     .hjem-week-items .wke strong{font-size:12px}
-    .countdown-card .cd-days small, .pcard .countdown small{font-size:12px; letter-spacing:.3px}
-    .countdown-card .cd-next, .pcard .pnext{font-size:13px}
     .home-date .wr-btn{font-size:13px; min-height:32px; padding:0 10px}
     .home-quick-hint span{font-size:13px}
     .pcard .ptodo-more .ptodo-title{font-size:12px}
@@ -1596,8 +1648,8 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
        nowrap-tittel på 518 px gjorde hele siden 652 px bred, og bunnmenyen forsvant ut
        av bildet. minmax(0,1fr) er den kanoniske kuren. */
     .projects-grid{grid-template-columns:minmax(0,1fr); gap:10px}
-    .pcard{min-width:0; padding:14px 2px 18px; border-radius:0}
-    .pcard h3{font-size:16px}
+    .pcard{min-width:0; padding:14px 16px 16px; border-radius:10px}
+    .pcard h3{font-size:15px}
 
     /* ---- Måned: minikalender ----
        Sju like kolonner. Hver hendelse er én prikk i kategorifargen, «+N til» en grå
@@ -1647,7 +1699,7 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
     .wa-dow{font-size:13px; font-weight:500; letter-spacing:0; color:var(--ink-soft)}
     .wa-num{font-family:var(--font); font-size:16px; font-weight:600; color:var(--ink)}
     .wa-day.today .wa-num{color:var(--ink); font-weight:700}
-    .wa-hol{font-size:13px; font-style:italic; color:var(--alert)}
+    .wa-hol{font-size:13px; color:var(--alert)}
     .wa-count{margin-left:auto; font-size:13px; color:var(--ink-muted); font-variant-numeric:tabular-nums}
     .wa-row{
       display:flex; gap:10px; align-items:flex-start; min-height:44px;

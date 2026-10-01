@@ -6,6 +6,27 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-10-01 — Andre runde: Prosjekter, Hjem og knappene
+
+ADR 0057. Du sa Prosjekter-fanen så rar ut og ba om en ny gjennomgang av hele appen.
+
+- **Prosjekter:** kortene har fått en tynn ramme igjen, så de står på linje i rutenettet. Prosjektets farge er en prikk foran navnet, kategori og dato står på én linje, og nedtellingen står i hjørnet som «12 dager igjen» (eller «ingen måldato»). Framdriften er en tynn strek.
+- **Prosjektsiden** ser ut som resten av appen: ingen boks, seksjoner med strek under, Liste/Kanban som en enkel bryter, «← Prosjekter» tilbake. Slett-knappen på oppgaver er dempet og blir rød først når du holder over den.
+- **Hjem «Aktive prosjekter»** er en liste: navn, hva som skjer neste, og når. De store røde tallene er borte — fem prosjekter som gikk etter planen var røde fordi de var under en uke unna.
+- **Hjem:** ingen «–» i datokolonnen når det ikke er noen frist (på telefonen får tittelen plassen). «+12 til uten frist» tar deg nå til To Do's.
+- **Prioritetsknappene er prikker** i samme farge som bøttene — ⚠ ↗ ⤳ ○ er borte. I innboksen står ordet ved siden av. **Kategoriknappen sier «Jobb» eller «Privat»** i stedet for en blå prikk som lignet en prioritet.
+- **«Fra prosjekter»** uten ◈, og gruppehodene er rene tekstlinjer med prosjektprikk.
+- **Tom «Ukategorisert»** vises ikke lenger.
+- **Ingen kursiv** — den var tyngst å lese i små størrelser (Outlook-hendelser, tomme felt, helligdager).
+- **Kalenderen på Hjem og sidepanelene i Dag** har samme overskrift med strek som resten.
+- **Feil funnet underveis:** en advarsel («Kunne ikke flytte oppgaven») kunne forsvinne etter et øyeblikk hvis backup-beskjeden kom rett etter. Nå venter den vanlige beskjeden.
+
+Kontrastrevisjonen er fortsatt 0 brudd, og telefonraden er uendret (tittel 152 px, median 79 px).
+
+Testsuiten: 690 → 699, nettleser 43/43.
+
+---
+
 ## 2026-10-01 — Nytt design: rent, roligere, og lettere å lese
 
 ADR 0056. Du valgte retning A «Ren» av to prototyper, og at ordene skal stå som de er.

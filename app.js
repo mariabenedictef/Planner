@@ -1801,7 +1801,7 @@ function _homeUrgentHTML(urgent, todayK){
       ${urgent.length === 0 ? `<div class="home-empty">Ingen urgent-saker — godt jobba</div>` :
         `<div class="home-list home-list-urgent" id="urgent-list">
           ${urgent.map(t=>{
-            const due = t.due ? relDateShort(t.due, todayK) : '—';
+            const due = t.due ? relDateShort(t.due, todayK) : '';
             const overdue = t.due && t.due < todayK;
             const proj = t.projectId ? state.projects.find(p=>p.id===t.projectId) : null;
             const projTag = projChipHTML(proj ? proj.title : '');
@@ -1862,11 +1862,11 @@ function _homeNoDateHTML(items){
           const projTag = projChipHTML(t._projectTitle);
           return `<div class="home-item">
             <input type="checkbox" data-action="noop" data-stop="1" onchange="${toggleHandler}">
-            <div class="hi-date" style="color:var(--ink-muted)">–</div>
+            <div class="hi-date"></div>
             <div class="hi-title" ${click} style="cursor:pointer">${escapeHTML(t.title)}${projTag}</div>
           </div>`;
         }).join('')}
-        ${rest > 0 ? `<div class="home-item" style="cursor:default"><div class="hi-date"></div><div class="hi-title" style="color:var(--ink-muted);font-style:italic">+${rest} til uten frist</div></div>` : ''}
+        ${rest > 0 ? `<div class="home-item hi-more-row" data-action="switchView" data-args='["todos"]'><div class="hi-title hi-more">+${rest} til uten frist — se alle i To Do's</div></div>` : ''}
       </div>
     </div>
   `;
@@ -1907,20 +1907,14 @@ function _homeWeekHTML(today){
     : `${wkStart.getDate()}. ${I18N.monthsShort[wkStart.getMonth()]} – ${wkEnd.getDate()}. ${I18N.monthsShort[wkEnd.getMonth()]} ${wkEnd.getFullYear()}`;
   return `
     <div class="home-section">
-      <h3 style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
-        Kalender
-        <span class="hjem-week-title" style="margin-bottom:0">
-          <span class="wn">Uke <strong>${wn}</strong></span>
-          <span class="range">· ${wkTitle}</span>
-        </span>
-      </h3>
+      <h3 class="hs-dot cal">Kalender <span class="hs-note">Uke ${wn} · ${wkTitle}</span></h3>
       <div class="hjem-week">
         <div class="hjem-week-grid">
           ${weekDays.map(({d, k, events})=>{
             const isToday = sameDay(d, today);
             const isWeekend = d.getDay()===0 || d.getDay()===6;
             const hol = HOLIDAYS[k];
-            const eventsHTML = events.length === 0 ? `<div class="wke-empty">—</div>` :
+            const eventsHTML = events.length === 0 ? '' :
               events.slice(0, 8).map(e=>{
                 const click = e._ics ? act('openOutlookEvent', e.id) : (e._kind==='project' ? act('openProject', e._projectId) : act('editEvent', e.id));
                 const cls = `wke cat-${e.category||'arbeid'}${e._ics?' ics':''}`;
@@ -1947,18 +1941,19 @@ function _homeActiveProjectsHTML(activeProjects){
   if (activeProjects.length === 0) return '';
   return `
     <div class="home-section">
-      <h3>Aktive prosjekter <span class="hs-note">neste 30 dager · ${activeProjects.length}</span></h3>
-      <div class="home-countdowns">
+      <h3 class="hs-dot proj">Aktive prosjekter <span class="hs-note">neste 30 dager · ${activeProjects.length}</span></h3>
+      <div class="home-list home-projects">
         ${activeProjects.map(({p, nd})=>{
+          // ADR 0057: én rad per prosjekt — prosjektprikk, navn, det som skjer neste, og
+          // når. Før var dette kort med et 26 px tall i rødt for alt innen en uke: seks
+          // røde tall på Hjem for ting som stort sett gikk etter planen.
           const days = daysUntil(nd.date);
-          const featured = days <= 7 ? ' urgent' : '';
-          const dayLabel = days === 0 ? 'i dag' : days === 1 ? 'i morgen' : `om ${days} dager`;
-          const nextLabel = nd.label === 'måldato' ? '★ måldato' : nd.label;
-          return `<div class="countdown-card${featured}" data-action="openProject" data-args='["${p.id}"]'>
-            <div class="cd-label"><span class="pcat cat-${p.category}" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--${p.category==='arbeid'?'work':'privat'});margin-right:5px;vertical-align:middle"></span>${escapeHTML(CAT_BY_ID[p.category]?.label||'')}</div>
-            <div class="cd-title">${escapeHTML(p.title)}</div>
-            <div class="cd-days">${days === 0 ? 'i dag' : days}${days !== 0 ? `<small>${dayLabel.replace(/^om|i dag|i morgen/,'').trim() || (days===1?'dag til neste':'dager til neste')}</small>` : `<small>neste: ${escapeHTML(nextLabel.slice(0,30))}</small>`}</div>
-            <div class="cd-next">${escapeHTML(nextLabel)}</div>
+          const when = days === 0 ? 'i dag' : days === 1 ? 'i morgen' : `om ${days} dager`;
+          const nextLabel = nd.label === 'måldato' ? 'Måldato' : nd.label;
+          return `<div class="home-item hp-row" data-action="openProject" data-args='["${p.id}"]' style="--pc-h:${projectHue(p.title)}">
+            <span class="pc-dot" aria-hidden="true"></span>
+            <div class="hi-title"><span class="hp-name">${escapeHTML(p.title)}</span><span class="hp-next">${escapeHTML(nextLabel)}</span></div>
+            <div class="hp-when${days <= 1 ? ' soon' : ''}">${when}</div>
           </div>`;
         }).join('')}
       </div>
@@ -2229,10 +2224,12 @@ function renderProjects(){
 
 function projectCardHTML(p){
   const days = daysUntil(p.targetDate);
-  const cd = days===null ? '<span class="countdown empty" style="color:var(--ink-muted);font-style:italic;font-size:13px">ingen måldato</span>'
-    : days<0 ? `<div class="countdown past">${Math.abs(days)} dager <small>siden</small></div>`
-    : days===0 ? `<div class="countdown urgent">i dag <small>er dagen</small></div>`
-    : `<div class="countdown ${days<14?'urgent':''}">${days} <small>dager til måldato</small></div>`;
+  // ADR 0057: tallet står øverst til høyre, på linje med tittelen — så kortene kan
+  // skummes som en kolonne av tall. «ingen måldato» er en stille etikett, ikke et tall.
+  const cd = days===null ? '<div class="countdown empty"><small>ingen måldato</small></div>'
+    : days<0 ? `<div class="countdown past">${Math.abs(days)}<small>dager siden</small></div>`
+    : days===0 ? `<div class="countdown urgent">i dag<small>er dagen</small></div>`
+    : `<div class="countdown ${days<14?'urgent':''}">${days}<small>${days===1?'dag':'dager'} igjen</small></div>`;
   const prog = projectProgress(p);
   const merged = projectTasksMerged(p);
   const taskCount = merged.length;
@@ -2273,18 +2270,26 @@ function projectCardHTML(p){
   const nextHTML = showNext
     ? `<div class="pnext"><strong>${fmtDateShort(fromKey(next.date))}</strong> · ${escapeHTML(next.label)}</div>`
     : '';
+  // ADR 0057: hodet er tittel + én metalinje til venstre og nedtellingen til høyre.
+  // Prosjektets farge (ADR 0041) er prikken foran tittelen — samme farge som chipen i
+  // To Do's, så du kjenner igjen prosjektet på tvers av sidene.
+  const hasProg = !!(taskCount || (p.milestones||[]).length);
   return `<div class="pcard cat-${p.category} ${p.archived?'archived':''}" data-id="${p.id}" style="--pc-h:${projectHue(p.title)}">
-    <h3>${escapeHTML(p.title)}</h3>
-    <div class="pmeta">
-      <span class="pill cat-${p.category}">${CAT_BY_ID[p.category]?.label||'–'}</span>
-      ${p.targetDate?`<span>${fmtDateShort(fromKey(p.targetDate))}${p.targetEndDate&&p.targetEndDate>p.targetDate?'–'+fmtDateShort(fromKey(p.targetEndDate)):''} ${fromKey(p.targetEndDate||p.targetDate).getFullYear()}</span>`:''}
+    <div class="pc-head">
+      <div class="pc-titles">
+        <h3><span class="pc-dot" aria-hidden="true"></span>${escapeHTML(p.title)}</h3>
+        <div class="pmeta">
+          <span class="pill cat-${p.category}">${CAT_BY_ID[p.category]?.label||'–'}</span>
+          ${p.targetDate?`<span>${fmtDateShort(fromKey(p.targetDate))}${p.targetEndDate&&p.targetEndDate>p.targetDate?'–'+fmtDateShort(fromKey(p.targetEndDate)):''} ${fromKey(p.targetEndDate||p.targetDate).getFullYear()}</span>`:''}
+        </div>
+      </div>
+      ${cd}
     </div>
-    ${cd}
-    ${(taskCount||p.milestones?.length)?`<div class="pprog"><i style="width:${prog}%"></i></div>`:''}
+    ${hasProg?`<div class="pc-prog"><div class="pprog"><i style="width:${prog}%"></i></div>`:''}
     <div class="pstats">
       ${taskCount?`<span><strong>${doneCount}/${taskCount}</strong> oppgaver</span>`:''}
       ${(p.milestones||[]).length?`<span><strong>${(p.milestones||[]).filter(m=>m.done).length}/${(p.milestones||[]).length}</strong> delmål</span>`:''}
-    </div>
+    </div>${hasProg?'</div>':''}
     ${todosHTML}
     ${nextHTML}
   </div>`;
@@ -2298,7 +2303,7 @@ function renderProjectPage(id){
   const days = daysUntil(p.targetDate);
 
   viewEl.innerHTML = `
-    <button class="pback" data-action="backToProjects">← Tilbake til prosjekter</button>
+    <button class="pback" data-action="backToProjects">← Prosjekter</button>
     <div class="pdetail">
       ${_projectHeaderHTML(p, days)}
       <div class="pbody">
@@ -2318,8 +2323,8 @@ function renderProjectPage(id){
 // ----- Section helpers for renderProjectPage -----
 
 function _projectCountdownHTML(days){
-  if (days === null) return '<div class="pcount" style="color:var(--ink-muted);font-style:italic;font-size:16px">ingen dato</div>';
-  if (days < 0)      return `<div class="pcount" style="color:var(--ink-muted);font-style:italic">${Math.abs(days)}<small>dager siden</small></div>`;
+  if (days === null) return '<div class="pcount empty"><small>ingen måldato</small></div>';
+  if (days < 0)      return `<div class="pcount past">${Math.abs(days)}<small>dager siden</small></div>`;
   if (days === 0)    return `<div class="pcount urgent">i dag<small>er dagen</small></div>`;
   return `<div class="pcount ${days<14?'urgent':''}">${days}<small>dager igjen</small></div>`;
 }
@@ -2329,10 +2334,10 @@ function _projectHeaderHTML(p, days){
     <div class="phead">
       <div class="ptitle">
         <h2>${escapeHTML(p.title)}</h2>
-        <div class="pmeta" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div class="pmeta">
           <span class="pill cat-${p.category}">${CAT_BY_ID[p.category]?.label||'–'}</span>
-          ${p.targetDate?`<span style="font-size:13px;color:var(--ink-soft)">${fmtDate(fromKey(p.targetDate))}${p.targetEndDate&&p.targetEndDate>p.targetDate?' – '+fmtDate(fromKey(p.targetEndDate)):''}</span>`:''}
-          ${p.startDate?`<span style="font-size:12px;color:var(--ink-muted)">forberedelse fra ${fmtDateShort(fromKey(p.startDate))}</span>`:''}
+          ${p.targetDate?`<span>${fmtDate(fromKey(p.targetDate))}${p.targetEndDate&&p.targetEndDate>p.targetDate?' – '+fmtDate(fromKey(p.targetEndDate)):''}</span>`:''}
+          ${p.startDate?`<span class="pm-soft">forberedelse fra ${fmtDateShort(fromKey(p.startDate))}</span>`:''}
         </div>
         ${p.description?`<div class="pdesc">${escapeHTML(p.description)}</div>`:''}
       </div>
@@ -2348,8 +2353,8 @@ function _projectTasksSectionHTML(p){
       <h4>Oppgaver
         <span style="display:flex;align-items:center;gap:8px">
           <span class="pview-toggle">
-            <button data-action="setProjectViewMode" data-args='["list"]' class="${mode==='list'?'active':''}" title="Liste">≡ Liste</button>
-            <button data-action="setProjectViewMode" data-args='["kanban"]' class="${mode==='kanban'?'active':''}" title="Kanban">⊟ Kanban</button>
+            <button data-action="setProjectViewMode" data-args='["list"]' class="${mode==='list'?'active':''}" title="Liste">Liste</button>
+            <button data-action="setProjectViewMode" data-args='["kanban"]' class="${mode==='kanban'?'active':''}" title="Kanban">Kanban</button>
           </span>
           <button data-action="openProjectTaskForm" data-args='["${p.id}"]'>+ Ny</button>
         </span>
@@ -2389,7 +2394,7 @@ function _projectNotesSectionHTML(p){
   }).join('');
   return `
     <div class="psection">
-      <h4>Notater & utkast <span style="font-weight:400;font-size:11px;color:var(--ink-muted);font-family:var(--font);font-style:italic;letter-spacing:0;text-transform:none">— lag flere notater for ulike temaer</span></h4>
+      <h4>Notater & utkast <span style="font-weight:400;font-size:11px;color:var(--ink-muted);font-family:var(--font);letter-spacing:0;text-transform:none">— lag flere notater for ulike temaer</span></h4>
       <div class="notes-grid">
         ${noteCards}
         <div class="new-note-card" data-action="addProjectNote" data-args='["${p.id}"]'>+ Nytt notat</div>
@@ -2844,7 +2849,7 @@ function renderProjectKanban(p){
   all.forEach(t=>cols[taskStatus(t)].push(t));
   const colHTML = (label, key, items)=>{
     const cards = items.length === 0
-      ? '<div style="padding:10px 4px;font-size:12px;color:var(--ink-muted);font-style:italic;text-align:center">ren boks</div>'
+      ? '<div style="padding:10px 4px;font-size:12px;color:var(--ink-muted);text-align:center">ren boks</div>'
       : items.slice().sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>{
           const overdue = t.due && t.due < today && !t.done ? ' overdue' : '';
           const isFree = t._origin === 'free';
@@ -3392,28 +3397,27 @@ function renderTodos(){
         <div class="bh">Innboks <span class="bh-hint">ufordelte — dra til en boks under, eller bruk knappene</span> <small>${inbox.length}</small></div>
         ${inbox.slice().reverse().map(i=>{
           const isPrivat = i.category === 'privat';
-          const catColor = isPrivat ? 'var(--privat)' : 'var(--work)';
           const catTitle = isPrivat ? 'Kategori: Privat — klikk for Jobb' : 'Kategori: Jobb — klikk for Privat';
           return `<div class="todo-row" data-task-id="${i.id}" data-task-kind="inbox" draggable="true" ondragstart="HANDLERS.todoDragStart(event,'${i.id}','inbox')" ondragend="HANDLERS.todoDragEnd(event)">
           <span class="drag-handle" title="Dra for å sortere">⋮⋮</span>
           <span class="ttitle" ondblclick="HANDLERS.inlineEditStart(event,'${i.id}','inbox')">${escapeHTML(i.text)}</span>
           <div class="actions" style="opacity:1">
-            <button data-action="inboxToTodo" data-args='["${i.id}","urgent"]' title="Til Urgent">⚠</button>
-            <button data-action="inboxToTodo" data-args='["${i.id}","short"]' title="Til Short term">↗</button>
-            <button data-action="inboxToTodo" data-args='["${i.id}","long"]' title="Til Long term">⤳</button>
-            <button data-action="toggleInboxCategory" data-args='["${i.id}"]' title="${catTitle}" style="color:${catColor};font-size:14px;line-height:1">●</button>
+            <button class="prio-btn urgent" data-action="inboxToTodo" data-args='["${i.id}","urgent"]' title="Til Urgent"><span class="pb-l">Urgent</span></button>
+            <button class="prio-btn short" data-action="inboxToTodo" data-args='["${i.id}","short"]' title="Til Short term"><span class="pb-l">Short term</span></button>
+            <button class="prio-btn long" data-action="inboxToTodo" data-args='["${i.id}","long"]' title="Til Long term"><span class="pb-l">Long term</span></button>
+            <button class="cat-btn ${isPrivat ? 'privat' : 'arbeid'}" data-action="toggleInboxCategory" data-args='["${i.id}"]' title="${catTitle}">${isPrivat ? 'Privat' : 'Jobb'}</button>
             <select onchange="if(this.value){HANDLERS.inboxToProject('${i.id}',this.value);this.value=''}" class="btn-sec-xs">
               <option value="">▸ Prosjekt</option>${projectsList}
             </select>
             <button class="ag" data-action="inboxEditStart" data-args='["${i.id}"]' title="Rediger">✎</button>
-            <button class="ag" data-action="deleteInbox" data-args='["${i.id}"]'>×</button>
+            <button class="ag" data-action="deleteInbox" data-args='["${i.id}"]' title="Slett" aria-label="Slett">×</button>
           </div>
         </div>`;
         }).join('')}
       </div>
     ` : ''}
 
-    ${todoBucketHTML('Ukategorisert', '', uncategorized, projectsList, 'Disse trenger en plassering — drag dem til en boks under, eller fjern')}
+    ${uncategorized.length ? todoBucketHTML('Ukategorisert', '', uncategorized, projectsList, 'Disse trenger en plassering — drag dem til en boks under, eller fjern') : ''}
     ${todoBucketHTML('Urgent', 'urgent', urgent, projectsList)}
     ${todoBucketHTML('Short term', 'short', shortTerm, projectsList)}
     ${todoBucketHTML('Long term', 'long', longTerm, projectsList)}
@@ -3775,7 +3779,7 @@ function projectTodosBucketHTML(){
   if (!groups.length) return '';
   const total = groups.reduce((n,g)=>n + g.open.length, 0);
   return `<div class="todo-bucket proj-bucket" id="proj-todos">
-    <div class="bh proj">◈ Fra prosjekter <small>${total} · underoppgaver som bor i et prosjekt — kryss av her eller der, det er samme oppgave</small></div>
+    <div class="bh proj">Fra prosjekter <span class="bh-hint">underoppgaver som bor i et prosjekt — kryss av her eller der, det er samme oppgave</span> <small>${total}</small></div>
     ${groups.map(g=>`
       <div class="ptgroup">
         <div class="ptgroup-head" ${act('openProject', g.p.id)} style="--pc-h:${projectHue(g.p.title)}" title="Åpne prosjektet">
@@ -3821,7 +3825,6 @@ function todoRowHTML(t, projectsList){
   // i tillegg. ADR 0035. Fargen kommer fra tittelen — ADR 0041.
   const projTag = proj ? projChipHTML(proj.title, `data-action="untagTaskProject" data-args='["${t.id}"]' data-stop="1" title="Klikk for å fjerne prosjekt-tag"`) : '';
   const isPrivat = t.category === 'privat';
-  const catColor = isPrivat ? 'var(--privat)' : 'var(--work)';
   const catTitle = isPrivat ? 'Kategori: Privat — klikk for Jobb' : 'Kategori: Jobb — klikk for Privat';
   // Velg-modus (ADR 0042): raden bytter ut draghåndtak, ferdig-boks og handlinger med
   // én avkryssingsboks. To avkryssingsbokser ved siden av hverandre — «valgt» og
@@ -3841,11 +3844,11 @@ function todoRowHTML(t, projectsList){
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
     <span class="ttitle" data-edit-id="${t.id}" data-edit-kind="task" ondblclick="HANDLERS.inlineEditStart(event,'${t.id}','task')">${_isStarred(t) ? '<span class="star-mark" aria-hidden="true">★</span> ' : ''}${escapeHTML(t.title)} ${due} ${projTag}</span>
     <div class="actions">
-      <button data-action="setTaskPriority" data-args='["${t.id}","urgent"]' title="Urgent">⚠</button>
-      <button data-action="setTaskPriority" data-args='["${t.id}","short"]' title="Short term">↗</button>
-      <button data-action="setTaskPriority" data-args='["${t.id}","long"]' title="Long term">⤳</button>
-      <button data-action="setTaskPriority" data-args='["${t.id}",""]' title="Fjern prioritet">○</button>
-      <button data-action="toggleTaskCategory" data-args='["${t.id}"]' title="${catTitle}" style="color:${catColor};font-size:14px;line-height:1">●</button>
+      <button class="prio-btn urgent" data-action="setTaskPriority" data-args='["${t.id}","urgent"]' title="Urgent"></button>
+      <button class="prio-btn short" data-action="setTaskPriority" data-args='["${t.id}","short"]' title="Short term"></button>
+      <button class="prio-btn long" data-action="setTaskPriority" data-args='["${t.id}","long"]' title="Long term"></button>
+      <button class="prio-btn none" data-action="setTaskPriority" data-args='["${t.id}",""]' title="Fjern prioritet"></button>
+      <button class="cat-btn ${isPrivat ? 'privat' : 'arbeid'}" data-action="toggleTaskCategory" data-args='["${t.id}"]' title="${catTitle}">${isPrivat ? 'Privat' : 'Jobb'}</button>
       <button class="star-btn ${_isStarred(t)?'on':''}" ${act('toggleStar', t.id)} title="${_isStarred(t)?'Fjern stjernen':'Stjernemerk — prioriter først'}">${_isStarred(t)?'★':'☆'}</button>
       <button class="btn-sec-xs idag-btn" ${act('dueToday', t.id)} title="Sett frist til i dag">I dag</button>
       <select onchange="if(this.value){HANDLERS.postponeTask('${t.id}',this.value);this.value=''}" class="btn-sec-xs" title="Utsett frist">
@@ -3859,7 +3862,7 @@ function todoRowHTML(t, projectsList){
         <option value="">▸ Prosjekt</option>${projectsList}
       </select>
       <button class="ag" data-action="openTaskForm" data-args='["${t.id}"]' title="Rediger detaljer">✎</button>
-      <button class="ag" data-action="deleteFreeTask" data-args='["${t.id}"]'>×</button>
+      <button class="ag" data-action="deleteFreeTask" data-args='["${t.id}"]' title="Slett" aria-label="Slett">×</button>
     </div>
   </div>`;
 }
@@ -4289,7 +4292,7 @@ function renderOverview(){
               <div class="label-col">Prosjekt</div>
               <div class="gantt-months">${monthsHeaderHTML}${todayMarker}</div>
             </div>
-            ${ganttRowsHTML || `<div style="padding:24px;text-align:center;color:var(--ink-muted);font-style:italic">Ingen prosjekter med datoer enda</div>`}
+            ${ganttRowsHTML || `<div style="padding:24px;text-align:center;color:var(--ink-muted)">Ingen prosjekter med datoer enda</div>`}
           </div>
         </div>
       </div>
@@ -4594,7 +4597,7 @@ function renderDay(){
       </div>
       <div class="day-side">
         <div class="panel tasks-block">
-          <h4>Oppgaver i dag <button class="add-link" data-action="openTaskFormWithDate" data-args='["${key}"]' style="float:right;font-size:12px;color:var(--ink-soft)">+ Ny</button></h4>
+          <h4>Oppgaver i dag <button class="add-link" data-action="openTaskFormWithDate" data-args='["${key}"]' style="font-size:12px;color:var(--ink-soft)">+ Ny</button></h4>
           ${tks.length?`<ul>${tks.map(t=>taskRowHTML(t)).join('')}</ul>`:`<div class="empty-state">${I18N.noTasks}${emptyAction('+ Ny oppgave', act('openTaskFormWithDate', key))}</div>`}
         </div>
         <div class="panel">
@@ -4701,7 +4704,7 @@ function taskRowHTML(t){
   // Time slot: scheduled = clickable to change, unscheduled = subtle "+ tid"-link
   const timeLink = (idStr, kind) => t.scheduledTime
     ? `<span style="color:var(--accent);cursor:pointer;font-size:12px" data-action="setTaskScheduledTime" data-args='["${idStr}","${kind}"]' data-stop="1" title="Klikk for å endre tid">🕒 ${t.scheduledTime}</span>`
-    : `<span style="color:var(--ink-muted);cursor:pointer;font-size:11px;font-style:italic" data-action="setTaskScheduledTime" data-args='["${idStr}","${kind}"]' data-stop="1" title="Sett tidspunkt">+ tid</span>`;
+    : `<span style="color:var(--ink-muted);cursor:pointer;font-size:11px" data-action="setTaskScheduledTime" data-args='["${idStr}","${kind}"]' data-stop="1" title="Sett tidspunkt">+ tid</span>`;
   if (t._kind==='projectTask'){
     return `<li class="${t.done?'done':''}" draggable="true" ondragstart="HANDLERS.taskToTimeStart(event,'${t._projectId}:${t.id}','projectTask')">
       <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleProjectTask('${t._projectId}','${t.id}',event)">
@@ -5289,7 +5292,7 @@ HANDLERS.openWeekReview = ()=>{
     </div>`;
   };
   const list = (items, dateField, empty)=> items.length
-    ? items.slice(0, 25).map(t=>row(t, dateField)).join('') + (items.length>25?`<div class="wr-row" style="cursor:default"><span class="wr-date"></span><span class="wr-title" style="color:var(--ink-muted);font-style:italic">+${items.length-25} til</span></div>`:'')
+    ? items.slice(0, 25).map(t=>row(t, dateField)).join('') + (items.length>25?`<div class="wr-row" style="cursor:default"><span class="wr-date"></span><span class="wr-title" style="color:var(--ink-muted)">+${items.length-25} til</span></div>`:'')
     : `<div class="wr-empty">${empty}</div>`;
 
   const doneNote = !d.anyDoneAt && d.doneWithoutStamp
@@ -5453,16 +5456,16 @@ function openSettings(){
     const list = document.getElementById('cloud-backups-list');
     if (!list) return;
     if (keys && keys.error){
-      list.innerHTML = '<span style="font-style:italic;color:var(--alert)">Kunne ikke hente sky-backups: '
+      list.innerHTML = '<span style="color:var(--alert)">Kunne ikke hente sky-backups: '
         + escapeHTML(keys.error) + '</span>';
       return;
     }
     if (!state.sync.syncUrl || !state.sync.syncToken){
-      list.innerHTML = '<span style="font-style:italic">Konfigurér synk over for å aktivere sky-backups</span>';
+      list.innerHTML = '<span>Konfigurér synk over for å aktivere sky-backups</span>';
       return;
     }
     if (!keys.length){
-      list.innerHTML = '<span style="font-style:italic">Ingen sky-backups enda. Worker-en må oppdateres med backup-koden for at dette skal aktiveres — se siste melding fra Claude.</span>';
+      list.innerHTML = '<span>Ingen sky-backups enda. Worker-en må oppdateres med backup-koden for at dette skal aktiveres — se siste melding fra Claude.</span>';
       return;
     }
     list.style.fontStyle = 'normal';
@@ -6871,8 +6874,21 @@ function _focusLater(id, ms){
 // den eneste veien tilbake til slettede data.
 // `undoAction` er `{label, action}` der action er et HANDLERS-navn; knappen får
 // data-action og går gjennom den vanlige dispatcheren (ADR 0012).
+// En advarsel (⚠ …) skal ikke byttes ut av en beskjed hun ikke ba om. Nettlesertesten
+// fant det: den ukentlige backup-beskjeden kommer asynkront ~1 s etter oppstart, og en
+// «Kunne ikke flytte oppgaven» som kom like før forsvant etter 7 ms. En slik beskjed
+// venter nå til advarselen har stått ferdig. Angre-toasts slipper alltid til — de er
+// svar på noe hun nettopp gjorde. ADR 0057.
+let _toastWarnUntil = 0;
 function showToast(msg, duration, undoAction){
   duration = duration || 3000;
+  const isWarn = /^\s*⚠/.test(String(msg));
+  const wait = _toastWarnUntil - Date.now();
+  if (!isWarn && !(undoAction && undoAction.action) && wait > 0){
+    setTimeout(()=>showToast(msg, duration, undoAction), wait);
+    return;
+  }
+  _toastWarnUntil = isWarn ? Date.now() + duration : 0;
   document.querySelectorAll('.toast').forEach(el=>{ if (el.parentNode) el.parentNode.removeChild(el); });
   const t = document.createElement('div');
   t.className = 'toast';
