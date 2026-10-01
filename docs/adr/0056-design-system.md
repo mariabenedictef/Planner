@@ -53,6 +53,8 @@ Samme mønster på Hjem (Urgent-lista mistet sin rosa flate og røde ramme — p
 
 **Draghåndtakene står i venstremargen** og vises ved hover. Før skjøv de avkryssingsboksen 26 px inn på rader som kunne dras, og ikke på de andre, så Urgent og Uten frist på Hjem startet i hver sin kolonne.
 
+**Stjernestripen står i margen, ikke i raden.** ADR 0055 tegnet den som `inset 3px` — men nå som radene ikke har egen polstring, ville den ligget oppå avkryssingsboksen. Flaten forlenges 8 px ut på hver side med skygge, og stripen står ytterst til venstre, utenfor tekstkolonnen. Funnet på hennes egne data etter første push, der hun alt hadde stjernemerket tre oppgaver. **På telefon er ★-merket foran tittelen skjult:** tittelen er et flex-element som wrapper som helhet, så merket ble en egen linje. Stjerneknappen ved siden av står fylt og bærer betydningen sammen med stripen og flaten.
+
 **Avkryssingsboksen er tegnet på PC også**, 16 px med hårfin kant og blekk-fyll når den er krysset av. Før var den nettleserens egen, som i mørk modus ble en hvit firkant. Telefonens 44 px-versjon fra ADR 0051 er beholdt, med en eksplisitt nullstilling av PC-tegningens rotasjon og fyll — uten den ble telefonens boks en rombe.
 
 **Topplinja:** tekstfaner med 2 px strek under den aktive i stedet for piller, røde tellere som tall uten sirkel, filteret som en segmentkontroll med hårfin ramme. **Ingen `backdrop-filter` på topplinja:** den gjør elementet til en *containing block* for `position:fixed`-etterkommere, og bunnmenyen bor inne i topplinja (ADR 0050). I prototypen dro det bunnmenyen opp til toppen av skjermen og la den over merket.
