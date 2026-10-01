@@ -1622,6 +1622,10 @@ function applyTheme(){
     actual = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
   document.documentElement.dataset.theme = actual;
+  // Statuslinja på iPhone (og fanefargen i nettleseren) følger temaet. Den sto fast på
+  // lys krem, så mørk modus fikk en lys stripe øverst. Fargen er --bg (ADR 0056).
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', actual === 'dark' ? '#0f1216' : '#ffffff');
 }
 // Listen to OS theme changes for auto mode
 if (window.matchMedia){
@@ -1793,7 +1797,7 @@ document.getElementById('fab').onclick = openQuickCapture;
 function _homeUrgentHTML(urgent, todayK){
   return `
     <div class="home-section">
-      <h3 style="color:var(--alert);display:flex;align-items:center;gap:6px">⚠ Urgent ${urgent.length?`(${urgent.length})`:''}</h3>
+      <h3 class="hs-dot urgent">Urgent ${urgent.length?`<small>${urgent.length}</small>`:''}</h3>
       ${urgent.length === 0 ? `<div class="home-empty">Ingen urgent-saker — godt jobba</div>` :
         `<div class="home-list home-list-urgent" id="urgent-list">
           ${urgent.map(t=>{
@@ -1817,7 +1821,7 @@ function _homeUrgentHTML(urgent, todayK){
 function _homeTodayTasksHTML(todayTasks, todayK){
   return `
     <div class="home-section">
-      <h3>✓ Forfaller i dag ${todayTasks.length?`(${todayTasks.length})`:''}</h3>
+      <h3 class="hs-dot today">Forfaller i dag ${todayTasks.length?`<small>${todayTasks.length}</small>`:''}</h3>
       ${todayTasks.length === 0 ? `<div class="home-empty">Ingen oppgaver forfaller i dag${emptyAction('+ Ny oppgave', act('openTaskFormWithDate', todayK))}</div>` :
         `<div class="home-list">
           ${todayTasks.map(t=>{
@@ -1847,7 +1851,7 @@ function _homeNoDateHTML(items){
   const rest = items.length - shown.length;
   return `
     <div class="home-section">
-      <h3>◦ Uten frist (${items.length})</h3>
+      <h3 class="hs-dot none">Uten frist <small>${items.length}</small></h3>
       <div class="home-list">
         ${shown.map(t=>{
           const isProj = t._kind === 'projectTask';
@@ -1904,7 +1908,7 @@ function _homeWeekHTML(today){
   return `
     <div class="home-section">
       <h3 style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
-        📅 Kalender
+        Kalender
         <span class="hjem-week-title" style="margin-bottom:0">
           <span class="wn">Uke <strong>${wn}</strong></span>
           <span class="range">· ${wkTitle}</span>
@@ -1943,7 +1947,7 @@ function _homeActiveProjectsHTML(activeProjects){
   if (activeProjects.length === 0) return '';
   return `
     <div class="home-section">
-      <h3>🎯 Aktive prosjekter <span style="font-size:12px;color:var(--ink-muted);font-weight:400;font-family:var(--font);font-style:italic">— neste 30 dager (${activeProjects.length})</span></h3>
+      <h3>Aktive prosjekter <span class="hs-note">neste 30 dager · ${activeProjects.length}</span></h3>
       <div class="home-countdowns">
         ${activeProjects.map(({p, nd})=>{
           const days = daysUntil(nd.date);
@@ -1953,7 +1957,7 @@ function _homeActiveProjectsHTML(activeProjects){
           return `<div class="countdown-card${featured}" data-action="openProject" data-args='["${p.id}"]'>
             <div class="cd-label"><span class="pcat cat-${p.category}" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--${p.category==='arbeid'?'work':'privat'});margin-right:5px;vertical-align:middle"></span>${escapeHTML(CAT_BY_ID[p.category]?.label||'')}</div>
             <div class="cd-title">${escapeHTML(p.title)}</div>
-            <div class="cd-days" style="font-size:28px">${days === 0 ? 'i dag' : days}${days !== 0 ? `<small>${dayLabel.replace(/^om|i dag|i morgen/,'').trim() || (days===1?'dag til neste':'dager til neste')}</small>` : `<small>neste: ${escapeHTML(nextLabel.slice(0,30))}</small>`}</div>
+            <div class="cd-days">${days === 0 ? 'i dag' : days}${days !== 0 ? `<small>${dayLabel.replace(/^om|i dag|i morgen/,'').trim() || (days===1?'dag til neste':'dager til neste')}</small>` : `<small>neste: ${escapeHTML(nextLabel.slice(0,30))}</small>`}</div>
             <div class="cd-next">${escapeHTML(nextLabel)}</div>
           </div>`;
         }).join('')}
@@ -1969,7 +1973,7 @@ function _homeQuickCaptureHTML(){
       <input id="home-quick-input" type="text" placeholder="Hva tenker du på? Trykk Enter for å legge i innboks…">
       <div class="home-quick-hint flex-row-gap">
         <span>Eller</span>
-        <button data-action="openDumpModal" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer">📋 Dumpefelt</button>
+        <button data-action="openDumpModal" style="padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer">Dumpefelt</button>
         <span>for å lime inn et helt notat med flere oppgaver</span>
       </div>
     </div>
@@ -2209,7 +2213,7 @@ function renderProjects(){
       <button class="today-btn" data-action="openProjectForm">+ Nytt prosjekt</button>
     </div>
     <div class="projects-grid" id="pgrid"></div>
-    ${archived.length?`<div style="margin-top:24px"><h3 style="font-family:var(--serif);font-weight:500;font-size:16px;color:var(--ink-muted);margin:0 0 10px">Arkiverte</h3><div class="projects-grid" id="pgrid-arch"></div></div>`:''}
+    ${archived.length?`<div style="margin-top:24px"><h3 style="font-family:var(--font);font-weight:600;font-size:16px;color:var(--ink-muted);margin:0 0 10px">Arkiverte</h3><div class="projects-grid" id="pgrid-arch"></div></div>`:''}
   `;
 
   const pg = document.getElementById('pgrid');
@@ -2314,7 +2318,7 @@ function renderProjectPage(id){
 // ----- Section helpers for renderProjectPage -----
 
 function _projectCountdownHTML(days){
-  if (days === null) return '<div class="pcount" style="color:var(--ink-muted);font-style:italic;font-size:18px">ingen dato</div>';
+  if (days === null) return '<div class="pcount" style="color:var(--ink-muted);font-style:italic;font-size:16px">ingen dato</div>';
   if (days < 0)      return `<div class="pcount" style="color:var(--ink-muted);font-style:italic">${Math.abs(days)}<small>dager siden</small></div>`;
   if (days === 0)    return `<div class="pcount urgent">i dag<small>er dagen</small></div>`;
   return `<div class="pcount ${days<14?'urgent':''}">${days}<small>dager igjen</small></div>`;
@@ -2369,7 +2373,7 @@ function _projectMilestonesSectionHTML(p){
   }
   return `
     <div class="psection" style="padding:10px 0;border-top:1px solid var(--line-soft)">
-      <button class="add-link" data-action="quickAddMilestone" data-args='["${p.id}"]' style="font-size:12.5px;color:var(--ink-soft);padding:4px 0">+ Legg til delmål (valgfritt)</button>
+      <button class="add-link" data-action="quickAddMilestone" data-args='["${p.id}"]' style="font-size:13px;color:var(--ink-soft);padding:4px 0">+ Legg til delmål (valgfritt)</button>
     </div>`;
 }
 
@@ -2840,7 +2844,7 @@ function renderProjectKanban(p){
   all.forEach(t=>cols[taskStatus(t)].push(t));
   const colHTML = (label, key, items)=>{
     const cards = items.length === 0
-      ? '<div style="padding:10px 4px;font-size:11.5px;color:var(--ink-muted);font-style:italic;text-align:center">ren boks</div>'
+      ? '<div style="padding:10px 4px;font-size:12px;color:var(--ink-muted);font-style:italic;text-align:center">ren boks</div>'
       : items.slice().sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).map(t=>{
           const overdue = t.due && t.due < today && !t.done ? ' overdue' : '';
           const isFree = t._origin === 'free';
@@ -3366,26 +3370,26 @@ function renderTodos(){
   viewEl.innerHTML = `
     <div class="subnav">
       <h2>To Do's</h2>
-      <button class="today-btn" data-action="toggleSelectMode">${_selMode ? '✕ Avslutt valg' : '☑ Velg flere'}</button>
+      <button class="today-btn" data-action="toggleSelectMode">${_selMode ? 'Avslutt valg' : 'Velg flere'}</button>
     </div>
     ${_selMode ? bulkBarHTML(projectsList) : ''}
     <div class="todo-quick${_selMode ? ' hidden' : ''}">
       <input class="qtxt" id="qt-input" type="text" placeholder="Skriv en To Do og trykk Enter, eller bruk knappene under…" autofocus>
       <div class="qbtns">
         <button data-action="quickAddTodo" data-args='["inbox"]'>→ Innboks</button>
-        <button class="urgent" data-action="quickAddTodo" data-args='["urgent"]'>⚠ Urgent</button>
-        <button class="short" data-action="quickAddTodo" data-args='["short"]'>↗ Short term</button>
-        <button class="long" data-action="quickAddTodo" data-args='["long"]'>⤳ Long term</button>
-        <select id="qt-project" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;background:var(--surface);color:var(--ink-soft)" onchange="if(this.value)HANDLERS.quickAddTodo('project',this.value);this.value=''">
+        <button class="urgent" data-action="quickAddTodo" data-args='["urgent"]'>Urgent</button>
+        <button class="short" data-action="quickAddTodo" data-args='["short"]'>Short term</button>
+        <button class="long" data-action="quickAddTodo" data-args='["long"]'>Long term</button>
+        <select id="qt-project" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--surface);color:var(--ink-soft)" onchange="if(this.value)HANDLERS.quickAddTodo('project',this.value);this.value=''">
           <option value="">▸ Til prosjekt…</option>${projectsList}
         </select>
-        <button data-action="startVoiceCapture" title="Snakk inn et notat (lagres i innboks)" style="margin-left:auto">🎤 Tale</button>
+        <button data-action="startVoiceCapture" title="Snakk inn et notat (lagres i innboks)" style="margin-left:auto">Tale</button>
       </div>
     </div>
 
     ${inbox.length ? `
       <div class="todo-bucket">
-        <div class="bh">Innboks <small>${inbox.length} ufordelte — dra til en boks under, eller bruk knappene</small></div>
+        <div class="bh">Innboks <span class="bh-hint">ufordelte — dra til en boks under, eller bruk knappene</span> <small>${inbox.length}</small></div>
         ${inbox.slice().reverse().map(i=>{
           const isPrivat = i.category === 'privat';
           const catColor = isPrivat ? 'var(--privat)' : 'var(--work)';
@@ -3410,15 +3414,15 @@ function renderTodos(){
     ` : ''}
 
     ${todoBucketHTML('Ukategorisert', '', uncategorized, projectsList, 'Disse trenger en plassering — drag dem til en boks under, eller fjern')}
-    ${todoBucketHTML('⚠ Urgent', 'urgent', urgent, projectsList)}
-    ${todoBucketHTML('↗ Short term', 'short', shortTerm, projectsList)}
-    ${todoBucketHTML('⤳ Long term', 'long', longTerm, projectsList)}
+    ${todoBucketHTML('Urgent', 'urgent', urgent, projectsList)}
+    ${todoBucketHTML('Short term', 'short', shortTerm, projectsList)}
+    ${todoBucketHTML('Long term', 'long', longTerm, projectsList)}
 
     ${projectTodosBucketHTML()}
 
     ${done.length && !_selMode ? `
       <div style="margin:18px 0 0;text-align:center">
-        <button data-action="toggleShowCompleted" style="padding:6px 14px;font-size:12.5px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">${state.ui.showCompletedTodos?'Skjul fullførte':'Vis fullførte ('+done.length+')'}</button>
+        <button data-action="toggleShowCompleted" style="padding:6px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">${state.ui.showCompletedTodos?'Skjul fullførte':'Vis fullførte ('+done.length+')'}</button>
       </div>
       ${state.ui.showCompletedTodos ? `
         <div class="todo-bucket" style="margin-top:14px">
@@ -3789,7 +3793,7 @@ function projectTodosBucketHTML(){
 function todoBucketHTML(label, prio, items, projectsList, hint){
   const cls = prio || '';
   return `<div class="todo-bucket" data-prio="${prio}" ondragover="HANDLERS.todoOver(event)" ondragleave="HANDLERS.todoLeave(event)" ondrop="HANDLERS.todoDrop(event,'${prio}')">
-    <div class="bh ${cls}">${label} <small>${items.length}${hint?' · '+hint:''}</small></div>
+    <div class="bh ${cls}">${label}${hint?` <span class="bh-hint">${hint}</span>`:''} <small>${items.length}</small></div>
     ${items.length ? items.map(t=>todoRowHTML(t, projectsList)).join('') : `<div class="todo-empty">ren boks</div>`}
   </div>`;
 }
@@ -4129,7 +4133,7 @@ HANDLERS.inlineEditStart = (e, id, kind)=>{
   // Injisert imperativt, ikke tegnet fra en mal — kan ikke gjenopprettes etter en
   // render(), bare lagres først. `transient` demper id-advarselen i _captureFocus.
   input.dataset.transient = '1';
-  input.style.cssText = 'flex:1;padding:4px 8px;border:1px solid var(--accent);border-radius:4px;font-size:13.5px;font-family:var(--font);width:100%';
+  input.style.cssText = 'flex:1;padding:4px 8px;border:1px solid var(--accent);border-radius:4px;font-size:14px;font-family:var(--font);width:100%';
   span.replaceWith(input);
   input.focus();
   input.select();
@@ -4513,7 +4517,7 @@ function renderWeek(){
   let html = `<div class="wh"></div>` + days.map(d=>{
     const cls = sameDay(d,today)?'today':'';
     const hol = HOLIDAYS[dKey(d)];
-    return `<div class="wh ${cls}">${I18N.weekdaysShort[monIdx(d)]} <strong>${d.getDate()}</strong>${hol?`<div style="font-size:9px;color:var(--alert)">${escapeHTML(hol)}</div>`:''}</div>`;
+    return `<div class="wh ${cls}">${I18N.weekdaysShort[monIdx(d)]} <strong>${d.getDate()}</strong>${hol?`<div style="font-size:11px;color:var(--alert)">${escapeHTML(hol)}</div>`:''}</div>`;
   }).join('');
 
   const startHour = 7, endHour = 22;
@@ -4922,9 +4926,9 @@ function openTaskForm(id, defaults={}){
       <div class="field"><label>Frist (valgfritt)</label><input id="tk-due" type="date" value="${data.due||''}"></div>
       <div class="field"><label>Prioritet</label><select id="tk-prio">
         <option value="" ${!data.priority?'selected':''}>— ukategorisert —</option>
-        <option value="urgent" ${data.priority==='urgent'?'selected':''}>⚠ Urgent</option>
-        <option value="short" ${data.priority==='short'?'selected':''}>↗ Short term</option>
-        <option value="long" ${data.priority==='long'?'selected':''}>⤳ Long term</option>
+        <option value="urgent" ${data.priority==='urgent'?'selected':''}>Urgent</option>
+        <option value="short" ${data.priority==='short'?'selected':''}>Short term</option>
+        <option value="long" ${data.priority==='long'?'selected':''}>Long term</option>
       </select></div>
       <div class="field"><label>Kategori</label><select id="tk-cat">${CATEGORIES.map(c=>`<option value="${c.id}" ${data.category===c.id?'selected':''}>${c.label}</option>`).join('')}</select></div>
       <details ${hasAdvanced?'open':''} style="margin-top:4px">
@@ -5010,7 +5014,7 @@ function openQuickCapture(){
           <button data-action="qcSave" data-args='["short"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #dfc99a;background:#fbf1e1;color:#7a5a30">↗ Short term</button>
           <button data-action="qcSave" data-args='["long"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #bcc7d8;background:#e8eef7;color:#3a4a66">⤳ Long term</button>
           <button data-action="qcSave" data-args='["event"]' class="btn-sec-lg">📅 Ny hendelse</button>
-          <button data-action="closeModalThenVoice" class="btn-sec-lg" title="Snakk inn et notat">🎤 Tale</button>
+          <button data-action="closeModalThenVoice" class="btn-sec-lg" title="Snakk inn et notat">Tale</button>
         </div>
         <select id="qc-project" onchange="if(this.value){HANDLERS.qcSave('project',this.value);this.value=''}" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--surface);color:var(--ink-soft)">
           <option value="">▸ Eller legg som oppgave i prosjekt…</option>${projectsList}
@@ -5077,7 +5081,7 @@ function openMoreMenu(){
 // SEARCH
 // ============================================================
 function openSearch(){
-  const sel = 'padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;background:var(--surface);color:var(--ink-soft)';
+  const sel = 'padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--surface);color:var(--ink-soft)';
   openModal(`
     <h3>Søk</h3>
     <div class="body">
@@ -5216,7 +5220,7 @@ function doSearch(filt){
     res.innerHTML = `<div class="empty">${hasFilter?'Ingen treff':'Begynn å skrive eller bruk filtrene…'}</div>`;
     return;
   }
-  res.innerHTML = `<div class="empty" style="text-align:left;font-style:normal;font-size:11.5px;color:var(--ink-muted);padding:6px 10px">${hits.length} treff${hits.length>40?' (viser 40)':''}</div>`+hits.slice(0,40).map((h,i)=>`<div class="sr" data-i="${i}"><strong>${escapeHTML(h.title)}</strong><div class="meta">${escapeHTML(h.sub)}</div></div>`).join('');
+  res.innerHTML = `<div class="empty" style="text-align:left;font-style:normal;font-size:12px;color:var(--ink-muted);padding:6px 10px">${hits.length} treff${hits.length>40?' (viser 40)':''}</div>`+hits.slice(0,40).map((h,i)=>`<div class="sr" data-i="${i}"><strong>${escapeHTML(h.title)}</strong><div class="meta">${escapeHTML(h.sub)}</div></div>`).join('');
   // Én vei inn til «åpne dette treffet», brukt av både klikk og Enter. ADR 0038.
   _searchHits = hits.slice(0, 40);
   _searchIndex = -1;
@@ -5395,7 +5399,7 @@ function openSettings(){
           const isPre = k.startsWith('planlegger.preSync.');
           const dateStr = k.replace('planlegger.backup.','').replace('planlegger.preSync.','');
           const label = isPre ? '↓ Før synk: '+dateStr.replace('T',' ').slice(0,16) : dateStr;
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:var(--ink-soft)"><span>${label}</span><button data-action="restoreBackup" data-args='["${k}"]' style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Gjenopprett</button></div>`;
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:var(--ink-soft)"><span>${label}</span><button data-action="restoreBackup" data-args='["${k}"]' style="padding:3px 8px;font-size:12px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Gjenopprett</button></div>`;
         }).join('') : '<span class="text-muted-italic">Ingen backups ennå (lages automatisk daglig + før hver sync overskriver lokal)</span>'}
       </div>
       <div class="sl"><span>Slett alt</span><button data-action="resetAll" class="text-alert">Tilbakestill</button></div>
@@ -5465,7 +5469,7 @@ function openSettings(){
     list.style.color = 'var(--ink-soft)';
     list.innerHTML = keys.map(k=>{
       const dateStr = k.replace('backup-','');
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px"><span>Uke ${dateStr}</span><button data-action="restoreCloudBackup" data-args='["${k}"]' style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Gjenopprett</button></div>`;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px"><span>Uke ${dateStr}</span><button data-action="restoreCloudBackup" data-args='["${k}"]' style="padding:3px 8px;font-size:12px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Gjenopprett</button></div>`;
     }).join('');
   });
   document.getElementById('sync-save').onclick = ()=>{
@@ -6699,7 +6703,7 @@ HANDLERS.openDumpModal = ()=>{
   openModal(`
     <h3>Dumpefelt — organisér rotete tekst</h3>
     <div class="body">
-      <div style="font-size:12.5px;color:var(--ink-muted);line-height:1.5;margin-bottom:6px">
+      <div style="font-size:13px;color:var(--ink-muted);line-height:1.5;margin-bottom:6px">
         Lim inn et notat med flere oppgaver, så plukker planleggeren ut hver linje og prøver å gjette dato og prioritet.<br>
         <strong>Tolker:</strong> "i dag", "i morgen", "fredag", "neste uke", "om 3 dager", "15. juni", "2026-06-15", "urgent", "viktig", "senere"
       </div>
@@ -6723,18 +6727,18 @@ HANDLERS.openDumpModal = ()=>{
       document.getElementById('dump-save').style.display = 'none';
       return;
     }
-    preview.innerHTML = `<div style="margin:14px 0 4px;font-size:12px;color:var(--ink-muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase">${parsedItems.length} oppgaver tolket — sjekk og juster</div>` +
-      parsedItems.map((it, i)=>`<div class="dump-item" style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--line-soft);font-size:12.5px">
+    preview.innerHTML = `<div style="margin:14px 0 4px;font-size:12px;color:var(--ink-muted);font-weight:600;letter-spacing:.5px;">${parsedItems.length} oppgaver tolket — sjekk og juster</div>` +
+      parsedItems.map((it, i)=>`<div class="dump-item" style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--line-soft);font-size:13px">
         <input type="checkbox" ${it.include?'checked':''} data-i="${i}" class="dump-cb">
         <input type="text" value="${escapeAttr(it.title)}" data-i="${i}" class="dump-title" style="padding:5px 8px;border:1px solid var(--line);border-radius:5px;font-size:13px;background:var(--surface);color:var(--ink)">
         <input type="date" value="${it.due}" data-i="${i}" class="dump-due" style="padding:5px;border:1px solid var(--line);border-radius:5px;font-size:12px;background:var(--surface);color:var(--ink)">
-        <select data-i="${i}" class="dump-prio" style="padding:5px;border:1px solid var(--line);border-radius:5px;font-size:11.5px;background:var(--surface);color:var(--ink)">
+        <select data-i="${i}" class="dump-prio" style="padding:5px;border:1px solid var(--line);border-radius:5px;font-size:12px;background:var(--surface);color:var(--ink)">
           <option value="" ${!it.priority?'selected':''}>—</option>
           <option value="urgent" ${it.priority==='urgent'?'selected':''}>⚠</option>
           <option value="short" ${it.priority==='short'?'selected':''}>↗</option>
           <option value="long" ${it.priority==='long'?'selected':''}>⤳</option>
         </select>
-        <select data-i="${i}" class="dump-cat" style="padding:5px;border:1px solid var(--line);border-radius:5px;font-size:11.5px;background:var(--surface);color:var(--ink)">
+        <select data-i="${i}" class="dump-cat" style="padding:5px;border:1px solid var(--line);border-radius:5px;font-size:12px;background:var(--surface);color:var(--ink)">
           ${CATEGORIES.map(c=>`<option value="${c.id}" ${it.category===c.id?'selected':''}>${c.label}</option>`).join('')}
         </select>
       </div>`).join('');
@@ -7294,14 +7298,14 @@ function _storageBreakdownHTML(){
     `prosjekter ${kb(state.projects||[])} kB`,
     `dagsnotater ${kb(state.notes||{})} kB`,
   ];
-  let html = `<div style="font-size:11.5px;color:var(--ink-muted);padding:1px 0">${parts.join(' · ')}</div>`;
+  let html = `<div style="font-size:12px;color:var(--ink-muted);padding:1px 0">${parts.join(' · ')}</div>`;
   if (doneCount >= 25){
     // Fullførte oppgaver akkumulerer for alltid; visningen kappes til 20, lageret ikke.
     // Ikke automatisk sletting — det er datatap. Et eksplisitt valg, med øyeblikksbilde
     // først, slik at det kan rulles tilbake. ADR 0032.
     html += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;padding:3px 0">
       <span style="color:var(--ink-muted)">${doneCount} av ${totalTasks} oppgaver er fullført (${doneKB} kB)</span>
-      <button data-action="purgeDoneTasks" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Rydd bort</button>
+      <button data-action="purgeDoneTasks" style="padding:3px 8px;font-size:12px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Rydd bort</button>
     </div>`;
   }
   // Titler som gjentar prosjektnavnet. Raden vises bare når det finnes noe å gjøre. ADR 0035.
@@ -7309,7 +7313,7 @@ function _storageBreakdownHTML(){
   if (dupes){
     html += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;padding:3px 0">
       <span style="color:var(--ink-muted)">${dupes} ${dupes===1?'tittel gjentar':'titler gjentar'} prosjektnavnet (taggen viser det alt)</span>
-      <button data-action="cleanProjectPrefixes" style="padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Rydd opp</button>
+      <button data-action="cleanProjectPrefixes" style="padding:3px 8px;font-size:12px;border-radius:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)">Rydd opp</button>
     </div>`;
   }
   return html;

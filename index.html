@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#fafaf7">
+<meta name="theme-color" content="#ffffff">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Planlegger">
@@ -13,86 +13,99 @@
 <title>Planlegger</title>
 <!-- BUILD: 2026-05-14-v2-mobile-fix -->
 <script>window.__PLANNER_BUILD__ = '2026-05-14-v2';</script>
-<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%23fafaf7'/><text x='50%25' y='58%25' text-anchor='middle' font-family='Georgia,serif' font-size='90' fill='%23394150'>P</text></svg>">
-<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23fafaf7'/><text x='50%25' y='62%25' text-anchor='middle' font-family='Georgia,serif' font-size='36' fill='%23394150'>P</text></svg>">
-<link rel="manifest" href='data:application/manifest+json;utf8,{"name":"Planlegger","short_name":"Planlegger","start_url":".","display":"standalone","background_color":"#fafaf7","theme_color":"#fafaf7","icons":[{"src":"data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22><rect width=%22192%22 height=%22192%22 rx=%2244%22 fill=%22%23fafaf7%22/><text x=%2250%25%22 y=%2262%25%22 text-anchor=%22middle%22 font-family=%22Georgia,serif%22 font-size=%22100%22 fill=%22%23394150%22>P</text></svg>","sizes":"192x192","type":"image/svg+xml"}]}'>
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%23ffffff'/><text x='50%25' y='58%25' text-anchor='middle' font-family='-apple-system,Segoe UI,Helvetica,Arial,sans-serif' font-weight='600' font-size='92' fill='%23161b24'>P</text></svg>">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23ffffff'/><text x='50%25' y='62%25' text-anchor='middle' font-family='-apple-system,Segoe UI,Helvetica,Arial,sans-serif' font-weight='600' font-size='38' fill='%23161b24'>P</text></svg>">
+<link rel="manifest" href='data:application/manifest+json;utf8,{"name":"Planlegger","short_name":"Planlegger","start_url":".","display":"standalone","background_color":"#ffffff","theme_color":"#ffffff","icons":[{"src":"data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22><rect width=%22192%22 height=%22192%22 rx=%2244%22 fill=%22%23ffffff%22/><text x=%2250%25%22 y=%2262%25%22 text-anchor=%22middle%22 font-family=%22-apple-system,Segoe UI,Helvetica,Arial,sans-serif%22 font-weight=%22600%22 font-size=%22102%22 fill=%22%23161b24%22>P</text></svg>","sizes":"192x192","type":"image/svg+xml"}]}'>
 <style>
   :root{
-    --bg:#fafaf7;
+    /* ===== Designsystemet (ADR 0056) ======================================
+       Hvit flate, hårfine linjer, typografisk hierarki og en dempet palett —
+       ikke fargefylte flater og avrundede kort. Lesbarhet foran stil: alle
+       tekstfarger er målt mot sin bakgrunn og består WCAG AA (4,5:1) for liten
+       tekst. Endrer du en farge her, kjør kontrastsjekken i tests/browser.mjs. */
+    --bg:#ffffff;
     --surface:#ffffff;
-    --surface-2:#f3f1ec;
-    --ink:#2c3340;
-    --ink-soft:#5a6477;
-    --ink-muted:#8a93a3;
-    --line:#e7e3da;
-    --line-soft:#efece6;
-    --accent:#394150;
-    --accent-soft:#5a6477;
-    --alert:#c8503e;
-    --alert-bg:#fae8e3;
-    --success:#5d8a5d;
-    --work:#6b7d99;
-    --privat:#c89396;
-    --personlig:#c89396;
-    --helse:#8fa68e;
-    --reise:#c9a87a;
-    /* Bøtteoverskrifter i To Do's. Egne variabler framfor hardkodet hex, slik
-       .bh.proj alt gjorde: ellers følger de ikke med i mørk modus. ADR 0047. */
-    /* Stjernemerking (ADR 0055). Egne variabler, ikke hardkodet hex — ellers foelger
-       de ikke med i moerk modus (ADR 0047). Dempet gull: den skal loefte raden ut av
-       lista uten aa slaass med den roede fristfargen rett ved siden av. */
-    --star:#a8801f; --star-bg:#fdf7e8; --star-line:#e0cc93;
-    --bh-urgent-bg:#fce8e8; --bh-urgent-ink:#883333;
-    --bh-short-bg:#fbf1e1;  --bh-short-ink:#7a5a30;
-    --bh-long-bg:#e8eef7;   --bh-long-ink:#3a4a66;
-    --bh-urgent-line:#e6b8b8; --bh-short-line:#dfc99a; --bh-long-line:#bcc7d8;
-    /* Dempede flater som var hardkodet: helg/andre måneds dager, og Outlook-hendelser. ADR 0050. */
-    --surface-dim:#fbfaf6;
-    --ics-bg:#f0f4f9; --ics-line:#5b8db8;
-    --today:#fdf6e3;
-    --shadow:0 1px 2px rgba(40,40,40,.04), 0 4px 24px rgba(40,40,40,.06);
-    --shadow-elev:0 6px 28px rgba(40,40,40,.12);
-    --radius:12px;
-    --radius-sm:8px;
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
-    --serif:Georgia,"Times New Roman",serif;
+    --surface-2:#f4f5f7;          /* hover, aktiv segmentknapp, inputfelt i ro */
+    --ink:#161b24;                /* 17,3:1 på hvit */
+    --ink-soft:#434b5a;           /*  8,8:1 */
+    --ink-muted:#626a79;          /*  5,4:1 — datoer, antall, hjelpetekst. Var 3,1:1. */
+    --line:#e3e6eb;
+    --line-soft:#eceef2;
+    --accent:#1c2638;
+    --accent-soft:#434b5a;
+    --alert:#b03a2b;              /*  6,0:1 — forfalt, slett, Urgent */
+    --alert-bg:#fbefed;
+    --success:#3f7a4f;
+    --work:#3b5884;               /*  7,2:1 — var 4,2:1 */
+    --privat:#985260;             /*  5,7:1 — var 2,6:1 */
+    --personlig:#985260;
+    --helse:#4f7a5b;
+    --reise:#8a6a2c;
+    /* Prioritet. Brukes som en liten prikk eller en 3 px strek, aldri som flate. */
+    --pri-urgent:#b03a2b; --pri-short:#a3671b; --pri-long:#3b5884; --pri-proj:#6b7383;
+    /* Stjernemerking (ADR 0055). Dempet gull: den skal løfte raden ut av lista uten
+       å slåss med den røde fristfargen rett ved siden av. */
+    --star:#9a7516; --star-bg:#fcf7ea; --star-line:#e6d6a6;   /* 4,3:1 — grafisk merke, ikke tekst (krav 3:1) */
+    /* Bøttevariablene lever videre for de få stedene som fortsatt tegner en tonet
+       flate (ukeagendaen, kanban). I To Do's og på Hjem er de erstattet av prikker. */
+    --bh-urgent-bg:#fbefed; --bh-urgent-ink:#8a2c20;
+    --bh-short-bg:#f8f1e4;  --bh-short-ink:#7a4f14;
+    --bh-long-bg:#edf1f7;   --bh-long-ink:#2f4a72;
+    --bh-urgent-line:#efcbc5; --bh-short-line:#ead7b4; --bh-long-line:#cdd8e8;
+    --surface-dim:#f8f9fa;        /* helg, andre måneds dager */
+    --ics-bg:#f1f5fa; --ics-line:#5b84b0;
+    --today:#f4f6fa;
+    --shadow:0 1px 2px rgba(15,20,30,.06);
+    --shadow-elev:0 12px 40px rgba(15,20,30,.14), 0 2px 6px rgba(15,20,30,.06);
+    --radius:6px;                 /* var 12 px. Bare på knapper, felt og dialoger — aldri på seksjoner. */
+    --radius-sm:4px;
+    /* Én skriftfamilie: systemets egen. Segoe UI på Windows, SF på iPhone og Mac.
+       Ingen nedlasting, ingen ventetid, fungerer offline. Inter sist for Linux. */
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Inter,system-ui,sans-serif;
+    /* Serifen er borte (ADR 0056). Variabelen peker på samme familie, så eldre
+       regler og innebygde stiler som fortsatt nevner den, følger med. */
+    --serif:var(--font);
+    /* Skriftskala — åtte trinn i stedet for 28. 11 bare der kalenderen er tett. */
+    --fs-xs:11px; --fs-sm:12px; --fs-md:13px; --fs-base:14px; --fs-lg:16px; --fs-xl:20px; --fs-2xl:26px;
   }
   /* Dark mode palette */
   [data-theme="dark"]{
-    --bg:#1a1d24;
-    --surface:#232730;
-    --surface-2:#2c313c;
-    --ink:#e8e6e0;
-    --ink-soft:#b8b6b0;
-    --ink-muted:#7a7c83;
-    --line:#3a3f4a;
-    --line-soft:#2e3340;
-    --accent:#cdd2db;
-    --accent-soft:#9ba3b0;
-    --alert:#e07765;
-    --alert-bg:#3d2922;
-    --success:#7da77d;
-    --work:#8ba0bf;
-    --privat:#d4a8aa;
-    --personlig:#d4a8aa;
-    --helse:#9ebd9e;
-    --reise:#d6b88f;
-    --star:#d9b96a; --star-bg:#2e2a1e; --star-line:#5a4f30;
-    --bh-urgent-bg:#3b2826; --bh-urgent-ink:#e3a79f;
-    --bh-short-bg:#3a3226;  --bh-short-ink:#dcbd8d;
-    --bh-long-bg:#28303d;   --bh-long-ink:#adc0dc;
-    --bh-urgent-line:#5c403c; --bh-short-line:#584c39; --bh-long-line:#3c4859;
-    --surface-dim:#1f232b;
-    --ics-bg:#242c38; --ics-line:#7fa6cc;
-    --today:#3d352a;
-    --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 24px rgba(0,0,0,.35);
-    --shadow-elev:0 6px 28px rgba(0,0,0,.5);
+    --bg:#0f1216;
+    --surface:#14181d;
+    --surface-2:#1c2128;
+    --ink:#e8ebf0;
+    --ink-soft:#b4bac5;
+    --ink-muted:#939bab;          /* 6,4:1 på --surface */
+    --line:#262c35;
+    --line-soft:#1f242c;
+    --accent:#e8ebf0;
+    --accent-soft:#b4bac5;
+    --alert:#ef8471;
+    --alert-bg:#2a1916;
+    --success:#7fb08c;
+    --work:#93acd3;
+    --privat:#d89ea8;
+    --personlig:#d89ea8;
+    --helse:#93bb9d;
+    --reise:#d6b276;
+    --pri-urgent:#ef8471; --pri-short:#d9a55c; --pri-long:#93acd3; --pri-proj:#9aa2b0;
+    --star:#d9b96a; --star-bg:#221f15; --star-line:#4d4428;
+    --bh-urgent-bg:#2a1916; --bh-urgent-ink:#f0a99d;
+    --bh-short-bg:#2a2216;  --bh-short-ink:#e2c08e;
+    --bh-long-bg:#18202c;   --bh-long-ink:#aec2e0;
+    --bh-urgent-line:#4a2b26; --bh-short-line:#463a26; --bh-long-line:#2c3a4e;
+    --surface-dim:#12161b;
+    --ics-bg:#172231; --ics-line:#7fa6cc;
+    --today:#1a2029;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    --shadow-elev:0 12px 40px rgba(0,0,0,.55);
   }
+
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;transition:background-color .2s ease, color .2s ease}
-  h1,h2,h3,h4{margin:0;font-family:var(--serif);font-weight:500;letter-spacing:-.005em;color:var(--ink)}
-  h2{font-size:26px;line-height:1.2}
-  h3{font-size:18px;line-height:1.25}
+  h1,h2,h3,h4{margin:0;font-family:var(--font);font-weight:600;letter-spacing:-.015em;color:var(--ink)}
+  h2{font-size:26px;line-height:1.2;letter-spacing:-.025em}
+  h3{font-size:16px;line-height:1.3}
   h4{font-size:15px;line-height:1.3}
   body{min-height:100vh;min-height:100dvh}
   button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0}
@@ -101,18 +114,18 @@
 
   /* Layout */
   #app{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
-  header.topbar{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .brand{font-family:var(--serif);font-size:18px;font-weight:500;letter-spacing:.5px;color:var(--ink)}
-  .brand .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:middle}
+  header.topbar{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--line);padding:8px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .brand{font-family:var(--font);font-size:16px;font-weight:600;letter-spacing:-.015em;color:var(--ink)}
+  .brand .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ink);margin-right:9px;vertical-align:1px}
   .topbar-spacer{flex:1}
-  .nav{display:flex;gap:2px;background:var(--surface-2);border-radius:999px;padding:3px}
-  .nav button{padding:6px 12px;border-radius:999px;color:var(--ink-soft);font-size:13px;font-weight:500;white-space:nowrap}
-  .nav button.active{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
-  .nav button .badge{display:inline-block;background:var(--alert);color:#fff;border-radius:999px;font-size:10px;padding:1px 6px;margin-left:5px;font-weight:600;line-height:1.4;vertical-align:middle;min-width:14px;text-align:center}
-  .nav button.active .badge{background:var(--alert)}
-  .filter{display:flex;gap:2px;background:var(--surface-2);border-radius:999px;padding:3px}
-  .filter button{padding:6px 11px;border-radius:999px;color:var(--ink-soft);font-size:12.5px;font-weight:500}
-  .filter button.active{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+  .nav{display:flex;gap:2px;background:none;border-radius:0;padding:0}
+  .nav button{padding:9px 10px;border-radius:0;color:var(--ink-soft);font-size:13px;font-weight:500;white-space:nowrap;box-shadow:inset 0 -2px 0 transparent;transition:color .12s,box-shadow .12s}
+  .nav button.active{background:none;color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--ink)}
+  .nav button .badge{display:inline-block;background:none;color:var(--alert);font-size:12px;padding:0;margin-left:4px;font-weight:600;line-height:1;vertical-align:baseline;min-width:0;font-variant-numeric:tabular-nums}
+  .nav button.active .badge{background:none}
+  .filter{display:flex;gap:2px;background:none;border:1px solid var(--line);border-radius:7px;padding:2px}
+  .filter button{padding:5px 11px;border-radius:5px;color:var(--ink-soft);font-size:13px;font-weight:500}
+  .filter button.active{background:var(--surface-2);color:var(--ink);box-shadow:none;font-weight:600}
   .top-actions{display:flex;gap:6px;align-items:center}
   .icon-btn{width:34px;height:34px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-soft)}
   .icon-btn:hover{background:var(--surface-2);color:var(--ink)}
@@ -122,17 +135,17 @@
 
   /* Sub-nav (date title + arrows) */
   .subnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap}
-  .subnav h2{font-family:var(--serif);font-weight:500;font-size:22px;margin:0;color:var(--ink);letter-spacing:.3px}
-  .subnav h2 .yr{color:var(--ink-muted);font-style:italic;margin-left:6px;font-size:18px}
+  .subnav h2{font-family:var(--font);font-weight:600;font-size:20px;margin:0;color:var(--ink);letter-spacing:-.015em}
+  .subnav h2 .yr{color:var(--ink-muted);font-style:italic;margin-left:6px;font-size:16px}
   .subnav .arrows{display:flex;gap:4px}
   .subnav .arrows button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
   .subnav .arrows button:hover{background:var(--surface-2)}
-  .subnav .today-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:12.5px}
+  .subnav .today-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:13px}
 
   .strip{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
   .strip .group{display:flex;flex-direction:column;gap:2px;min-width:140px}
-  .strip .label{font-size:11px;font-weight:600;letter-spacing:1px;color:var(--ink-muted);text-transform:uppercase}
-  .strip .value{font-family:var(--serif);font-size:15px;color:var(--ink);font-style:italic}
+  .strip .label{font-size:11px;font-weight:600;letter-spacing:0;color:var(--ink-muted);}
+  .strip .value{font-family:var(--font);font-size:15px;color:var(--ink);font-style:italic}
   .strip .value.empty{font-style:normal;color:var(--ink-muted);font-family:var(--font);font-size:13px}
   .strip .edit{margin-left:auto}
 
@@ -143,11 +156,11 @@
   
   .mo{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px;cursor:pointer;transition:transform .1s ease,box-shadow .1s ease}
   .mo:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
-  .mo h3{font-family:var(--serif);font-weight:500;font-size:15px;margin:0 0 4px;color:var(--ink)}
+  .mo h3{font-family:var(--font);font-weight:600;font-size:15px;margin:0 0 4px;color:var(--ink)}
   .mo .yr{font-size:11px;color:var(--ink-muted);margin-bottom:8px;letter-spacing:.5px}
-  .mo .mini{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;font-size:9.5px}
+  .mo .mini{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;font-size:11px}
   .mo .mini .h{color:var(--ink-muted);text-align:center;padding:1px 0;font-weight:600}
-  .mo .mini .d{aspect-ratio:1;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);position:relative;border-radius:3px;font-size:9.5px}
+  .mo .mini .d{aspect-ratio:1;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);position:relative;border-radius:3px;font-size:11px}
   .mo .mini .d.empty{color:transparent}
   .mo .mini .d.has-events{background:var(--surface-2)}
   .mo .mini .d.today{background:var(--today);color:var(--ink);font-weight:600;outline:1px solid var(--accent)}
@@ -164,8 +177,9 @@
      sin kolonne bred og nabokolonnene smale — og bredden varierte fra uke til uke.
      Målt på desktop før fiksen: 42 celler med bredder fra 26 til 474 px. ADR 0051. */
   .month-grid .row{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
-  .month-grid .row.head{background:var(--surface-2)}
-  .month-grid .row.head .cell{padding:8px;font-size:11px;letter-spacing:.5px;color:var(--ink-muted);font-weight:600;text-align:left;text-transform:uppercase;border-right:1px solid var(--line-soft)}
+  .month-grid .row.head{background:none}
+  /* min-height:0 — ellers arvet ukedagsraden cellenes 110 px og ble et tomt bånd over datoene. */
+  .month-grid .row.head .cell{min-height:0;padding:8px;font-size:12px;letter-spacing:0;color:var(--ink-soft);font-weight:500;text-align:left;border-right:none;border-top:none}
   .month-grid .row.head .cell:last-child{border-right:none}
   .month-grid .cell{border-top:1px solid var(--line-soft);border-right:1px solid var(--line-soft);min-height:110px;padding:6px 8px;cursor:pointer;position:relative;display:flex;flex-direction:column;gap:3px;transition:background .1s}
   .month-grid .cell:nth-child(7n){border-right:none}
@@ -174,24 +188,24 @@
   .month-grid .cell.today{background:var(--today)}
   .month-grid .cell .num{font-size:13px;font-weight:600;color:var(--ink-soft);display:flex;align-items:center;gap:4px}
   .month-grid .cell.today .num{color:var(--ink)}
-  .month-grid .cell .num .holiday-tag{font-size:10px;color:var(--alert);font-weight:500}
-  .month-grid .cell .ev{font-size:11.5px;line-height:1.25;padding:2px 6px;border-radius:4px;background:var(--surface-2);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:3px solid var(--ink-muted)}
+  .month-grid .cell .num .holiday-tag{font-size:11px;color:var(--alert);font-weight:500}
+  .month-grid .cell .ev{font-size:12px;line-height:1.25;padding:2px 6px;border-radius:4px;background:var(--surface-2);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:3px solid var(--ink-muted)}
   .month-grid .cell .ev.cat-arbeid{border-left-color:var(--work)}
   .month-grid .cell .ev.cat-privat{border-left-color:var(--privat)}
   .month-grid .cell .ev.cat-personlig{border-left-color:var(--personlig)}
   .month-grid .cell .ev.cat-helse{border-left-color:var(--helse)}
   .month-grid .cell .ev.cat-reise{border-left-color:var(--reise)}
-  .month-grid .cell .more{font-size:10.5px;color:var(--ink-muted)}
+  .month-grid .cell .more{font-size:11px;color:var(--ink-muted)}
 
   
 
   /* Week view */
   .week{display:grid;grid-template-columns:60px repeat(7,1fr);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;font-size:12px}
   .week .wh{background:var(--surface-2);padding:8px;text-align:center;font-size:11px;color:var(--ink-muted);font-weight:600;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
-  .week .wh strong{display:block;color:var(--ink);font-size:15px;font-weight:500;font-family:var(--serif)}
+  .week .wh strong{display:block;color:var(--ink);font-size:15px;font-weight:600;font-family:var(--font)}
   .week .wh.today strong{color:var(--accent)}
   .week .wh:last-child{border-right:none}
-  .week .hour-label{padding:4px 8px;font-size:10.5px;color:var(--ink-muted);text-align:right;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
+  .week .hour-label{padding:4px 8px;font-size:11px;color:var(--ink-muted);text-align:right;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
   .week .slot{border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);height:42px;position:relative;cursor:pointer;overflow:visible}
   .week .slot:nth-child(8n){border-right:none}
   .week .slot.weekend{background:var(--surface-dim)}
@@ -211,12 +225,12 @@
   .day-main{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
   .day-side{display:flex;flex-direction:column;gap:14px}
   .day-side .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
-  .day-side .panel h4{margin:0 0 8px;font-family:var(--serif);font-weight:500;font-size:15px;color:var(--ink)}
+  .day-side .panel h4{margin:0 0 8px;font-family:var(--font);font-weight:600;font-size:15px;color:var(--ink)}
   .day-hours{display:grid;grid-template-columns:50px 1fr;gap:0}
   .day-hours .hl{padding:4px;font-size:11px;color:var(--ink-muted);text-align:right;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
   .day-hours .hslot{border-bottom:1px solid var(--line-soft);height:48px;position:relative;cursor:pointer;padding-left:4px;overflow:visible}
   .day-hours .hslot:hover{background:var(--surface-2)}
-  .day-hours .hslot .ev{position:absolute;left:4px;right:8px;background:var(--surface);border-left:3px solid var(--ink-muted);padding:4px 8px;border-radius:4px;font-size:12.5px;box-shadow:var(--shadow)}
+  .day-hours .hslot .ev{position:absolute;left:4px;right:8px;background:var(--surface);border-left:3px solid var(--ink-muted);padding:4px 8px;border-radius:4px;font-size:13px;box-shadow:var(--shadow)}
   .day-hours .hslot .ev.cat-arbeid{border-left-color:var(--work)}
   .day-hours .hslot .ev.cat-privat{border-left-color:var(--privat)}
   .day-hours .hslot .ev.cat-personlig{border-left-color:var(--personlig)}
@@ -225,13 +239,13 @@
 
   /* List view */
   .list-view{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .list-view .lhead{padding:10px 16px;background:var(--surface-2);font-size:12px;color:var(--ink-muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+  .list-view .lhead{padding:10px 16px;background:var(--surface-2);font-size:12px;color:var(--ink-muted);font-weight:600;letter-spacing:0;}
   .list-view .lrow{padding:10px 16px;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:12px;cursor:pointer}
   .list-view .lrow:hover{background:var(--surface-2)}
-  .list-view .lrow .ldate{min-width:48px;font-family:var(--serif);font-size:13px;color:var(--ink-muted);line-height:1.1;text-align:center}
-  .list-view .lrow .ldate .dn{font-size:18px;color:var(--ink);display:block;font-weight:500}
-  .list-view .lrow .ltitle{flex:1;font-size:13.5px}
-  .list-view .lrow .ltitle .meta{display:block;font-size:11.5px;color:var(--ink-muted);margin-top:1px}
+  .list-view .lrow .ldate{min-width:48px;font-family:var(--font);font-size:13px;color:var(--ink-muted);line-height:1.1;text-align:center}
+  .list-view .lrow .ldate .dn{font-size:16px;color:var(--ink);display:block;font-weight:500}
+  .list-view .lrow .ltitle{flex:1;font-size:14px}
+  .list-view .lrow .ltitle .meta{display:block;font-size:12px;color:var(--ink-muted);margin-top:1px}
   .list-view .lrow .lcat{width:8px;height:8px;border-radius:50%;background:var(--ink-muted)}
   .list-view .lrow .lcat.cat-arbeid{background:var(--work)}
   .list-view .lrow .lcat.cat-privat{background:var(--privat)}
@@ -243,22 +257,22 @@
   .panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   
   .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
-  .panel h3{font-family:var(--serif);font-weight:500;font-size:17px;margin:0 0 12px;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
+  .panel h3{font-family:var(--font);font-weight:600;font-size:16px;margin:0 0 12px;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
   .panel h3 button{font-size:12px;color:var(--ink-soft);padding:4px 10px;border-radius:6px;border:1px solid var(--line)}
   .panel h3 button:hover{background:var(--surface-2)}
   .goal{padding:10px 0;border-top:1px solid var(--line-soft)}
   .goal:first-of-type{border-top:none}
   .goal .gt{font-weight:500;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
-  .goal .gt .gtarget{font-size:11.5px;color:var(--ink-muted);font-weight:400}
+  .goal .gt .gtarget{font-size:12px;color:var(--ink-muted);font-weight:400}
   .goal .gprog{height:4px;background:var(--surface-2);border-radius:2px;margin:8px 0;overflow:hidden}
   .goal .gprog i{display:block;height:100%;background:var(--accent)}
-  .goal .gms{margin:6px 0 0;padding:0;list-style:none;font-size:12.5px}
+  .goal .gms{margin:6px 0 0;padding:0;list-style:none;font-size:13px}
   .goal .gms li{padding:3px 0;display:flex;align-items:center;gap:8px;color:var(--ink-soft)}
   .goal .gms li.done{text-decoration:line-through;color:var(--ink-muted)}
   .goal .gms li input{margin:0}
   .habit{padding:10px 0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:10px}
   .habit:first-of-type{border-top:none}
-  .habit .ht{flex:1;font-size:13.5px}
+  .habit .ht{flex:1;font-size:14px}
   .habit .hgrid{display:flex;gap:2px}
   .habit .hgrid .hd{width:14px;height:14px;border-radius:3px;background:var(--surface-2);border:1px solid var(--line-soft);cursor:pointer}
   .habit .hgrid .hd.done{background:var(--accent);border-color:var(--accent)}
@@ -267,11 +281,11 @@
   /* Inbox */
   .inbox{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
   .inbox .ih{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-  .inbox .ih h3{margin:0;font-family:var(--serif);font-weight:500;font-size:17px}
+  .inbox .ih h3{margin:0;font-family:var(--font);font-weight:600;font-size:16px}
   .inbox .ii{padding:8px 0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13px}
   .inbox .ii:first-of-type{border-top:none}
   .inbox .ii .it{flex:1}
-  .inbox .ii button{padding:3px 8px;font-size:11.5px;border-radius:5px;border:1px solid var(--line);color:var(--ink-soft)}
+  .inbox .ii button{padding:3px 8px;font-size:12px;border-radius:5px;border:1px solid var(--line);color:var(--ink-soft)}
   .inbox .ii button:hover{background:var(--surface-2)}
   .inbox .ii .del{color:var(--alert);border-color:transparent}
 
@@ -286,12 +300,12 @@
   /* Toast. Flyttet ut av app.js sin cssText da angre-knappen kom til — en knapp
      med hover-tilstand hører hjemme i CSS. ADR 0039. */
   .toast{position:fixed;bottom:90px;right:24px;background:var(--accent);color:#fff;
-    padding:12px 16px;border-radius:8px;font-size:13.5px;z-index:200;
+    padding:12px 16px;border-radius:8px;font-size:14px;z-index:200;
     box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:340px;
     display:flex;align-items:center;gap:12px}
   [data-theme="dark"] .toast{color:#1a1d24}
   .toast .toast-action{background:transparent;border:1px solid currentColor;color:inherit;
-    padding:4px 10px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;
+    padding:4px 10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;
     white-space:nowrap;flex:0 0 auto}
   .toast .toast-action:hover{background:rgba(255,255,255,.16)}
   [data-theme="dark"] .toast .toast-action:hover{background:rgba(0,0,0,.12)}
@@ -300,12 +314,12 @@
   /* Modal */
   .modal-bg{position:fixed;inset:0;background:rgba(40,46,60,.34);z-index:5000;display:none;align-items:center;justify-content:center;padding:16px}
   .modal-bg.open{display:flex}
-  .modal{background:var(--surface);border-radius:var(--radius);max-width:520px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.18)}
-  .modal h3{margin:0;padding:16px 18px;font-family:var(--serif);font-weight:500;font-size:18px;border-bottom:1px solid var(--line-soft)}
+  .modal{background:var(--surface);border-radius:10px;max-width:520px;width:100%;max-height:90vh;overflow:auto;box-shadow:var(--shadow-elev)}
+  .modal h3{margin:0;padding:18px 20px 14px;font-family:var(--font);font-weight:600;font-size:16px;letter-spacing:-.01em;border-bottom:1px solid var(--line-soft)}
   .modal .body{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
   .modal .field{display:flex;flex-direction:column;gap:5px}
-  .modal .field label{font-size:11px;letter-spacing:.5px;color:var(--ink-muted);font-weight:600;text-transform:uppercase}
-  .modal .field input,.modal .field select,.modal .field textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:14px}
+  .modal .field label{font-size:12px;letter-spacing:0;color:var(--ink-soft);font-weight:600}
+  .modal .field input,.modal .field select,.modal .field textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);font-size:14px;color:var(--ink);transition:border-color .12s,box-shadow .12s}
   .modal .field textarea{min-height:70px;resize:vertical;font-family:var(--font)}
   .modal .field .row{display:flex;gap:8px}
   .modal .field .row > *{flex:1}
@@ -318,11 +332,11 @@
   .modal .ms-list input[type="text"]{flex:1}
   .modal .ms-list input[type="date"]{width:140px}
   .modal .ms-list .rm{padding:4px 8px;color:var(--alert);border:none;background:none}
-  .modal .add-link{font-size:12.5px;color:var(--ink-soft);padding:4px 0;text-align:left}
+  .modal .add-link{font-size:13px;color:var(--ink-soft);padding:4px 0;text-align:left}
 
   /* Settings drawer */
   .settings-list{display:flex;flex-direction:column}
-  .settings-list .sl{padding:10px 0;border-top:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center;font-size:13.5px}
+  .settings-list .sl{padding:10px 0;border-top:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center;font-size:14px}
   .settings-list .sl:first-of-type{border-top:none}
   .settings-list .sl button{padding:5px 10px;font-size:12px;border-radius:6px;border:1px solid var(--line);color:var(--ink-soft)}
 
@@ -334,36 +348,36 @@
   /* Markert rad ved piltast-navigasjon (ADR 0038). Tydeligere enn hover, siden den
      forteller hvor Enter kommer til å treffe. */
   .search-results .sr.active{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)}
-  .search-results .sr .meta{font-size:11.5px;color:var(--ink-muted);margin-top:1px}
+  .search-results .sr .meta{font-size:12px;color:var(--ink-muted);margin-top:1px}
   .search-results .empty{padding:14px;color:var(--ink-muted);font-style:italic;font-size:13px;text-align:center}
   /* Ukesoppsummering (ADR 0038) */
   .wr-sec{margin-bottom:16px}
-  .wr-sec h4{font-family:var(--serif);font-weight:500;font-size:14.5px;margin:0 0 6px;color:var(--ink);display:flex;justify-content:space-between;align-items:baseline}
-  .wr-sec h4 small{font-family:var(--font);font-size:11.5px;color:var(--ink-muted);font-weight:400}
+  .wr-sec h4{font-family:var(--font);font-weight:600;font-size:15px;margin:0 0 6px;color:var(--ink);display:flex;justify-content:space-between;align-items:baseline}
+  .wr-sec h4 small{font-family:var(--font);font-size:12px;color:var(--ink-muted);font-weight:400}
   .wr-row{display:flex;gap:10px;align-items:baseline;padding:6px 2px;border-top:1px solid var(--line-soft);font-size:13px;cursor:pointer}
   .wr-row:hover{background:var(--surface-2)}
-  .wr-date{flex:0 0 56px;font-size:11.5px;color:var(--ink-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .wr-date{flex:0 0 56px;font-size:12px;color:var(--ink-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
   .wr-title{flex:1;min-width:0}
-  .wr-empty{padding:8px 2px;font-size:12.5px;color:var(--ink-muted);font-style:italic}
-  .wr-note{padding:7px 9px;margin-bottom:6px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);font-size:11.5px;color:var(--ink-soft);line-height:1.45}
+  .wr-empty{padding:8px 2px;font-size:13px;color:var(--ink-muted);font-style:italic}
+  .wr-note{padding:7px 9px;margin-bottom:6px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);font-size:12px;color:var(--ink-soft);line-height:1.45}
 
   /* Notes panel */
-  .notes-area{width:100%;min-height:120px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-family:var(--font);font-size:13.5px;resize:vertical}
+  .notes-area{width:100%;min-height:120px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-family:var(--font);font-size:14px;resize:vertical}
 
   /* Weekly review */
 
   /* Helpers */
-  .pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;font-weight:600;color:#fff}
-  .pill.cat-arbeid{background:var(--work)}
-  .pill.cat-privat{background:var(--privat)}
-  .pill.cat-personlig{background:var(--personlig)}
-  .pill.cat-helse{background:var(--helse)}
-  .pill.cat-reise{background:var(--reise)}
-  .pill.cat-other{background:var(--ink-muted)}
-  .empty-state{padding:24px;text-align:center;color:var(--ink-muted);font-style:italic;font-size:13px}
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:0;border-radius:0;background:none;font-size:12px;letter-spacing:0;font-weight:500;color:var(--ink-soft)}
+  .pill.cat-arbeid{--dot:var(--work)}
+  .pill.cat-privat{--dot:var(--privat)}
+  .pill.cat-personlig{--dot:var(--personlig)}
+  .pill.cat-helse{--dot:var(--helse)}
+  .pill.cat-reise{--dot:var(--reise)}
+  .pill.cat-other{--dot:var(--ink-muted)}
+  .empty-state{padding:22px 0;text-align:left;color:var(--ink-muted);font-style:normal;font-size:13px}
   /* Tomme tilstander som fører videre i stedet for å stoppe. ADR 0043. */
   .es-act{margin-top:10px;font-style:normal}
-  .es-btn{padding:5px 12px;font-size:12.5px;border-radius:6px;border:1px solid var(--line);
+  .es-btn{padding:5px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);
     background:var(--surface);color:var(--ink-soft);cursor:pointer}
   .es-btn:hover{background:var(--surface-2);color:var(--ink);border-color:var(--accent-soft)}
   .home-empty .es-act{margin-top:8px}
@@ -371,34 +385,34 @@
   .hidden{display:none !important}
 
   /* Projects */
-  .projects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;cursor:pointer;transition:transform .12s,box-shadow .12s;border-top:4px solid var(--ink-muted);display:flex;flex-direction:column;gap:10px;position:relative}
+  .projects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:28px 28px}
+  .pcard{background:none;border:none;border-radius:0;padding:14px 2px 16px;cursor:pointer;transition:transform .12s,box-shadow .12s;border-top:2px solid var(--line);display:flex;flex-direction:column;gap:10px;position:relative}
   /* Prosjektets egen farge som venstrekant — samme nyanse som chipen på taggede
      oppgaver, så kortet og oppgaven kjennes igjen som samme sak. ADR 0041. */
-  .pcard[style*="--pc-h"]{border-left:3px solid hsl(var(--pc-h), 40%, 72%)}
-  [data-theme="dark"] .pcard[style*="--pc-h"]{border-left-color:hsl(var(--pc-h), 30%, 46%)}
+  .pcard[style*="--pc-h"]{border-top-color:hsl(var(--pc-h), 36%, 58%)}
+  [data-theme="dark"] .pcard[style*="--pc-h"]{border-top-color:hsl(var(--pc-h), 30%, 50%)}
   .pcard:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
   .pcard.cat-arbeid{border-top-color:var(--work)}
   .pcard.cat-privat{border-top-color:var(--privat)}
   .pcard.cat-personlig{border-top-color:var(--personlig)}
   .pcard.cat-helse{border-top-color:var(--helse)}
   .pcard.cat-reise{border-top-color:var(--reise)}
-  .pcard h3{font-family:var(--serif);font-weight:500;font-size:18px;margin:0;color:var(--ink);line-height:1.25}
+  .pcard h3{font-family:var(--font);font-weight:600;font-size:15px;margin:0;color:var(--ink);line-height:1.3;letter-spacing:-.01em}
   .pcard .pmeta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink-muted);align-items:baseline}
-  .pcard .countdown{font-family:var(--serif);font-size:22px;color:var(--ink);font-weight:500}
+  .pcard .countdown{font-family:var(--font);font-size:20px;color:var(--ink);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .pcard .countdown.past{color:var(--ink-muted);font-style:italic}
   .pcard .countdown.urgent{color:var(--alert)}
-  .pcard .pnext{font-size:11.5px;color:var(--ink-soft);border-top:1px solid var(--line-soft);padding-top:6px;margin-top:2px}
+  .pcard .pnext{font-size:12px;color:var(--ink-soft);border-top:1px solid var(--line-soft);padding-top:6px;margin-top:2px}
   .pcard .pnext strong{color:var(--ink)}
-  .pcard .countdown small{display:block;font-family:var(--font);font-size:10.5px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .pcard .countdown small{display:block;font-family:var(--font);font-size:12px;color:var(--ink-muted);letter-spacing:0;font-weight:400}
   .pcard .pprog{height:5px;background:var(--surface-2);border-radius:3px;overflow:hidden}
   .pcard .pprog i{display:block;height:100%;background:var(--accent)}
-  .pcard .pstats{display:flex;gap:12px;font-size:11.5px;color:var(--ink-muted)}
+  .pcard .pstats{display:flex;gap:12px;font-size:12px;color:var(--ink-muted)}
   .pcard .pstats span strong{color:var(--ink)}
   /* To Do-liste på prosjektkortet (ADR 0033). Titler kappes på én linje med ellipse, så
      kortene beholder samme høyde og rutenettet står rolig. */
   .pcard .ptodos{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line-soft);padding-top:8px;margin-top:2px;min-width:0}
-  .pcard .ptodo{display:flex;gap:8px;align-items:baseline;font-size:11.5px;line-height:1.35;color:var(--ink-soft);min-width:0}
+  .pcard .ptodo{display:flex;gap:8px;align-items:baseline;font-size:12px;line-height:1.35;color:var(--ink-soft);min-width:0}
   /* Fast bredde på datokolonnen, så titlene flukter fra rad til rad uansett om dagen er
      ett- eller tosifret. «+N mer» er en vanlig rad med tom datocelle, så den stiller seg
      opp med titlene av seg selv. */
@@ -424,22 +438,22 @@
   .pdetail{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
   .pdetail .phead{padding:18px 22px;border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
   .pdetail .phead .ptitle{flex:1;min-width:200px}
-  .pdetail .phead h2{font-family:var(--serif);font-weight:500;font-size:24px;margin:0 0 4px;color:var(--ink)}
+  .pdetail .phead h2{font-family:var(--font);font-weight:600;font-size:20px;margin:0 0 4px;color:var(--ink)}
   .pdetail .phead .pdesc{font-size:13px;color:var(--ink-soft);margin:4px 0 0}
-  .pdetail .phead .pcount{text-align:right;font-family:var(--serif);font-size:32px;color:var(--ink);line-height:1}
-  .pdetail .phead .pcount small{display:block;font-family:var(--font);font-size:11px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.5px;margin-top:4px;font-weight:600}
+  .pdetail .phead .pcount{text-align:right;font-family:var(--font);font-size:26px;color:var(--ink);line-height:1}
+  .pdetail .phead .pcount small{display:block;font-family:var(--font);font-size:11px;color:var(--ink-muted);letter-spacing:0;margin-top:4px;font-weight:600}
   .pdetail .phead .pcount.urgent{color:var(--alert)}
   .pdetail .pbody{padding:6px 22px 22px}
   .psection{padding:16px 0;border-top:1px solid var(--line-soft)}
   .psection:first-of-type{border-top:none}
-  .psection h4{font-family:var(--serif);font-weight:500;font-size:16px;margin:0 0 10px;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
+  .psection h4{font-family:var(--font);font-weight:600;font-size:16px;margin:0 0 10px;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
   .psection h4 button{font-size:12px;color:var(--ink-soft);padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface)}
   .psection h4 button:hover{background:var(--surface-2)}
   .ptask{padding:6px 0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13px}
   .ptask:first-of-type{border-top:none}
   .ptask.done .pttitle{text-decoration:line-through;color:var(--ink-muted)}
   .ptask .pttitle{flex:1;cursor:pointer}
-  .ptask .ptdate{font-size:11.5px;color:var(--ink-muted);font-family:var(--font)}
+  .ptask .ptdate{font-size:12px;color:var(--ink-muted);font-family:var(--font)}
   .ptask .ptdel{padding:3px 8px;color:var(--alert);font-size:12px;border:none;background:none}
   .ptask input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent)}
   .pperson{padding:8px 0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
@@ -458,7 +472,7 @@
   .pinline-add input{flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px}
   .pinline-add input.small{flex:0 0 130px}
   .pinline-add button{padding:6px 12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:13px}
-  .pback{margin-bottom:12px;font-size:12.5px;color:var(--ink-soft);background:none;padding:4px 0}
+  .pback{margin-bottom:12px;font-size:13px;color:var(--ink-soft);background:none;padding:4px 0}
   .pback:hover{color:var(--ink)}
 
   /* Project sub-task badge in calendar */
@@ -475,11 +489,11 @@
   .kanban{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
   
   .kcol{background:var(--surface-2);border-radius:8px;padding:8px;min-height:60px;border:1px solid var(--line-soft);transition:outline .12s}
-  .kcol-h{font-family:var(--serif);font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;padding:0 4px 4px}
-  .kcol-h small{font-size:10.5px;color:var(--ink-muted);font-family:var(--font)}
+  .kcol-h{font-family:var(--font);font-size:13px;font-weight:600;color:var(--ink);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;padding:0 4px 4px}
+  .kcol-h small{font-size:11px;color:var(--ink-muted);font-family:var(--font)}
   .kcol[data-status="doing"] .kcol-h{color:#7a5a30}
   .kcol[data-status="done"] .kcol-h{color:var(--ink-muted)}
-  .kcard{background:var(--surface);border-left:3px solid var(--ink-muted);border-radius:4px;padding:7px 10px;margin-bottom:6px;cursor:grab;font-size:12.5px;line-height:1.3;transition:transform .1s, box-shadow .1s}
+  .kcard{background:var(--surface);border-left:3px solid var(--ink-muted);border-radius:4px;padding:7px 10px;margin-bottom:6px;cursor:grab;font-size:13px;line-height:1.3;transition:transform .1s, box-shadow .1s}
   .kcard:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
   .kcard:active{cursor:grabbing}
   .kcard.done{opacity:.6;border-left-color:var(--helse)}
@@ -549,14 +563,14 @@
 
   /* Årsoversikt — Gantt timeline */
   .ov-section{margin-bottom:22px}
-  .ov-section h3{font-family:var(--serif);font-weight:500;font-size:16px;margin:0 0 10px;color:var(--ink)}
+  .ov-section h3{font-family:var(--font);font-weight:600;font-size:16px;margin:0 0 10px;color:var(--ink)}
   .gantt{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
   .gantt-scroll{overflow-x:auto;overflow-y:hidden}
   .gantt-inner{min-width:900px}
   .gantt-headrow{display:grid;grid-template-columns:160px 1fr;background:var(--surface-2);border-bottom:1px solid var(--line)}
-  .gantt-headrow .label-col{padding:8px 12px;font-size:11px;color:var(--ink-muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+  .gantt-headrow .label-col{padding:8px 12px;font-size:11px;color:var(--ink-muted);font-weight:600;letter-spacing:0;}
   .gantt-months{position:relative;height:30px}
-  .gantt-months .mtick{position:absolute;top:0;bottom:0;border-left:1px solid var(--line-soft);padding:7px 0 0 4px;font-size:10.5px;color:var(--ink-muted);font-weight:500;white-space:nowrap}
+  .gantt-months .mtick{position:absolute;top:0;bottom:0;border-left:1px solid var(--line-soft);padding:7px 0 0 4px;font-size:11px;color:var(--ink-muted);font-weight:500;white-space:nowrap}
   .gantt-months .mtick.year-start{border-left-color:var(--line);font-weight:700;color:var(--ink-soft)}
   .gantt-row{display:grid;grid-template-columns:160px 1fr;border-top:1px solid var(--line-soft)}
   .gantt-row .label{padding:8px 12px;font-size:13px;color:var(--ink);border-right:1px solid var(--line-soft);display:flex;align-items:center;cursor:pointer;background:var(--surface)}
@@ -570,7 +584,7 @@
   .gantt-row .track{position:relative;min-height:36px}
   .gantt-row .track .vline{position:absolute;top:0;bottom:0;border-left:1px solid var(--line-soft)}
   .gantt-row .track .vline.year-start{border-left-color:var(--line)}
-  .gantt-row .bar{position:absolute;top:9px;height:18px;border-radius:3px;background:var(--ink-muted);color:#fff;font-size:11px;padding:2px 8px;overflow:hidden;white-space:nowrap;cursor:pointer;text-overflow:ellipsis;line-height:1.2;display:flex;align-items:center}
+  .gantt-row .bar{position:absolute;top:9px;height:18px;border-radius:3px;background:var(--ink-muted);color:var(--surface);font-size:11px;padding:2px 8px;overflow:hidden;white-space:nowrap;cursor:pointer;text-overflow:ellipsis;line-height:1.2;display:flex;align-items:center}
   .gantt-row .bar:hover{filter:brightness(.92);transform:translateY(-1px);transition:transform .12s}
   .gantt-row .bar.cat-arbeid{background:var(--work)}
   .gantt-row .bar.cat-privat{background:var(--privat)}
@@ -582,13 +596,13 @@
 
   /* Key dates list */
   .keydates{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .keydates .kd{padding:10px 16px;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:12px;cursor:pointer;font-size:13.5px}
+  .keydates .kd{padding:10px 16px;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:12px;cursor:pointer;font-size:14px}
   .keydates .kd:first-of-type{border-top:none}
   .keydates .kd:hover{background:var(--surface-2)}
-  .keydates .kd .kdate{min-width:90px;font-family:var(--serif);font-size:14px;color:var(--ink-soft)}
-  .keydates .kd .kdate strong{color:var(--ink);font-size:18px;display:block;font-weight:500}
+  .keydates .kd .kdate{min-width:90px;font-family:var(--font);font-size:14px;color:var(--ink-soft)}
+  .keydates .kd .kdate strong{color:var(--ink);font-size:16px;display:block;font-weight:500}
   .keydates .kd .ktitle{flex:1;font-weight:500}
-  .keydates .kd .ktitle .meta{display:block;font-size:11.5px;color:var(--ink-muted);margin-top:1px;font-weight:400}
+  .keydates .kd .ktitle .meta{display:block;font-size:12px;color:var(--ink-muted);margin-top:1px;font-weight:400}
   .keydates .kd .kcountdown{font-size:12px;color:var(--ink-muted);font-style:italic;white-space:nowrap}
   .keydates .kd .kcountdown.urgent{color:var(--alert)}
 
@@ -645,9 +659,9 @@
   .notes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:8px}
   .note-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;cursor:pointer;min-height:90px;transition:transform .12s,box-shadow .12s;display:flex;flex-direction:column;gap:4px}
   .note-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
-  .note-card-title{font-family:var(--serif);font-weight:500;font-size:14px;color:var(--ink);line-height:1.25}
-  .note-card-preview{font-size:11.5px;color:var(--ink-muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
-  .note-card-empty{font-size:11.5px;color:var(--ink-muted);font-style:italic}
+  .note-card-title{font-family:var(--font);font-weight:600;font-size:14px;color:var(--ink);line-height:1.25}
+  .note-card-preview{font-size:12px;color:var(--ink-muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+  .note-card-empty{font-size:12px;color:var(--ink-muted);font-style:italic}
   .new-note-card{background:transparent;border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:13px;cursor:pointer;border-radius:var(--radius);min-height:90px;font-style:italic}
   .new-note-card:hover{background:var(--surface);color:var(--ink)}
   /* Rich text editor */
@@ -659,15 +673,15 @@
   .note-toolbar button.tb-italic{font-style:italic}
   .note-editor{min-height:240px;padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.6;outline:none;overflow-y:auto;max-height:60vh}
   .note-editor:focus{border-color:var(--accent)}
-  .note-editor h2{font-family:var(--serif);font-size:20px;font-weight:500;margin:14px 0 6px;color:var(--ink)}
-  .note-editor h3{font-family:var(--serif);font-size:16px;font-weight:500;margin:10px 0 4px;color:var(--ink)}
+  .note-editor h2{font-family:var(--font);font-size:20px;font-weight:600;margin:14px 0 6px;color:var(--ink)}
+  .note-editor h3{font-family:var(--font);font-size:16px;font-weight:600;margin:10px 0 4px;color:var(--ink)}
   .note-editor ul,.note-editor ol{margin:6px 0;padding-left:24px}
   .note-editor li{margin:2px 0}
   .note-editor p{margin:6px 0}
   .note-editor a{color:var(--accent);text-decoration:underline}
   .note-editor img{max-width:100%;border-radius:4px;margin:6px 0}
   .note-editor:empty:before{content:attr(data-placeholder);color:var(--ink-muted);font-style:italic;pointer-events:none}
-  .note-title-input{font-family:var(--serif);font-weight:500;font-size:18px;border:none;background:transparent;width:100%;color:var(--ink);outline:none;padding:4px 0;border-bottom:1px dashed var(--line-soft)}
+  .note-title-input{font-family:var(--font);font-weight:600;font-size:16px;border:none;background:transparent;width:100%;color:var(--ink);outline:none;padding:4px 0;border-bottom:1px dashed var(--line-soft)}
   .note-title-input:focus{border-bottom-color:var(--accent)}
   /* Note modal view mode — clean reading view, hides toolbar + editor borders */
   /* Wikilink-autocomplete (ADR 0026) — flytende liste når du skriver «[[» i et notat.
@@ -683,10 +697,10 @@
 
   [data-note-mode="view"] .note-toolbar{display:none!important}
   [data-note-mode="view"] .note-editor{border:none;padding:0;background:transparent;cursor:pointer;min-height:120px}
-  [data-note-mode="view"] .note-title-input{border-bottom:none;font-size:22px;padding:2px 0;cursor:pointer;pointer-events:none}
+  [data-note-mode="view"] .note-title-input{border-bottom:none;font-size:20px;padding:2px 0;cursor:pointer;pointer-events:none}
   [data-note-mode="view"] .note-edit-hint{display:flex}
   [data-note-mode="edit"] .note-edit-hint{display:none}
-  .note-edit-hint{display:none;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-muted);font-style:italic;padding:8px 0 4px;justify-content:flex-end}
+  .note-edit-hint{display:none;align-items:center;gap:6px;font-size:12px;color:var(--ink-muted);font-style:italic;padding:8px 0 4px;justify-content:flex-end}
   .toggle-edit-btn{padding:5px 12px;font-size:12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer}
   .toggle-edit-btn:hover{background:var(--surface-2)}
 
@@ -695,16 +709,16 @@
   .wikilink:hover{background:var(--surface-2);border-bottom-style:solid}
   .wikilink-broken{color:var(--ink-muted);border-bottom-color:var(--ink-muted);font-style:italic}
   .backlinks{display:flex;flex-direction:column;gap:6px}
-  .backlinks .bl{padding:8px 10px;background:var(--surface-2);border-radius:6px;font-size:12.5px;cursor:pointer;line-height:1.4}
+  .backlinks .bl{padding:8px 10px;background:var(--surface-2);border-radius:6px;font-size:13px;cursor:pointer;line-height:1.4}
   .backlinks .bl:hover{background:var(--line-soft)}
   .backlinks .bl strong{color:var(--ink);font-size:13px;display:block;margin-bottom:2px}
-  .backlinks .bl .snippet{color:var(--ink-muted);font-size:11.5px;font-style:italic}
+  .backlinks .bl .snippet{color:var(--ink-muted);font-size:12px;font-style:italic}
 
   /* Markdown preview */
-  .md-preview{padding:12px;background:var(--surface-2);border-radius:8px;font-size:13.5px;line-height:1.55;color:var(--ink)}
-  .md-preview h2{margin:8px 0 4px;font-family:var(--serif);font-weight:500;font-size:18px;color:var(--ink)}
-  .md-preview h3{margin:8px 0 4px;font-family:var(--serif);font-weight:500;font-size:15px}
-  .md-preview h4{margin:6px 0 2px;font-family:var(--serif);font-weight:500;font-size:14px}
+  .md-preview{padding:12px;background:var(--surface-2);border-radius:8px;font-size:14px;line-height:1.55;color:var(--ink)}
+  .md-preview h2{margin:8px 0 4px;font-family:var(--font);font-weight:600;font-size:16px;color:var(--ink)}
+  .md-preview h3{margin:8px 0 4px;font-family:var(--font);font-weight:600;font-size:15px}
+  .md-preview h4{margin:6px 0 2px;font-family:var(--font);font-weight:600;font-size:14px}
   .md-preview p{margin:6px 0}
   .md-preview ul{margin:6px 0;padding-left:20px}
   .md-preview li{margin:2px 0}
@@ -714,43 +728,47 @@
   .md-preview hr{border:none;border-top:1px solid var(--line);margin:12px 0}
 
   /* Hjem view */
-  .home-greeting{font-family:var(--serif);font-size:24px;color:var(--ink);margin:0 0 4px;font-weight:500}
+  .home-greeting{font-family:var(--font);font-size:26px;color:var(--ink);margin:0 0 4px;font-weight:600;letter-spacing:-.025em}
   .home-greeting .day{color:var(--accent)}
-  .home-date{font-size:13px;color:var(--ink-muted);margin-bottom:18px}
+  .home-date{font-size:13px;color:var(--ink-muted);margin-bottom:24px}
   .home-countdowns{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:20px}
-  .countdown-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;cursor:pointer;transition:transform .12s, box-shadow .12s;position:relative;overflow:hidden}
+  .countdown-card{background:none;border:none;border-top:2px solid var(--line);border-radius:0;padding:12px 2px 14px;cursor:pointer;transition:transform .12s, box-shadow .12s;position:relative;overflow:hidden}
   .countdown-card:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
-  .countdown-card .cd-label{font-size:11px;letter-spacing:.5px;color:var(--ink-muted);font-weight:600;text-transform:uppercase;margin-bottom:4px}
-  .countdown-card .cd-title{font-family:var(--serif);font-size:16px;font-weight:500;color:var(--ink);line-height:1.2;margin-bottom:8px}
-  .countdown-card .cd-days{font-family:var(--serif);font-size:36px;font-weight:500;color:var(--ink);line-height:1}
-  .countdown-card .cd-next{font-size:11.5px;color:var(--ink-muted);margin-top:6px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .home-date .wr-btn{margin-left:10px;padding:2px 9px;font-size:11.5px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer}
-  .countdown-card .cd-days small{display:block;font-family:var(--font);font-size:11px;color:var(--ink-muted);margin-top:4px;font-weight:400;text-transform:uppercase;letter-spacing:.5px}
+  .countdown-card .cd-label{font-size:12px;letter-spacing:0;color:var(--ink-muted);font-weight:500;margin-bottom:6px}
+  .countdown-card .cd-title{font-family:var(--font);font-size:16px;font-weight:600;color:var(--ink);line-height:1.2;margin-bottom:8px}
+  .countdown-card .cd-days{font-family:var(--font);font-size:26px;font-weight:600;color:var(--ink);line-height:1;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+  .countdown-card .cd-next{font-size:12px;color:var(--ink-muted);margin-top:6px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .home-date .wr-btn{margin-left:10px;padding:2px 9px;font-size:12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer}
+  .countdown-card .cd-days small{display:block;font-family:var(--font);font-size:11px;color:var(--ink-muted);margin-top:4px;font-weight:400;letter-spacing:0}
   .countdown-card.featured{background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border-color:var(--accent-soft)}
-  .countdown-card.featured .cd-days{font-size:44px}
+  .countdown-card.featured .cd-days{font-size:26px}
   .countdown-card.urgent .cd-days{color:var(--alert)}
-  .home-section{margin-bottom:20px}
-  .home-section > h3{font-family:var(--serif);font-weight:500;font-size:16px;margin:0 0 10px;color:var(--ink);letter-spacing:0;display:flex;align-items:center;gap:6px}
-  .home-list{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .home-list-urgent{background:var(--alert-bg);border-color:var(--alert)}
-  .home-item{display:flex;align-items:center;gap:12px;padding:9px 14px;border-top:1px solid var(--line-soft);cursor:pointer;font-size:13.5px;transition:background-color .12s}
+  .home-section{margin-bottom:32px}
+  .home-section > h3{font-family:var(--font);font-weight:600;font-size:14px;margin:0;padding-bottom:8px;border-bottom:1px solid var(--ink);color:var(--ink);letter-spacing:-.005em;display:flex;align-items:center;gap:9px}
+  .home-list{background:none;border:none;border-radius:0;overflow:visible}
+  .home-list-urgent{background:none;border:none}
+  .home-item{position:relative;display:flex;align-items:center;gap:12px;padding:10px 0;margin:0;border-top:1px solid var(--line-soft);cursor:pointer;font-size:14px;transition:background-color .1s}
   .home-item:first-of-type{border-top:none}
   .home-item:hover{background:var(--surface-2)}
-  .home-list-urgent .home-item{border-top-color:rgba(200,80,62,0.18)}
-  .home-list-urgent .home-item:hover{background:rgba(200,80,62,0.08)}
-  .hi-date{min-width:60px;font-family:var(--serif);font-size:13px;color:var(--ink-muted);flex-shrink:0}
+  .home-list-urgent .home-item{border-top-color:var(--line-soft)}
+  .home-list-urgent .home-item:hover{background:var(--surface-2)}
+  .hi-date{min-width:60px;font-family:var(--font);font-size:13px;color:var(--ink-muted);flex-shrink:0}
   .hi-date.overdue{color:var(--alert);font-weight:600}
   .hi-title{flex:1;color:var(--ink);line-height:1.35}
-  .home-empty{padding:14px 16px;color:var(--ink-muted);font-style:italic;font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+  .home-empty{padding:12px 0;color:var(--ink-muted);font-style:normal;font-size:13px;background:none;border:none;border-radius:0}
   .home-item input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;margin:0}
-  .home-item .drag-handle{color:var(--ink-muted);font-size:11px;cursor:grab;user-select:none;letter-spacing:-2px;width:14px;flex-shrink:0;opacity:.5;transition:opacity .12s}
-  .home-item:hover .drag-handle{opacity:1}
+  .home-item .drag-handle{position:absolute;left:-20px;top:50%;transform:translateY(-50%);color:var(--ink-muted);font-size:11px;cursor:grab;user-select:none;letter-spacing:-2px;width:14px;opacity:0;transition:opacity .12s}
+  .home-item:hover .drag-handle{opacity:.8}
   .home-item.dragging{opacity:.4}
   .home-item.drop-before{border-top:2px solid var(--accent)!important;margin-top:-1px}
   .home-item.drop-after{border-bottom:2px solid var(--accent)!important;margin-bottom:-1px}
   /* Generic drag-handle styling for any task row */
   .drag-handle{color:var(--ink-muted);font-size:11px;cursor:grab;user-select:none;letter-spacing:-2px;width:14px;flex-shrink:0;opacity:.5;transition:opacity .12s;display:inline-block}
-  .ptask:hover .drag-handle,.todo-row:hover .drag-handle{opacity:1}
+  /* Draghåndtaket står i venstremargen og vises ved hover (ADR 0056). Før skjøv det
+     avkryssingsboksen 26 px inn på rader som kunne dras, og ikke på de andre — så
+     Urgent og Uten frist på Hjem startet i hver sin kolonne. */
+  .todo-row .drag-handle{position:absolute;left:-20px;top:50%;transform:translateY(-50%);opacity:0}
+  .ptask:hover .drag-handle,.todo-row:hover .drag-handle{opacity:.8}
   .ptask.dragging,.todo-row.dragging{opacity:.4}
   .ptask.drop-before,.todo-row.drop-before{border-top:2px solid var(--accent)!important;margin-top:-1px}
   .ptask.drop-after,.todo-row.drop-after{border-bottom:2px solid var(--accent)!important;margin-bottom:-1px}
@@ -759,7 +777,7 @@
      fotnote — og fikk prosjektnavnet skrevet inn i tittelen i tillegg. Dempet, men en ting. */
   .proj-chip{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;
     background:var(--surface-2);border:1px solid var(--line);color:var(--ink-soft);
-    font-size:10.5px;line-height:1.5;white-space:nowrap;vertical-align:baseline}
+    font-size:11px;line-height:1.5;white-space:nowrap;vertical-align:baseline}
   /* Fargen kommer fra --pc-h, satt inline av projChipHTML() ut fra prosjekttittelen.
      Bare nyansen varierer — metning og lyshet står her, én gang for lys og én gang for
      mørk modus, så kontrasten er kontrollert begge steder. Faller tilbake til den gamle
@@ -777,7 +795,7 @@
 
   /* Week calendar view on Hjem — 7 columns (Mon–Sun) */
   .hjem-week-title{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap}
-  .hjem-week-title .wn{font-family:var(--serif);font-size:14px;color:var(--ink-soft)}
+  .hjem-week-title .wn{font-family:var(--font);font-size:14px;color:var(--ink-soft)}
   .hjem-week-title .wn strong{color:var(--ink);font-weight:500;margin:0 4px}
   .hjem-week-title .range{font-size:12px;color:var(--ink-muted)}
   .hjem-week{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
@@ -789,23 +807,23 @@
   .hjem-week-col.today.weekend{background:var(--today)}
   .hjem-week-col-h{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line-soft);background:var(--surface-2);position:sticky;top:0}
   .hjem-week-col.weekend .hjem-week-col-h{background:var(--surface-2)}
-  .hjem-week-col-h .wd{font-size:10px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:2px}
-  .hjem-week-col-h .num{font-family:var(--serif);font-size:18px;color:var(--ink);font-weight:500;display:block;line-height:1}
+  .hjem-week-col-h .wd{font-size:11px;color:var(--ink-muted);letter-spacing:0;display:block;margin-bottom:2px}
+  .hjem-week-col-h .num{font-family:var(--font);font-size:16px;color:var(--ink);font-weight:600;display:block;line-height:1}
   .hjem-week-col.today .hjem-week-col-h .num{color:var(--accent)}
-  .hjem-week-col-h .hol{font-size:9px;color:var(--alert);font-style:italic;display:block;margin-top:2px;line-height:1.15;word-break:break-word}
-  .hjem-week-items{padding:6px;display:flex;flex-direction:column;gap:3px;flex:1;font-size:10.5px}
+  .hjem-week-col-h .hol{font-size:11px;color:var(--alert);font-style:italic;display:block;margin-top:2px;line-height:1.15;word-break:break-word}
+  .hjem-week-items{padding:6px;display:flex;flex-direction:column;gap:3px;flex:1;font-size:11px}
   .hjem-week-items .wke{background:var(--surface);border-left:2px solid var(--ink-muted);padding:3px 6px;border-radius:3px;cursor:pointer;line-height:1.3;word-break:break-word;color:var(--ink)}
   .hjem-week-items .wke:hover{filter:brightness(.95)}
-  .hjem-week-items .wke strong{font-weight:600;font-size:10px}
+  .hjem-week-items .wke strong{font-weight:600;font-size:11px}
   .hjem-week-items .wke.cat-arbeid{border-left-color:var(--work)}
   .hjem-week-items .wke.cat-privat{border-left-color:var(--privat)}
   .hjem-week-items .wke.ics{font-style:italic;background:var(--ics-bg);border-left-color:var(--ics-line)}
   [data-theme="dark"] .hjem-week-items .wke.ics{background:#1f2935}
-  .hjem-week-items .wke-empty{font-size:10px;color:var(--ink-muted);font-style:italic;padding:4px 2px;text-align:center}
+  .hjem-week-items .wke-empty{font-size:11px;color:var(--ink-muted);font-style:italic;padding:4px 2px;text-align:center}
   
   
-  .home-quick{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:18px}
-  .home-quick input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--surface);color:var(--ink)}
+  .home-quick{background:none;border:none;border-radius:0;padding:0;margin-bottom:30px}
+  .home-quick input{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:8px;font-size:15px;background:var(--surface);color:var(--ink);transition:border-color .12s,box-shadow .12s}
   .home-quick .home-quick-hint{font-size:11px;color:var(--ink-muted);margin-top:6px}
 
   /* Task completion animation */
@@ -819,48 +837,49 @@
   /* Today dashboard */
   .dashboard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
   
-  .dashboard h4{margin:0 0 8px;font-family:var(--serif);font-weight:500;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:6px}
-  .dashboard .dash-item{padding:4px 0;font-size:12.5px;color:var(--ink-soft);display:flex;gap:8px;align-items:flex-start;line-height:1.35;cursor:pointer;border-top:1px solid var(--line-soft)}
+  .dashboard h4{margin:0 0 8px;font-family:var(--font);font-weight:600;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:6px}
+  .dashboard .dash-item{padding:4px 0;font-size:13px;color:var(--ink-soft);display:flex;gap:8px;align-items:flex-start;line-height:1.35;cursor:pointer;border-top:1px solid var(--line-soft)}
   .dashboard .dash-item:first-of-type{border-top:none}
   .dashboard .dash-item:hover{color:var(--ink)}
-  .dashboard .dash-item .ddate{min-width:48px;color:var(--ink-muted);font-family:var(--serif);font-size:12px;flex-shrink:0}
+  .dashboard .dash-item .ddate{min-width:48px;color:var(--ink-muted);font-family:var(--font);font-size:12px;flex-shrink:0}
   .dashboard .dash-item .dtitle{flex:1}
   .dashboard .dash-item .dtitle .dmeta{display:block;font-size:11px;color:var(--ink-muted);margin-top:1px}
   .dashboard .dash-urgent h4{color:var(--alert)}
   .dashboard .dash-empty{font-size:12px;color:var(--ink-muted);font-style:italic;padding:4px 0}
 
   /* Priority pills + To Do's view */
-  .pill.prio-urgent{background:var(--alert);color:#fff}
-  .pill.prio-short{background:#c9a87a;color:#fff}
-  .pill.prio-long{background:#6b7d99;color:#fff}
-  .pill.prio-none{background:var(--surface-2);color:var(--ink-muted)}
-  .todo-quick{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:18px;display:flex;flex-direction:column;gap:10px}
+  .pill.prio-urgent{--dot:var(--pri-urgent);color:var(--ink-soft)}
+  .pill.prio-short{--dot:var(--pri-short);color:var(--ink-soft)}
+  .pill.prio-long{--dot:var(--pri-long);color:var(--ink-soft)}
+  .pill.prio-none{--dot:var(--line);color:var(--ink-muted)}
+  .todo-quick{background:none;border:none;border-radius:0;padding:0;margin-bottom:30px;display:flex;flex-direction:column;gap:10px}
   /* Uten eksplisitt bakgrunn arver feltet nettleserens hvite standard, mens teksten
      følger --ink. I mørk modus ble det lys tekst på hvitt — praktisk talt usynlig. */
-  .todo-quick input.qtxt{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--surface);color:var(--ink)}
+  .todo-quick input.qtxt{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:8px;font-size:15px;background:var(--surface);color:var(--ink);transition:border-color .12s,box-shadow .12s}
   .todo-quick .qbtns{display:flex;gap:6px;flex-wrap:wrap}
   .todo-quick .qbtns button,
-  .todo-quick .qbtns select{padding:6px 12px;font-size:12.5px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
-  .todo-quick .qbtns button.urgent{background:var(--bh-urgent-bg);border-color:var(--bh-urgent-line);color:var(--bh-urgent-ink)}
-  .todo-quick .qbtns button.short{background:var(--bh-short-bg);border-color:var(--bh-short-line);color:var(--bh-short-ink)}
-  .todo-quick .qbtns button.long{background:var(--bh-long-bg);border-color:var(--bh-long-line);color:var(--bh-long-ink)}
-  .todo-quick .qbtns button:hover{filter:brightness(.95)}
-  .todo-bucket{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;overflow:hidden}
-  .todo-bucket .bh{padding:10px 16px;background:var(--surface-2);font-family:var(--serif);font-size:15px;font-weight:500;display:flex;justify-content:space-between;align-items:center;color:var(--ink)}
-  .todo-bucket .bh small{font-size:11.5px;color:var(--ink-muted);font-weight:400;font-family:var(--font);font-style:italic}
-  .todo-bucket .bh.urgent{background:var(--bh-urgent-bg);color:var(--bh-urgent-ink)}
-  .todo-bucket .bh.short{background:var(--bh-short-bg);color:var(--bh-short-ink)}
-  .todo-bucket .bh.long{background:var(--bh-long-bg);color:var(--bh-long-ink)}
-  .todo-row{padding:8px 16px;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:13.5px}
+  .todo-quick .qbtns select{padding:6px 10px;font-size:13px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
+  .todo-quick .qbtns button.urgent{background:var(--surface);border-color:var(--line);color:var(--ink-soft);--dot:var(--pri-urgent)}
+  .todo-quick .qbtns button.short{background:var(--surface);border-color:var(--line);color:var(--ink-soft);--dot:var(--pri-short)}
+  .todo-quick .qbtns button.long{background:var(--surface);border-color:var(--line);color:var(--ink-soft);--dot:var(--pri-long)}
+  .todo-quick .qbtns button:hover{border-color:var(--ink-muted);color:var(--ink)}
+  .todo-bucket{background:none;border:none;border-radius:0;margin:0 0 30px;overflow:visible}
+  .todo-bucket .bh{padding:0 0 8px;background:none;font-family:var(--font);font-size:14px;font-weight:600;letter-spacing:-.005em;display:grid;grid-template-columns:7px auto 1fr auto;column-gap:9px;row-gap:2px;align-items:center;color:var(--ink);border-bottom:1px solid var(--ink)}
+  .todo-bucket .bh small{grid-column:4;font-size:12px;color:var(--ink-muted);font-weight:400;font-family:var(--font);font-style:normal;justify-self:end;text-align:right;font-variant-numeric:tabular-nums}
+  .todo-bucket .bh .bh-hint{grid-column:3;justify-self:end;font-size:12px;font-weight:400;color:var(--ink-muted);text-align:right;padding-right:6px}
+  .todo-bucket .bh.urgent{background:none;color:var(--ink);--dot:var(--pri-urgent)}
+  .todo-bucket .bh.short{background:none;color:var(--ink);--dot:var(--pri-short)}
+  .todo-bucket .bh.long{background:none;color:var(--ink);--dot:var(--pri-long)}
+  .todo-row{position:relative;padding:10px 0;margin:0;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:10px;font-size:14px;transition:background-color .1s}
   .todo-row:first-of-type{border-top:none}
   .todo-row.done .ttitle{text-decoration:line-through;color:var(--ink-muted)}
   .todo-row .ttitle{flex:1;cursor:pointer;display:flex;align-items:center;gap:6px;min-width:0}
   /* Dato og prosjekt-chip skal ikke krympe eller brytes — det er tittelen som skal ta
      plassen. Uten `flex-shrink:0` klemte flex-oppsettet chipen til «Meox …». ADR 0035. */
-  .todo-row .ttitle .due{font-size:11px;color:var(--ink-muted);flex:0 0 auto;white-space:nowrap}
+  .todo-row .ttitle .due{font-size:12px;color:var(--ink-muted);flex:0 0 auto;white-space:nowrap;font-variant-numeric:tabular-nums}
   /* Forfalt frist. Ordene bærer det alene («2 dager på overtid»), men fargen fanger
      blikket først når lista er lang. ADR 0040. */
-  .todo-row .ttitle .due.overdue{color:var(--alert);font-weight:600}
+  .todo-row .ttitle .due.overdue{color:var(--alert);font-weight:500}
   .todo-row .ttitle > .proj-chip{flex:0 0 auto}
 
   /* Velg-modus og handlingslinje (ADR 0042) */
@@ -874,7 +893,7 @@
   .bulkbar .bb-count{font-weight:600;font-size:13px;color:var(--ink);white-space:nowrap}
   .bulkbar .bb-hint{font-size:12px;color:var(--ink-muted);font-style:italic}
   .bulkbar .bb-field{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft)}
-  .bulkbar button,.bulkbar select,.bulkbar input{padding:5px 10px;font-size:12.5px;border-radius:6px;
+  .bulkbar button,.bulkbar select,.bulkbar input{padding:5px 10px;font-size:13px;border-radius:6px;
     border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
   .bulkbar button{cursor:pointer}
   .bulkbar button:hover{background:var(--surface-2);color:var(--ink)}
@@ -887,13 +906,12 @@
   .todo-row .actions button{padding:3px 7px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
   .todo-row .actions button:hover{background:var(--surface-2)}
   .todo-row .actions .ag{color:var(--alert);border-color:transparent}
-  .todo-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent)}
-  .todo-empty{padding:14px 16px;color:var(--ink-muted);font-style:italic;font-size:13px;text-align:center}
-
+  .todo-row input[type=checkbox]{appearance:none;-webkit-appearance:none;width:16px;height:16px;flex:0 0 16px;margin:0;border:1.5px solid color-mix(in srgb,var(--ink-muted) 70%,transparent);border-radius:4px;background:var(--surface);display:grid;place-content:center;cursor:pointer;transition:background-color .12s,border-color .12s}
+  .todo-empty{padding:11px 0;color:var(--ink-muted);font-style:normal;font-size:13px;text-align:left}
   /* «Fra prosjekter»-bøtta (ADR 0045). Dempet overskrift — den skal ikke konkurrere med
      Urgent/Short/Long, som er hennes egen prioritering. Gruppeoverskriften bærer
      prosjektets farge fra --pc-h (ADR 0041), så raden kjennes igjen fra kortet. */
-  .todo-bucket .bh.proj{background:var(--surface-2);color:var(--ink-soft)}
+  .todo-bucket .bh.proj{background:none;color:var(--ink);--dot:var(--pri-proj)}
   .proj-bucket .ptgroup + .ptgroup{border-top:1px solid var(--line)}
   .ptgroup-head{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;
     background:var(--surface);border-top:1px solid var(--line-soft);
@@ -908,8 +926,8 @@
   .ptodo-row .actions{min-width:0}
   .ptodo-row.done .ttitle{text-decoration:line-through;color:var(--ink-muted)}
   .lrow.ics .ldate{opacity:.7}
-  .pill.ics{background:#5b8db8}
-  .sync-status{font-size:11.5px;color:var(--ink-muted)}
+  .pill.ics{--dot:var(--ics-line)}
+  .sync-status{font-size:12px;color:var(--ink-muted)}
   .sync-status.error{color:var(--alert)}
   .sync-status.ok{color:#588a58}
 
@@ -924,18 +942,18 @@
 
   /* ====== Utility classes (consolidated from repeated inline styles, added 2026-05-26) ====== */
   .text-alert{color:var(--alert)}
-  .text-muted-sm{font-size:11.5px;color:var(--ink-muted)}
-  .text-muted-italic{font-size:11.5px;color:var(--ink-muted);font-style:italic}
+  .text-muted-sm{font-size:12px;color:var(--ink-muted)}
+  .text-muted-italic{font-size:12px;color:var(--ink-muted);font-style:italic}
   .text-note{font-weight:400;color:var(--ink-muted);text-transform:none;letter-spacing:0}
   .text-mute-small{color:var(--ink-muted);font-size:11px}
-  .btn-sec{padding:6px 12px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
+  .btn-sec{padding:6px 12px;font-size:13px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);transition:border-color .12s,color .12s}
   .btn-sec-lg{padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
-  .btn-sec-xs{padding:2px 4px;font-size:11px;border-radius:4px;border:1px solid var(--line);background:var(--surface)}
+  .btn-sec-xs{padding:3px 7px;font-size:12px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--surface);color:var(--ink-soft)}
   .btn-action{padding:7px 12px;border-radius:6px;border:1px solid var(--line);font-size:13px}
   .flex-row-gap{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .flex-col-stretch{flex-direction:column;align-items:stretch;gap:6px}
   .section-break{padding:10px 0;border-bottom:1px solid var(--line-soft);margin-bottom:6px}
-  .section-title{font-family:var(--serif);font-size:15px;margin-bottom:8px}
+  .section-title{font-family:var(--font);font-weight:600;font-size:14px;margin-bottom:8px;letter-spacing:-.005em}
   .input-mono{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-family:monospace;margin-bottom:8px}
   .input-overlay{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
   .pos-rel-ib{position:relative;display:inline-block}
@@ -988,6 +1006,63 @@
    strek under datoen der ville vært to måter å si det samme på. */
 .todo-row .due-tap{ cursor:pointer }
 
+
+/* ===== Designsystemet — komponenttillegg (ADR 0056) =====================
+   Reglene over er skrevet om på stedet. Her står bare det som ikke fantes:
+   prikkene som erstatter de fargefylte overskriftene, fokusringer, og den
+   tegnede avkryssingsboksen for PC (telefonens ligger i 700 px-blokka). */
+
+/* Prioritet/kategori som en liten prikk. `--dot` settes av regelen over. */
+.todo-bucket .bh::before,
+.todo-quick .qbtns button.urgent::before,.todo-quick .qbtns button.short::before,.todo-quick .qbtns button.long::before,
+.pill::before,
+.home-section > h3.hs-dot::before{
+  content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--dot,var(--pri-proj));flex:0 0 7px}
+.todo-quick .qbtns button.urgent::before,.todo-quick .qbtns button.short::before,.todo-quick .qbtns button.long::before{
+  margin-right:7px;vertical-align:1px}
+.todo-bucket .bh:not(.urgent):not(.short):not(.long):not(.proj){--dot:var(--ink-muted)}
+.todo-bucket .bh + .todo-row,.todo-bucket .bh + .ptgroup,.home-section > h3 + .home-list .home-item:first-child{border-top:none}
+.home-section > h3.hs-dot.urgent{--dot:var(--pri-urgent)}
+.home-section > h3.hs-dot.today{--dot:var(--ink)}
+.home-section > h3.hs-dot.none{--dot:var(--line)}
+.home-section > h3 small,.home-section > h3 .hs-note{margin-left:auto;font-size:12px;font-weight:400;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+
+/* Raden: hover som en svak flate, ikke en ramme */
+/* Hover-flaten stikker 8 px ut på hver side med skygge, ikke marg — da står
+   radstrekene i linje med overskriftens strek, og ingenting flytter seg. */
+.todo-row:hover,.home-item:hover,.home-list-urgent .home-item:hover{background:var(--surface-2);box-shadow:-8px 0 0 var(--surface-2),8px 0 0 var(--surface-2)}
+.todo-row .ttitle{font-size:14px;line-height:1.45;color:var(--ink)}
+
+/* Avkryssingsboks, PC. Samme tegning som telefonens (ADR 0051), mindre. */
+.todo-row input[type=checkbox]::before,.home-item input[type=checkbox]::before,.ptask input[type=checkbox]::before{
+  content:"";width:9px;height:5px;border:solid transparent;border-width:0 0 2px 2px;transform:rotate(-45deg) translate(1px,-1px)}
+.todo-row input[type=checkbox]:checked,.home-item input[type=checkbox]:checked,.ptask input[type=checkbox]:checked{
+  background:var(--ink);border-color:var(--ink)}
+.todo-row input[type=checkbox]:checked::before,.home-item input[type=checkbox]:checked::before,.ptask input[type=checkbox]:checked::before{
+  border-color:var(--surface)}
+.home-item input[type=checkbox],.ptask input[type=checkbox]{
+  appearance:none;-webkit-appearance:none;width:16px;height:16px;flex:0 0 16px;margin:0;
+  border:1.5px solid color-mix(in srgb,var(--ink-muted) 70%,transparent);border-radius:4px;background:var(--surface);
+  display:grid;place-content:center;cursor:pointer;transition:background-color .12s,border-color .12s}
+.todo-row input[type=checkbox]:hover,.home-item input[type=checkbox]:hover,.ptask input[type=checkbox]:hover{border-color:var(--ink)}
+
+/* Fokus: synlig for tastatur, usynlig for mus */
+:where(button,select,input,textarea,[data-action]):focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:var(--radius-sm)}
+.todo-quick input.qtxt:focus,.home-quick input:focus,
+.modal .field input:focus,.modal .field select:focus,.modal .field textarea:focus{
+  outline:none;border-color:var(--ink);box-shadow:0 0 0 3px color-mix(in srgb,var(--ink) 9%,transparent)}
+.btn-sec:hover{border-color:var(--ink-muted);color:var(--ink)}
+.nav button:hover{color:var(--ink)}
+
+/* Prosjektkort: tittelen understrekes ved hover i stedet for at kortet hopper */
+.pcard:hover{transform:none;box-shadow:none;background:var(--surface-dim)}
+.countdown-card:hover{transform:none;box-shadow:none;background:var(--surface-dim)}
+
+/* Tall som skal stå i kolonne */
+.due,.ptodo-date,.hi-date,.pcount,.cd-days,.ptgroup-count,.badge{font-variant-numeric:tabular-nums}
+body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
+
   @media (max-width:1100px){.overview{grid-template-columns:repeat(3,1fr)}}
 
   @media (max-width:680px){.overview{grid-template-columns:repeat(2,1fr)}}
@@ -996,11 +1071,11 @@
 
   @media (max-width:680px){
     .month-grid .cell{min-height:64px;padding:4px}
-    .month-grid .cell .ev{font-size:10px;padding:1px 3px}
-    .month-grid .row.head .cell{padding:5px;font-size:10px}
+    .month-grid .cell .ev{font-size:11px;padding:1px 3px}
+    .month-grid .row.head .cell{padding:5px;font-size:11px}
   }
 
-  @media (max-width:680px){.week{grid-template-columns:36px repeat(7,1fr);font-size:11px}.week .wh{padding:4px;font-size:9.5px}.week .wh strong{font-size:12px}}
+  @media (max-width:680px){.week{grid-template-columns:36px repeat(7,1fr);font-size:11px}.week .wh{padding:4px;font-size:11px}.week .wh strong{font-size:12px}}
 
   @media (max-width:900px){.day-layout{grid-template-columns:1fr}}
 
@@ -1032,7 +1107,7 @@
 
   /* ====== iPhone / mobile polish ====== */
   @media (max-width: 700px){
-    body{font-size:14.5px}
+    body{font-size:15px}
     main{padding:12px 10px 90px}
     /* Topbar wraps and shrinks */
     header.topbar{padding:8px 10px;gap:8px}
@@ -1059,14 +1134,14 @@
       flex-shrink:0;
       border-radius:8px;
       padding:8px 12px;
-      font-size:11.5px;
+      font-size:12px;
       letter-spacing:.2px;
       flex:1;
       min-width:62px;
     }
     .nav button.active{background:var(--accent);color:#fff}
     [data-theme="dark"] .nav button.active{color:#1a1d24}
-    .nav button .badge{font-size:9px;padding:0 4px;margin-left:3px}
+    .nav button .badge{font-size:11px;padding:0 4px;margin-left:3px}
     .filter{padding:2px;flex-shrink:0}
     .filter button{padding:8px 12px;font-size:13px}
     /* Bigger tap targets for icon buttons */
@@ -1075,7 +1150,7 @@
     .fab{width:54px;height:54px;font-size:28px;bottom:78px;right:14px;box-shadow:0 4px 14px rgba(40,40,40,.22), 0 1px 3px rgba(40,40,40,.12)}
     .fab .icon{width:22px;height:22px}
     /* Subnav simplifies */
-    .subnav h2{font-size:18px}
+    .subnav h2{font-size:16px}
     .subnav h2 .yr{font-size:14px;display:block;margin:2px 0 0}
     /* Day view stacks earlier */
     .day-layout{grid-template-columns:1fr}
@@ -1092,17 +1167,17 @@
     input,textarea,select{font-size:16px}
     /* Gantt: narrower label, smaller footprint */
     .gantt-headrow,.gantt-row{grid-template-columns:90px 1fr}
-    .gantt-row .label{padding:6px 8px;font-size:11.5px}
+    .gantt-row .label{padding:6px 8px;font-size:12px}
     .gantt-inner{min-width:600px}
     /* Today dashboard stacks */
     .dashboard{grid-template-columns:1fr;padding:12px 14px;gap:12px}
     /* Project detail */
     .pdetail .phead{flex-direction:column;padding:14px 16px}
-    .pdetail .phead .pcount{text-align:left;font-size:24px}
+    .pdetail .phead .pcount{text-align:left;font-size:20px}
     .pdetail .pbody{padding:6px 16px 16px}
     /* Month-grid cells smaller */
     .month-grid .cell{min-height:54px;padding:3px 4px;font-size:11px}
-    .month-grid .cell .ev{font-size:10px;padding:1px 3px}
+    .month-grid .cell .ev{font-size:11px;padding:1px 3px}
     /* Settings secrets-input: smaller font ok since not user-typed */
     #ics-url,#sync-url,#sync-token{font-size:12px}
   }
@@ -1119,19 +1194,19 @@
   /* iPhone redesign — touch-first sizing, generous spacing, native feel */
   /* ============================================================ */
   @media (max-width: 700px) {
-    body { font-size: 15px; line-height: 1.5; }
+    body { font-size:15px; line-height: 1.5; }
     main { padding: 14px 14px calc(86px + env(safe-area-inset-bottom, 0px)); }
 
     /* Topbar minimal — brand + sync + actions only */
     header.topbar { padding: 10px 14px; gap: 10px; border-bottom: 1px solid var(--line); }
-    .brand { font-size: 17px; }
+    .brand { font-size:16px; }
     .topbar-spacer { display: none; }
     .filter {
       order: 100; width: 100%; margin-top: 2px;
-      background: var(--surface-2); padding: 3px; border-radius: 999px;
+      background: none; border: 1px solid var(--line); padding: 2px; border-radius: 8px;
       gap: 2px;
     }
-    .filter button { flex: 1; padding: 9px 8px; font-size: 13px; min-height: 38px; }
+    .filter button { flex: 1; padding: 9px 8px; font-size:13px; min-height: 38px; }
     .icon-btn { width: 42px; height: 42px; }
 
     /* Bottom nav — iOS-style with active background. 4 fixed buttons (Hjem, Prosjekter, To Do's, Mer) — no horizontal scroll. */
@@ -1148,7 +1223,7 @@
     .nav::-webkit-scrollbar { display: none; }
     .nav button {
       flex: 1 1 0; min-width: 0;
-      padding: 12px 6px; font-size: 13px; font-weight: 500;
+      padding: 12px 6px; font-size:13px; font-weight: 500;
       border-radius: 12px; line-height: 1.2;
       color: var(--ink-soft);
       white-space: nowrap;
@@ -1157,7 +1232,7 @@
     }
     .nav button.active { background: var(--accent); color: #fff; font-weight: 600; }
     [data-theme="dark"] .nav button.active { color: #1a1d24; }
-    .nav button .badge { font-size: 9.5px; padding: 1px 5px; margin-left: 3px; }
+    .nav button .badge { font-size:11px; padding: 1px 5px; margin-left: 3px; }
 
     /* FAB — larger, sits above bottom nav with safe area */
     .fab {
@@ -1169,26 +1244,26 @@
     .fab .icon { width: 26px; height: 26px; }
 
     /* Hjem — bigger sections, full-width countdown cards */
-    .home-greeting { font-size: 24px; line-height: 1.2; margin-bottom: 4px; }
-    .home-date { font-size: 13.5px; margin-bottom: 18px; color: var(--ink-muted); }
+    .home-greeting { font-size:20px; line-height: 1.2; margin-bottom: 4px; }
+    .home-date { font-size:14px; margin-bottom: 18px; color: var(--ink-muted); }
     .home-section { margin-bottom: 24px; }
-    .home-section > h3 { font-size: 17px; margin-bottom: 12px; gap: 8px; }
+    .home-section > h3 { font-size:16px; margin-bottom: 12px; gap: 8px; }
     .home-countdowns { grid-template-columns: 1fr; gap: 12px; }
     .countdown-card { padding: 18px 20px; min-height: 100px; }
-    .countdown-card .cd-title { font-size: 17px; line-height: 1.25; }
-    .countdown-card .cd-days { font-size: 38px; }
-    .countdown-card.featured .cd-days { font-size: 44px; }
+    .countdown-card .cd-title { font-size:16px; line-height: 1.25; }
+    .countdown-card .cd-days { font-size:26px; }
+    .countdown-card.featured .cd-days { font-size:26px; }
     .home-quick { padding: 14px 16px; }
-    .home-quick input { font-size: 16px; padding: 14px 16px; min-height: 48px; border-radius: 10px; }
-    .home-quick-hint { font-size: 12px; margin-top: 8px; }
+    .home-quick input { font-size:16px; padding: 14px 16px; min-height: 48px; border-radius: 10px; }
+    .home-quick-hint { font-size:12px; margin-top: 8px; }
 
     /* List rows — bigger touch targets */
-    .home-item { padding: 14px 16px; gap: 12px; font-size: 15px; min-height: 52px; }
+    .home-item { padding: 14px 16px; gap: 12px; font-size:15px; min-height: 52px; }
     .home-item input[type=checkbox] { width: 22px; height: 22px; }
     .home-item .drag-handle { display: none; } /* drag handles hidden on touch */
-    .hi-date { min-width: 64px; font-size: 13px; }
-    .hi-title { font-size: 15px; line-height: 1.4; }
-    .home-empty { padding: 16px 18px; font-size: 14px; }
+    .hi-date { min-width: 64px; font-size:13px; }
+    .hi-title { font-size:15px; line-height: 1.4; }
+    .home-empty { padding: 12px 0; font-size:14px; }
 
     /* Week calendar — horizontal scroll with snap, larger column width */
     .hjem-week-grid {
@@ -1200,30 +1275,38 @@
     .hjem-week-grid::-webkit-scrollbar { display: none; }
     .hjem-week-col { scroll-snap-align: start; min-height: 220px; }
     .hjem-week-col-h { padding: 12px 8px; }
-    .hjem-week-col-h .wd { font-size: 11px; }
-    .hjem-week-col-h .num { font-size: 22px; line-height: 1.1; }
-    .hjem-week-items { padding: 8px; font-size: 12px; gap: 4px; }
+    .hjem-week-col-h .wd { font-size:11px; }
+    .hjem-week-col-h .num { font-size:20px; line-height: 1.1; }
+    .hjem-week-items { padding: 8px; font-size:12px; gap: 4px; }
     .hjem-week-items .wke { padding: 6px 9px; line-height: 1.35; min-height: 28px; border-radius: 5px; }
 
     /* To Do's */
     .todo-quick { padding: 16px; gap: 12px; }
-    .todo-quick input.qtxt { font-size: 16px; padding: 14px 16px; min-height: 48px; border-radius: 10px; }
+    .todo-quick input.qtxt { font-size:16px; padding: 14px 16px; min-height: 48px; border-radius: 10px; }
     /* Quick-add buttons: 2-column grid on mobile so they don't wrap awkwardly */
-    .todo-quick .qbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    /* Fire prioriteter på én rad, prosjekt og tale på neste: to rader i stedet for tre
+       før første oppgave (ADR 0056). 44 px høye, så treffområdet er det samme. */
+    .todo-quick .qbtns { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; }
     .todo-quick .qbtns button,
-    .todo-quick .qbtns select { padding: 11px 12px; font-size: 13.5px; min-height: 44px; border-radius: 10px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .todo-quick .qbtns select { padding: 10px 4px; font-size:13px; min-height: 44px; border-radius: 8px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .todo-quick .qbtns select { grid-column: span 3; padding: 10px 10px; }
+    /* Prikken + ordet fikk ikke plass i en fjerdedel av 390 px («Short t…»). Prioriteten
+       bæres her av en 2 px strek i underkant i stedet — null bredde. */
+    .todo-quick .qbtns button.urgent::before,.todo-quick .qbtns button.short::before,.todo-quick .qbtns button.long::before{display:none}
+    .todo-quick .qbtns button.urgent,.todo-quick .qbtns button.short,.todo-quick .qbtns button.long{box-shadow:inset 0 -2px 0 var(--dot)}
+    .todo-quick{margin-bottom:22px}
     .todo-bucket { margin-bottom: 18px; border-radius: 14px; }
-    .todo-bucket .bh { padding: 14px 18px; font-size: 16px; }
+    .todo-bucket .bh { padding: 14px 18px; font-size:16px; }
     /* Task rows: title gets full width on first line, actions wrap to a second row below.
        Prevents the word-by-word vertical wrapping that happens when actions squeeze the title column. */
     /* Polstring og skriftstørrelse holdes bevisst på verdiene ADR 0044 målte
        (median radhøyde 57–60 px på iPhone). Denne blokka var delvis død fram til
        ADR 0046, og da den våknet vokste raden til 71 px. Berøringsmålene beholdes
        store — det er avkryssingsboksen og knappene som skal treffes, ikke raden. */
-    .todo-row { padding: 8px 16px; gap: 10px; font-size: 13.5px; min-height: 56px; flex-wrap: wrap; align-items: center; row-gap: 10px; }
+    .todo-row { padding: 8px 16px; gap: 10px; font-size:14px; min-height: 56px; flex-wrap: wrap; align-items: center; row-gap: 10px; }
     .todo-row input[type=checkbox] { width: 22px; height: 22px; flex-shrink: 0; }
     .todo-row .ttitle {
-      font-size: 15px; line-height: 1.4;
+      font-size:15px; line-height: 1.4;
       flex: 1 1 calc(100% - 50px); /* full width minus checkbox */
       min-width: 0;
       word-wrap: break-word; overflow-wrap: anywhere;
@@ -1235,42 +1318,42 @@
       justify-content: flex-end;
       padding-left: 34px; /* align under title (past checkbox) */
     }
-    .todo-row .actions button { min-width: 40px; min-height: 40px; padding: 6px 10px; font-size: 14px; border-radius: 8px; }
-    .todo-row .actions select { min-height: 40px; padding: 6px 10px; font-size: 13px; border-radius: 8px; }
+    .todo-row .actions button { min-width: 40px; min-height: 40px; padding: 6px 10px; font-size:14px; border-radius: 8px; }
+    .todo-row .actions select { min-height: 40px; padding: 6px 10px; font-size:13px; border-radius: 8px; }
     /* Inbox quick-priority buttons: more breathing room */
     .todo-row .actions button[title*="Urgent"],
     .todo-row .actions button[title*="Short term"],
-    .todo-row .actions button[title*="Long term"] { font-size: 16px; }
+    .todo-row .actions button[title*="Long term"] { font-size:16px; }
 
     /* Projects grid */
     .projects-grid { grid-template-columns: 1fr; gap: 12px; }
-    .pcard { padding: 18px 20px; min-height: 110px; border-radius: 14px; }
-    .pcard h3 { font-size: 19px; line-height: 1.25; }
-    .pcard .countdown { font-size: 26px; }
-    .pcard .pstats { font-size: 12px; gap: 14px; }
+    .pcard { padding: 14px 2px 18px; min-height: 110px; border-radius: 0; }
+    .pcard h3 { font-size:16px; line-height: 1.3; }
+    .pcard .countdown { font-size:20px; }
+    .pcard .pstats { font-size:12px; gap: 14px; }
 
     /* Project detail page */
     .pdetail { border-radius: 14px; }
     .pdetail .phead { padding: 18px 18px; flex-direction: column; align-items: flex-start; gap: 12px; }
-    .pdetail .phead h2 { font-size: 22px; }
-    .pdetail .phead .pcount { text-align: left; font-size: 30px; }
+    .pdetail .phead h2 { font-size:20px; }
+    .pdetail .phead .pcount { text-align: left; font-size:26px; }
     .pdetail .pbody { padding: 8px 18px 18px; }
     .psection { padding: 18px 0; }
-    .psection h4 { font-size: 17px; line-height: 1.3; }
-    .pback { padding: 8px 0; font-size: 13.5px; min-height: 36px; }
+    .psection h4 { font-size:16px; line-height: 1.3; }
+    .pback { padding: 8px 0; font-size:14px; min-height: 36px; }
 
     /* Project tasks */
-    .ptask { padding: 14px 0; gap: 12px; font-size: 15px; min-height: 52px; }
+    .ptask { padding: 14px 0; gap: 12px; font-size:15px; min-height: 52px; }
     .ptask input[type=checkbox] { width: 22px; height: 22px; }
-    .ptask .pttitle { font-size: 15px; line-height: 1.4; }
-    .ptask .ptdate { font-size: 12.5px; }
-    .ptask .ptdel { font-size: 16px; padding: 6px 10px; min-height: 38px; min-width: 38px; }
+    .ptask .pttitle { font-size:15px; line-height: 1.4; }
+    .ptask .ptdate { font-size:13px; }
+    .ptask .ptdel { font-size:16px; padding: 6px 10px; min-height: 38px; min-width: 38px; }
 
     /* Notes grid → single column on mobile */
     .notes-grid { grid-template-columns: 1fr; gap: 10px; }
     .note-card { padding: 14px 16px; min-height: 80px; border-radius: 12px; }
-    .note-card-title { font-size: 16px; }
-    .note-card-preview { font-size: 12.5px; }
+    .note-card-title { font-size:16px; }
+    .note-card-preview { font-size:13px; }
 
     /* Modals as bottom sheets */
     .modal-bg { padding: 0; align-items: flex-end; }
@@ -1279,7 +1362,7 @@
       border-radius: 18px 18px 0 0;
       box-shadow: 0 -10px 30px rgba(0,0,0,.22);
     }
-    .modal h3 { padding: 18px 20px 8px; font-size: 19px; }
+    .modal h3 { padding: 18px 20px 8px; font-size:20px; }
     .modal .body { padding: 14px 20px; gap: 14px; }
     .modal .footer {
       padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
@@ -1288,45 +1371,45 @@
       gap: 10px;
     }
     .modal .footer button, .modal .footer .btn {
-      padding: 12px 20px; font-size: 15px; min-height: 48px;
+      padding: 12px 20px; font-size:15px; min-height: 48px;
       border-radius: 10px; font-weight: 500;
     }
     /* All form inputs prevent iOS zoom on focus */
     .modal input, .modal select, .modal textarea,
     input[type="text"], input[type="date"], input[type="time"],
     input[type="url"], input[type="email"], select, textarea {
-      font-size: 16px;
+      font-size:16px;
     }
     .modal .field input, .modal .field select, .modal .field textarea {
       padding: 12px 14px; min-height: 48px; border-radius: 10px;
     }
     .modal .field textarea { min-height: 80px; }
-    .modal .field label { font-size: 12px; margin-bottom: 6px; }
+    .modal .field label { font-size:12px; margin-bottom: 6px; }
 
     /* Settings */
-    .settings-list .sl { padding: 14px 0; font-size: 15px; gap: 10px; }
+    .settings-list .sl { padding: 14px 0; font-size:15px; gap: 10px; }
     .settings-list .sl button {
-      padding: 9px 14px; font-size: 13px; min-height: 40px; border-radius: 8px;
+      padding: 9px 14px; font-size:13px; min-height: 40px; border-radius: 8px;
     }
 
     /* Search */
-    #search-input { font-size: 16px; padding: 14px 16px; min-height: 48px; border-radius: 10px; }
-    .search-results .sr { padding: 14px 16px; font-size: 14px; min-height: 56px; }
+    #search-input { font-size:16px; padding: 14px 16px; min-height: 48px; border-radius: 10px; }
+    .search-results .sr { padding: 14px 16px; font-size:14px; min-height: 56px; }
 
     /* Subnav titles */
-    .subnav h2 { font-size: 22px; line-height: 1.2; }
-    .subnav h2 .yr { font-size: 13px; display: block; margin-top: 2px; }
-    .subnav .arrows button { width: 40px; height: 40px; font-size: 16px; }
-    .today-btn { padding: 10px 14px; font-size: 13.5px; min-height: 40px; border-radius: 8px; }
+    .subnav h2 { font-size:20px; line-height: 1.2; }
+    .subnav h2 .yr { font-size:13px; display: block; margin-top: 2px; }
+    .subnav .arrows button { width: 40px; height: 40px; font-size:16px; }
+    .today-btn { padding: 10px 14px; font-size:14px; min-height: 40px; border-radius: 8px; }
 
     /* Kanban — stack as accordion */
     .kanban { grid-template-columns: 1fr; gap: 12px; }
     .kcol { padding: 12px; min-height: 60px; border-radius: 12px; }
-    .kcard { padding: 12px 14px; font-size: 14px; line-height: 1.4; }
-    .kcard-meta { font-size: 12px; margin-top: 4px; }
+    .kcard { padding: 12px 14px; font-size:14px; line-height: 1.4; }
+    .kcard-meta { font-size:12px; margin-top: 4px; }
 
     /* Voice/dump quick capture button on Hjem */
-    .home-quick-hint button { padding: 8px 14px; font-size: 13px; min-height: 36px; border-radius: 8px; }
+    .home-quick-hint button { padding: 8px 14px; font-size:13px; min-height: 36px; border-radius: 8px; }
 
     /* Gantt — keep horizontal scroll on overview */
     .gantt-headrow, .gantt-row { grid-template-columns: 110px 1fr; }
@@ -1337,10 +1420,10 @@
 
   /* Even smaller screens (older iPhone SE etc) */
   @media (max-width: 380px) {
-    .nav button { min-width: 60px; font-size: 11px; padding: 10px 6px; }
-    .countdown-card .cd-days { font-size: 32px; }
-    .home-greeting { font-size: 21px; }
-    .modal h3 { font-size: 17px; }
+    .nav button { min-width: 60px; font-size:11px; padding: 10px 6px; }
+    .countdown-card .cd-days { font-size:26px; }
+    .home-greeting { font-size:20px; }
+    .modal h3 { font-size:16px; }
   }
 
   /* On narrow screens — keep columns but make them scroll horizontally */
@@ -1391,6 +1474,12 @@
       flex:1 1 auto; min-width:0; flex-wrap:wrap; row-gap:2px; align-items:baseline}
     /* Innboksen beholder hele knapperaden: der ER trikset å sortere med ⚠ ↗ ⤳. */
     .todo-row[data-task-kind="inbox"] .actions{opacity:1}
+    /* Før: tre linjer med knapper under tittelen, 170 px for én innboksrad. Nå: tittelen
+       over, én linje med handlinger under — prosjektvalget tar plassen som er igjen. */
+    .todo-row[data-task-kind="inbox"]{flex-wrap:wrap; row-gap:8px}
+    .todo-row[data-task-kind="inbox"] .ttitle{flex:1 1 100%}
+    .todo-row[data-task-kind="inbox"] .actions{flex:1 1 100%; flex-wrap:wrap; gap:6px; padding-left:0; justify-content:flex-start}
+    .todo-row[data-task-kind="inbox"] .actions select{flex:1 1 140px; min-width:0}
     /* Draghåndtak er en død kontroll på touch. */
     .ptask .drag-handle, .todo-row .drag-handle, .home-item .drag-handle{display:none}
     /* Bøtteoverskriften er `justify-content:space-between` på én linje. På 390 px la den
@@ -1398,6 +1487,9 @@
        overlappet. `wrap` framfor `column`: rene tall («4») blir stående på samme linje,
        bare de lange hjelpetekstene faller ned. */
     .todo-bucket .bh{flex-wrap:wrap; gap:2px 10px}
+    .todo-bucket .bh{grid-template-columns:7px 1fr auto}
+    .todo-bucket .bh small{grid-column:3}
+    .todo-bucket .bh .bh-hint{grid-row:2; grid-column:2 / -1; justify-self:start; text-align:left; padding-right:0}
     /* «Legg til»-radene på prosjektsiden er én flex-linje uten wrap. På 390 px ble
        datofeltet, url-feltet og rollefeltet klippet av den høyre kanten — og siden en
        forelder har overflow:hidden vokste ikke dokumentet, så en ren scrollWidth-måling
@@ -1429,7 +1521,7 @@
     .brand .dot{width:6px; height:6px; margin-right:6px}
     .topbar-spacer{display:none}
     .filter{order:2; flex:1 1 130px; min-width:130px; max-width:210px; margin:0 auto; padding:2px}
-    .filter button{flex:1; padding:0 6px; font-size:12.5px; font-weight:500; border-radius:999px}
+    .filter button{flex:1; padding:0 6px; font-size:13px; font-weight:500; border-radius:6px}
     .top-actions{order:3; flex:0 0 auto; gap:0}
     .icon-btn{width:40px; height:40px}
 
@@ -1440,7 +1532,7 @@
     }
     .nav button{
       flex:1 1 0; min-width:0; min-height:46px; padding:9px 0 6px;
-      font-size:11.5px; font-weight:500; line-height:1.2; border-radius:10px; position:relative;
+      font-size:12px; font-weight:500; line-height:1.2; border-radius:10px; position:relative;
       letter-spacing:-.1px; color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     }
     .nav button.active{background:transparent; color:var(--ink); font-weight:600; box-shadow:none}
@@ -1449,7 +1541,7 @@
       content:''; position:absolute; top:0; left:50%; transform:translateX(-50%);
       width:22px; height:2px; border-radius:2px; background:var(--accent);
     }
-    .nav button .badge{font-size:10.5px; padding:1px 4px; margin-left:3px; vertical-align:1px}
+    .nav button .badge{font-size:11px; padding:1px 4px; margin-left:3px; vertical-align:1px}
 
     /* Innholdet skal aldri ende under menyen, og FAB-en skal ikke ligge på den. */
     main{padding-bottom:calc(72px + env(safe-area-inset-bottom, 0px))}
@@ -1464,27 +1556,27 @@
     .strip .label, .gantt-headrow .label-col, .ptgroup-head .ptgroup-count,
     .countdown-card .cd-label, .text-mute-small, .hjem-week-col-h .wd,
     .gantt-months .mtick, .hjem-week-items .wke-empty, .nav button .badge{font-size:12px}
-    .pill{font-size:11.5px; letter-spacing:.4px}
+    .pill{font-size:12px; letter-spacing:.4px}
     .todo-bucket .bh small, .home-section small, .psection small, .pcard small{font-size:12px}
     .gantt-row .bar{height:24px; line-height:24px; font-size:12px}
-    .gantt-row .label{font-size:12.5px}
+    .gantt-row .label{font-size:13px}
     .hjem-week-items .wke strong{font-size:12px}
     .countdown-card .cd-days small, .pcard .countdown small{font-size:12px; letter-spacing:.3px}
-    .countdown-card .cd-next, .pcard .pnext{font-size:12.5px}
-    .home-date .wr-btn{font-size:12.5px; min-height:32px; padding:0 10px}
-    .home-quick-hint span{font-size:12.5px}
+    .countdown-card .cd-next, .pcard .pnext{font-size:13px}
+    .home-date .wr-btn{font-size:13px; min-height:32px; padding:0 10px}
+    .home-quick-hint span{font-size:13px}
     .pcard .ptodo-more .ptodo-title{font-size:12px}
     .pcard .ptodo-date{flex-basis:72px}
     .week .hour-label, .day-hours .hl{font-size:12px}
-    .todo-bucket .bh small{font-size:12.5px}
-    .home-quick-hint{font-size:12.5px}
+    .todo-bucket .bh small{font-size:13px}
+    .home-quick-hint{font-size:13px}
     .proj-chip{font-size:12px}
     .month-grid .row.head .cell{font-size:12px}
 
     /* ---- Undernavigasjon (I dag · tittel · ‹ ›) på én rad ---- */
     .subnav:has(.arrows){display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px; margin-bottom:10px}
-    .subnav:has(.arrows) h2{font-size:19px; line-height:1.2; text-align:center; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-    .subnav:has(.arrows) h2 .yr{display:block; font-size:12.5px; margin:1px 0 0; white-space:nowrap}
+    .subnav:has(.arrows) h2{font-size:20px; line-height:1.2; text-align:center; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .subnav:has(.arrows) h2 .yr{display:block; font-size:13px; margin:1px 0 0; white-space:nowrap}
     .subnav .today-btn{min-height:40px; padding:0 12px; font-size:13px}
     .subnav .arrows button{width:40px; height:40px}
 
@@ -1493,8 +1585,8 @@
        nowrap-tittel på 518 px gjorde hele siden 652 px bred, og bunnmenyen forsvant ut
        av bildet. minmax(0,1fr) er den kanoniske kuren. */
     .projects-grid{grid-template-columns:minmax(0,1fr); gap:10px}
-    .pcard{min-width:0; padding:14px 16px; border-radius:12px}
-    .pcard h3{font-size:18px}
+    .pcard{min-width:0; padding:14px 2px 18px; border-radius:0}
+    .pcard h3{font-size:16px}
 
     /* ---- Måned: minikalender ----
        Sju like kolonner. Hver hendelse er én prikk i kategorifargen, «+N til» en grå
@@ -1537,20 +1629,23 @@
     .month-grid .cell.sel.today{box-shadow:inset 0 0 0 2px var(--accent)}
 
     /* ---- Uke: agenda (DOM fra _renderWeekAgenda) ---- */
-    .week-agenda{display:flex; flex-direction:column; gap:10px; font-size:14px}
-    .wa-day{background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden}
-    .wa-day.today{border-color:var(--accent-soft)}
-    .wa-head{display:flex; align-items:center; gap:8px; min-height:44px; padding:8px 14px; background:var(--surface-2); cursor:pointer}
-    .wa-dow{font-size:12px; font-weight:600; letter-spacing:.4px; text-transform:uppercase; color:var(--ink-muted)}
-    .wa-num{font-family:var(--serif); font-size:18px; color:var(--ink)}
-    .wa-day.today .wa-num{color:var(--accent); font-weight:600}
-    .wa-hol{font-size:12.5px; font-style:italic; color:var(--alert)}
-    .wa-count{margin-left:auto; font-size:12.5px; color:var(--ink-muted); font-variant-numeric:tabular-nums}
+    .week-agenda{display:flex; flex-direction:column; gap:24px; font-size:14px}
+    .wa-day{background:none; border:none; border-radius:0; overflow:visible}
+    .wa-day.today .wa-head{border-bottom-width:2px}
+    .wa-head{display:flex; align-items:baseline; gap:8px; min-height:40px; padding:8px 0; background:none; border-bottom:1px solid var(--ink); cursor:pointer}
+    .wa-dow{font-size:13px; font-weight:500; letter-spacing:0; color:var(--ink-soft)}
+    .wa-num{font-family:var(--font); font-size:16px; font-weight:600; color:var(--ink)}
+    .wa-day.today .wa-num{color:var(--ink); font-weight:700}
+    .wa-hol{font-size:13px; font-style:italic; color:var(--alert)}
+    .wa-count{margin-left:auto; font-size:13px; color:var(--ink-muted); font-variant-numeric:tabular-nums}
     .wa-row{
       display:flex; gap:10px; align-items:flex-start; min-height:44px;
-      padding:10px 14px 10px 11px; border-top:1px solid var(--line-soft);
+      padding:10px 0 10px 11px; border-top:1px solid var(--line-soft);
       border-left:3px solid var(--ink-muted); cursor:pointer;
     }
+    /* I tidsrutenettene (Uke/Dag/Måned på PC) er tonen på Outlook-hendelser det som gjør
+       dem til en blokk. I agendaen er de rader i en liste — der holder venstrestreken. */
+    .wa-row.ev.ics{background:none}
     .wa-row.cat-arbeid{border-left-color:var(--work)}
     .wa-row.cat-privat, .wa-row.cat-personlig{border-left-color:var(--privat)}
     .wa-row.cat-helse{border-left-color:var(--helse)}
@@ -1559,11 +1654,11 @@
     .wa-row:active{background:var(--surface-2)}
     .wa-time{flex:0 0 76px; font-size:13px; color:var(--ink-soft); font-variant-numeric:tabular-nums; padding-top:1px}
     .wa-title{flex:1; min-width:0; color:var(--ink); line-height:1.35; overflow-wrap:anywhere}
-    .wa-title small{display:block; font-size:12.5px; color:var(--ink-muted); margin-top:1px}
-    .wa-empty{padding:10px 14px; color:var(--ink-muted); border-top:1px solid var(--line-soft)}
+    .wa-title small{display:block; font-size:13px; color:var(--ink-muted); margin-top:1px}
+    .wa-empty{padding:10px 0; color:var(--ink-muted)}
 
     /* ---- Hjem: rolig, ikke fylt rødt ---- */
-    .home-list-urgent{background:var(--surface); border-color:var(--line); border-left:3px solid var(--alert)}
+    .home-list-urgent{background:none; border:none}
     .home-list-urgent .home-item{border-top-color:var(--line-soft)}
     .home-list-urgent .home-item:hover{background:var(--surface-2)}
     .home-item{min-height:48px}
@@ -1572,7 +1667,7 @@
 
     /* ---- Dag ---- */
     .day-hours{grid-template-columns:46px 1fr}
-    .day-hours .hslot .ev{font-size:13.5px}
+    .day-hours .hslot .ev{font-size:14px}
 
     /* ---- Årsoversikt: tidslinja ruller sidelengs, etikettkolonnen står ----
        Innerbredden på 900 px er der for at 24 måneder skal få plass — så etikettene
@@ -1616,6 +1711,14 @@
       border:1.5px solid var(--line); border-radius:6px; background:var(--surface);
       transition:background-color .12s, border-color .12s, color .12s;
     }
+    /* PC tegner haken som en rotert vinkel og fyller selve boksen (ADR 0056). Her er
+       boksen et 44 px treffområde, og tegningen ligger i ::before — nullstill begge. */
+    .todo-row input[type=checkbox]:checked,
+    .ptask input[type=checkbox]:checked,
+    .home-item input[type=checkbox]:checked{background:none; border:none}
+    .todo-row input[type=checkbox]::before,
+    .ptask input[type=checkbox]::before,
+    .home-item input[type=checkbox]::before{transform:none; border-color:color-mix(in srgb,var(--ink-muted) 70%,transparent)}
     .todo-row input[type=checkbox]:checked::before,
     .ptask input[type=checkbox]:checked::before,
     .home-item input[type=checkbox]:checked::before{

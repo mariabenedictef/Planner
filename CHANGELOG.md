@@ -6,6 +6,28 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-10-01 — Nytt design: rent, roligere, og lettere å lese
+
+ADR 0056. Du valgte retning A «Ren» av to prototyper, og at ordene skal stå som de er.
+
+- **Teksten er lettere å lese — målt.** Den grå teksten (datoer, antall, hjelpetekst) var 3,1:1 mot bakgrunnen; kravet for liten tekst er 4,5:1. En revisjon av hver synlige tekst i alle sju visninger, lys og mørk, PC og telefon, fant **1 340 brudd. Nå: 0.**
+- **Én skriftfamilie, systemets egen** — Segoe UI på PC-en, SF på iPhonen. Georgia-overskriftene er borte. Ingen nedlasting, fungerer offline.
+- **Åtte skriftstørrelser i stedet for 28** (18 av dem ble faktisk tegnet), uten halve piksler. Minste tekst er 11 px, og bare i den tette kalenderen.
+- **Ingen bokser og ingen fargefylte overskrifter.** Hver bøtte er en overskrift med en liten prioritetsprikk og en strek under. Urgent på Hjem mistet den rosa flaten og den røde rammen. Prosjektkortene har en tynn strek i prosjektets farge øverst i stedet for en ramme, og tallet til måldato er mindre.
+- **Setningsform overalt** — «dager til måldato», «Man Tir Ons», «Privat», ikke versaler.
+- **Topplinja:** tekstfaner med strek under den aktive, tellerne som rene tall, filteret som en rolig segmentkontroll.
+- **Telefonen:** hurtigfeltet har fire prioriteter på én rad (to rader før første oppgave, var tre). Innboksraden viser alle handlinger på to linjer — prosjektvalget var klippet av før. Ukeagendaen og dagsagendaen er lister, ikke bokser.
+- **Detaljer:** draghåndtakene står i margen så alle rader starter i samme kolonne; avkryssingsboksen er tegnet på PC også (den var en hvit firkant i mørk modus); statuslinja på iPhonen følger mørk modus; app-ikonet har fått samme skrift.
+- **To feil underveis:** ukedagsraden i Måned var et tomt bånd på ~55 px over datoene, og gantt-stolpene i mørk modus hadde hvit tekst på lyse farger.
+
+Telefonraden er innenfor budsjettet fra ADR 0055: tittel 152 px, median radhøyde 79 px.
+
+Testsuiten: 677 → 690, nettleser 40 → 43. Nettlesersuiten har fått kontrastrevisjonen som egen seksjon — mot forrige versjon feiler den med 1 340 brudd.
+
+**Hjemskjermikonet på iPhonen** oppdateres først hvis du legger appen til på nytt; resten oppdateres av seg selv.
+
+---
+
 ## 2026-09-30 — Stjernemerking og «i dag» i To Do's
 
 ADR 0055.
