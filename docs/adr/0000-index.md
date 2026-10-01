@@ -61,6 +61,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0055](0055-star-and-due-today.md) | Stjernemerking (`starred`, ingen omsortering) og «i dag»; målt at telefonraden har råd til ÉN knapp til, så datochipen bærer «i dag» der | Accepted (bygger på 0037/0042/0050/0051/0054) |
 | [0056](0056-design-system.md) | Designsystemet: hvit flate, hårfine linjer, én skriftfamilie, åtte størrelser, alle tekstfarger over WCAG AA (1 340 brudd → 0) | Accepted (bygger på 0046/0047/0050/0051/0055) |
 | [0057](0057-second-design-pass.md) | Andre designgjennomgang: prosjektkort som rammede fliser (eneste boks, med vilje), Hjem-prosjekter som liste uten røde tall, prioritet som prikk i alle knapper, ingen kursiv, en advarsel byttes ikke ut av en beskjed | Accepted (bygger på 0041/0045/0055/0056) |
+| [0058](0058-open-items-closed.md) | Det utestående fra 0055–0057: beskjedstabel (maks to), knapperaden legger seg over raden på PC (titler 546 → 1 174 px) med ord på prioritetsprikkene, prosjektchip som prikk + navn, ingen fargede emoji, hurtigdatoer i skjemaene | Accepted (erstatter delvis 0039/0057 om toasts) |
 
 ## How to add a new ADR
 
