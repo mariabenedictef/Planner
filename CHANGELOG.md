@@ -6,6 +6,22 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-10-01 — Det som sto igjen
+
+ADR 0058. Du ba om at det utestående skulle løses, og valgte at to beskjeder skal stables.
+
+- **Beskjedene stables, maks to.** En advarsel blir stående når backup-beskjeden kommer; den nye legger seg over. Ingenting venter og ingenting forsvinner.
+- **På telefonen står beskjedene over +-knappen**, ikke oppå den.
+- **Titlene på PC bruker hele raden.** Knappene ved hover holdt av over halve bredden i hver rad, også når de var usynlige — titlene ble brutt etter 546 av 1 200 px. Nå legger knappene seg over raden når du holder musa der, og titlene får 1 174 px.
+- **Prioritetsknappene har ord på PC:** «● Urgent», «● Short term», «● Long term», «○ Ingen». På telefonen er de fortsatt prikker.
+- **Prosjektmerket på oppgaver** er en prikk i prosjektets farge og navnet — ikke en farget pille.
+- **Ingen emoji igjen** — Outlook-hendelser kjennes på den blå streken og tonen, prosjektdatoer i kalenderen har ◆ som delmål. Beskjeder, «Mer»-menyen og knapper er tekst.
+- **Hurtigdatoer i oppgaveskjemaet:** «I dag», «I morgen», «Om en uke», «Ingen frist» under fristfeltet. En oppgave uten dato får «i dag» med to trykk på telefonen (✎, «I dag») uten at raden blir høyere.
+
+Testsuiten: 699 → 710, nettleser 43/43, kontrast fortsatt 0 brudd, telefonraden uendret.
+
+---
+
 ## 2026-10-01 — Andre runde: Prosjekter, Hjem og knappene
 
 ADR 0057. Du sa Prosjekter-fanen så rar ut og ba om en ny gjennomgang av hele appen.

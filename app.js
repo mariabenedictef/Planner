@@ -572,6 +572,17 @@ function projectHue(title){
 // Én dør for prosjekt-chipen — seks steder rendret den hver for seg, og bare ett
 // av dem hadde klikk-for-å-fjerne. Ekstra attributter sendes inn av det stedet
 // som trenger dem.
+// Hurtigdatoer under fristfeltet (ADR 0058). En oppgave uten dato har ingen datochip å
+// trykke på for «i dag» på telefonen, og en «+ i dag»-chip i raden ble målt til å løfte
+// median radhøyde fra 80 til 99 px (ADR 0055). Her koster den ingen radbredde: ✎ og
+// «I dag» er to trykk. Knappene skriver bare i feltet — lagring skjer med «Lagre» som før.
+function dateQuickHTML(inputId){
+  const b = (label, n) => `<button type="button" class="btn-sec-xs" data-action="setDateInput" data-args='${JSON.stringify([inputId, n])}'>${label}</button>`;
+  return `<div class="date-quick">${b('I dag', 0)}${b('I morgen', 1)}${b('Om en uke', 7)}${b('Ingen frist', null)}</div>`;
+}
+// Prosjektdatoer i kalenderen merkes med samme rombe som delmål i To Do's (ADR 0058) —
+// var 📍, og egne hendelser hadde 📌, Outlook 📧. Én enkel glyf, dempet, i stedet for tre emoji.
+const EV_MS = '<span class="ev-ms" aria-hidden="true">◆</span> ';
 function projChipHTML(title, attrs){
   if (!title) return '';
   return `<span class="proj-chip" style="--pc-h:${projectHue(title)}"${attrs ? ' ' + attrs : ''}>${escapeHTML(title)}</span>`;
@@ -2179,7 +2190,7 @@ function reorderUrgent(draggedId, targetId, insertBefore){
   // If date sort would still move dragged elsewhere, gently inform.
   const newSorted = result.slice().sort(_dateThenOrderCmp);
   if (newSorted.findIndex(t=>t.id===draggedId) !== result.findIndex(t=>t.id===draggedId)){
-    showToast('💡 Tasks med tidligere datofrist sorteres alltid først');
+    showToast('Oppgaver med tidligere frist sorteres alltid først');
   }
   render();
 }
@@ -2651,7 +2662,7 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
       <button id="note-toggle-edit" class="toggle-edit-btn" type="button">✎ Rediger</button>
     </h3>
     <div class="body" style="gap:8px">
-      <div class="note-edit-hint">💡 Klikk inni notatet for å redigere</div>
+      <div class="note-edit-hint">Klikk inni notatet for å redigere</div>
       <div class="note-toolbar">
         <button type="button" class="tb-bold" data-action="execCmd" data-args='["bold"]' title="Fet (Ctrl+B)">F</button>
         <button type="button" class="tb-italic" data-action="execCmd" data-args='["italic"]' title="Kursiv (Ctrl+I)">K</button>
@@ -2682,7 +2693,7 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
           <option value="transparent">Ingen</option>
         </select>
         <span class="tb-sep"></span>
-        <button type="button" data-action="insertLink" title="Lenke">🔗</button>
+        <button type="button" data-action="insertLink" title="Lenke">Lenke</button>
         <button type="button" data-action="execCmd" data-args='["removeFormat"]' title="Fjern formatering">⌫</button>
       </div>
       <div id="note-editor" class="note-editor" contenteditable="true" data-placeholder="Begynn å skrive…">${sanitizeNoteHTML(n.content||'')}</div>
@@ -2779,7 +2790,7 @@ HANDLERS.openNoteEditor = (pid, nid)=>{
               const kb = Math.round(small.length/1024);
               if (typeof showToast === 'function'){
                 if (kb > 400) showToast(`⚠ Bildet er ${kb} kB selv etter nedskalering. Lagringsplassen er på ~5000 kB til alt — legg helst store bilder i OneDrive og lenk til dem.`, 12000);
-                else showToast(`🖼 Bilde lagt inn (${kb} kB)`, 3000);
+                else showToast(`Bilde lagt inn (${kb} kB)`, 3000);
               }
             });
           };
@@ -3289,7 +3300,7 @@ function openProjectTaskForm(pid, tid){
     <h3>${t?'Rediger oppgave':'Ny oppgave'} — ${escapeHTML(p.title)}</h3>
     <div class="body">
       <div class="field"><label>Hva må gjøres?</label><input id="pt-title" type="text" value="${escapeAttr(data.title)}" placeholder="F.eks. Skrive tale"></div>
-      <div class="field"><label>Frist (valgfritt)</label><input id="pt-due" type="date" value="${data.due||''}"></div>
+      <div class="field"><label>Frist (valgfritt)</label><input id="pt-due" type="date" value="${data.due||''}">${dateQuickHTML('pt-due')}</div>
       <details ${hasAdvanced?'open':''} style="margin-top:4px">
         <summary style="cursor:pointer;font-size:12px;color:var(--ink-soft);padding:4px 0;list-style:none;-webkit-user-select:none">▸ Avansert (sluttdato, gjenta, påminnelse, notater)</summary>
         <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
@@ -3844,10 +3855,10 @@ function todoRowHTML(t, projectsList){
     <input type="checkbox" ${t.done?'checked':''} onchange="HANDLERS.toggleTask('${t.id}',event)">
     <span class="ttitle" data-edit-id="${t.id}" data-edit-kind="task" ondblclick="HANDLERS.inlineEditStart(event,'${t.id}','task')">${_isStarred(t) ? '<span class="star-mark" aria-hidden="true">★</span> ' : ''}${escapeHTML(t.title)} ${due} ${projTag}</span>
     <div class="actions">
-      <button class="prio-btn urgent" data-action="setTaskPriority" data-args='["${t.id}","urgent"]' title="Urgent"></button>
-      <button class="prio-btn short" data-action="setTaskPriority" data-args='["${t.id}","short"]' title="Short term"></button>
-      <button class="prio-btn long" data-action="setTaskPriority" data-args='["${t.id}","long"]' title="Long term"></button>
-      <button class="prio-btn none" data-action="setTaskPriority" data-args='["${t.id}",""]' title="Fjern prioritet"></button>
+      <button class="prio-btn urgent" data-action="setTaskPriority" data-args='["${t.id}","urgent"]' title="Urgent"><span class="pb-l">Urgent</span></button>
+      <button class="prio-btn short" data-action="setTaskPriority" data-args='["${t.id}","short"]' title="Short term"><span class="pb-l">Short term</span></button>
+      <button class="prio-btn long" data-action="setTaskPriority" data-args='["${t.id}","long"]' title="Long term"><span class="pb-l">Long term</span></button>
+      <button class="prio-btn none" data-action="setTaskPriority" data-args='["${t.id}",""]' title="Fjern prioritet"><span class="pb-l">Ingen</span></button>
       <button class="cat-btn ${isPrivat ? 'privat' : 'arbeid'}" data-action="toggleTaskCategory" data-args='["${t.id}"]' title="${catTitle}">${isPrivat ? 'Privat' : 'Jobb'}</button>
       <button class="star-btn ${_isStarred(t)?'on':''}" ${act('toggleStar', t.id)} title="${_isStarred(t)?'Fjern stjernen':'Stjernemerk — prioriter først'}">${_isStarred(t)?'★':'☆'}</button>
       <button class="btn-sec-xs idag-btn" ${act('dueToday', t.id)} title="Sett frist til i dag">I dag</button>
@@ -4253,7 +4264,7 @@ function renderOverview(){
   });
   state.events.forEach(e=>{
     if (e.date >= todayKey0 && passesFilter(e)){
-      keyItems.push({ date:e.date, title:e.title, kind:'📌 hendelse', eventId:e.id, category:e.category });
+      keyItems.push({ date:e.date, title:e.title, kind:'hendelse', eventId:e.id, category:e.category });
     }
   });
   keyItems.sort((a,b)=>a.date.localeCompare(b.date));
@@ -4378,7 +4389,7 @@ function renderMonth(){
         ? '&nbsp;'
         : e._isContinuation
           ? `↳ ${escapeHTML(e.title)}`
-          : `${isProj ? '📍 ' : ''}${e.start ? `<strong>${e.start}</strong> ` : ''}${escapeHTML(e.title)}`;
+          : `${isProj ? EV_MS : ''}${e.start ? `<strong>${e.start}</strong> ` : ''}${escapeHTML(e.title)}`;
       return `<div class="${cls}" title="${escapeAttr(e.title)}" ${click}>${inner}</div>`;
     }).join('');
     const taskHTML = tks.slice(0,Math.max(0,4-dayEvents.length)).map(t=>{
@@ -4458,7 +4469,7 @@ function _dayAgendaHTML(d, todayK, opts){
       const cls = `wa-row ev cat-${e.category||'arbeid'}${e._ics?' ics':''}${isProj?' projevt':''}`;
       return `<div class="${cls}" ${click} data-stop="1">
         <span class="wa-time">${escapeHTML(time)}</span>
-        <span class="wa-title">${isProj ? '📍 ' : ''}${escapeHTML(e.title)}${e.location ? `<small>${escapeHTML(e.location)}</small>` : ''}</span>
+        <span class="wa-title">${isProj ? EV_MS : ''}${escapeHTML(e.title)}${e.location ? `<small>${escapeHTML(e.location)}</small>` : ''}</span>
       </div>`;
     }),
     ...tks.map(t=>{
@@ -4555,7 +4566,7 @@ function renderWeek(){
             ? act('openProject', e._projectId)
             : act('editEvent', e.id);
         const style = evDurationStyle(e, 42);
-        const prefix = (!e._isContinuation && isProj) ? '📍 ' : '';
+        const prefix = (!e._isContinuation && isProj) ? EV_MS : '';
         const timeP = (!e._isContinuation && e.start) ? `<strong>${e.start}${e.end?'–'+e.end:''}</strong> ` : '';
         return `<div class="${cls}" data-id="${e.id}" ${click} data-stop="1" style="${style}">${prefix}${timeP}${escapeHTML(e.title)}</div>`;
       }).join('');
@@ -4663,9 +4674,8 @@ function renderDay(){
         : isProj
           ? act('openProject', e._projectId)
           : act('editEvent', e.id);
-      // Outlook-ikonet settes av CSS (`.ev.ics::before`) — å legge det på her òg ga
-      // «📧 📧» på heldagshendelsene i Dag. ADR 0050.
-      const icon = e._isContinuation ? '' : (e._ics ? '' : (isProj?'📍 ':'📌 '));
+      // Outlook-hendelser kjennes på tonen og den blå streken, ikke et ikon (ADR 0058).
+      const icon = (!e._isContinuation && isProj) ? EV_MS : '';
       return `<div class="${cls}" ${click}>${icon}${escapeHTML(e.title)}</div>`;
     }).join('');
     dh.innerHTML = `<div class="hl">hele</div><div class="hslot" style="min-height:auto;padding:6px">${ad}</div>` + html;
@@ -4703,7 +4713,7 @@ function renderDay(){
 function taskRowHTML(t){
   // Time slot: scheduled = clickable to change, unscheduled = subtle "+ tid"-link
   const timeLink = (idStr, kind) => t.scheduledTime
-    ? `<span style="color:var(--accent);cursor:pointer;font-size:12px" data-action="setTaskScheduledTime" data-args='["${idStr}","${kind}"]' data-stop="1" title="Klikk for å endre tid">🕒 ${t.scheduledTime}</span>`
+    ? `<span style="color:var(--accent);cursor:pointer;font-size:12px" data-action="setTaskScheduledTime" data-args='["${idStr}","${kind}"]' data-stop="1" title="Klikk for å endre tid">kl. ${t.scheduledTime}</span>`
     : `<span style="color:var(--ink-muted);cursor:pointer;font-size:11px" data-action="setTaskScheduledTime" data-args='["${idStr}","${kind}"]' data-stop="1" title="Sett tidspunkt">+ tid</span>`;
   if (t._kind==='projectTask'){
     return `<li class="${t.done?'done':''}" draggable="true" ondragstart="HANDLERS.taskToTimeStart(event,'${t._projectId}:${t.id}','projectTask')">
@@ -4926,7 +4936,7 @@ function openTaskForm(id, defaults={}){
     <h3>${t?'Rediger oppgave':'Ny oppgave'}</h3>
     <div class="body">
       <div class="field"><label>Hva må gjøres?</label><input id="tk-title" type="text" value="${escapeAttr(data.title)}" placeholder="F.eks. Ringe blomsterleverandør"></div>
-      <div class="field"><label>Frist (valgfritt)</label><input id="tk-due" type="date" value="${data.due||''}"></div>
+      <div class="field"><label>Frist (valgfritt)</label><input id="tk-due" type="date" value="${data.due||''}">${dateQuickHTML('tk-due')}</div>
       <div class="field"><label>Prioritet</label><select id="tk-prio">
         <option value="" ${!data.priority?'selected':''}>— ukategorisert —</option>
         <option value="urgent" ${data.priority==='urgent'?'selected':''}>Urgent</option>
@@ -4963,6 +4973,12 @@ function openTaskForm(id, defaults={}){
   _focusLater('tk-title');
 }
 HANDLERS.openTaskForm = openTaskForm;
+HANDLERS.setDateInput = (inputId, n)=>{
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  el.value = (n === null || n === undefined) ? '' : dKey(addDays(fromKey(todayKey()), Number(n)));
+  el.dispatchEvent(new Event('change', { bubbles:true }));
+};
 HANDLERS.saveTaskForm = id=>{
   const data = {
     title: document.getElementById('tk-title').value.trim(),
@@ -5016,7 +5032,7 @@ function openQuickCapture(){
           <button data-action="qcSave" data-args='["urgent"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #e6b8b8;background:#fce8e8;color:#883333">⚠ Urgent</button>
           <button data-action="qcSave" data-args='["short"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #dfc99a;background:#fbf1e1;color:#7a5a30">↗ Short term</button>
           <button data-action="qcSave" data-args='["long"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #bcc7d8;background:#e8eef7;color:#3a4a66">⤳ Long term</button>
-          <button data-action="qcSave" data-args='["event"]' class="btn-sec-lg">📅 Ny hendelse</button>
+          <button data-action="qcSave" data-args='["event"]' class="btn-sec-lg">Ny hendelse</button>
           <button data-action="closeModalThenVoice" class="btn-sec-lg" title="Snakk inn et notat">Tale</button>
         </div>
         <select id="qc-project" onchange="if(this.value){HANDLERS.qcSave('project',this.value);this.value=''}" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--surface);color:var(--ink-soft)">
@@ -5059,14 +5075,13 @@ HANDLERS.deleteInbox = id => {
 // ============================================================
 function openMoreMenu(){
   const items = [
-    {v:'day', label:I18N.views.day, icon:'📅'},
-    {v:'week', label:I18N.views.week, icon:'🗓'},
-    {v:'month', label:I18N.views.month, icon:'📆'},
-    {v:'overview', label:I18N.views.overview, icon:'🧭'}
+    {v:'day', label:I18N.views.day},
+    {v:'week', label:I18N.views.week},
+    {v:'month', label:I18N.views.month},
+    {v:'overview', label:I18N.views.overview}
   ];
   const buttons = items.map(it=>
     `<button data-action="switchView" data-args='["${it.v}"]' style="display:flex;align-items:center;gap:14px;padding:16px 18px;font-size:16px;background:${state.ui.view===it.v?'var(--surface-2)':'transparent'};border:none;border-radius:12px;color:var(--ink);width:100%;text-align:left;${state.ui.view===it.v?'font-weight:600;':''}">
-      <span style="font-size:20px">${it.icon}</span>
       <span>${it.label}</span>
     </button>`
   ).join('');
@@ -5171,7 +5186,7 @@ function doSearch(filt){
   if (includeType('outlook')) (state.outlookEvents||[]).forEach(e=>{
     if (!matchesText(e.title+' '+(e.location||'')+' '+(e.description||''))) return;
     if (!inDateRange(e.date)) return;
-    hits.push({type:'outlook',ref:e,date:e.date,title:e.title,sub:`📧 Outlook · ${fmtDateShort(fromKey(e.date))}${e.start?' · '+e.start:''}${e.location?' · '+e.location:''}`});
+    hits.push({type:'outlook',ref:e,date:e.date,title:e.title,sub:`Outlook · ${fmtDateShort(fromKey(e.date))}${e.start?' · '+e.start:''}${e.location?' · '+e.location:''}`});
   });
   if (includeType('task')) _freeTasks().forEach(t=>{
     if (!matchesText(t.title+' '+(t.notes||''))) return;
@@ -5586,7 +5601,7 @@ HANDLERS.exportData = ()=>{
     a.click();
     setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
     if (typeof showToast === 'function'){
-      showToast(`💾 planlegger-${todayKey()}.json lastes ned (${Math.round(blob.size/1024)} kB). Finner du den ikke, sjekk nettleserens nedlastinger.`, 8000);
+      showToast(`planlegger-${todayKey()}.json lastes ned (${Math.round(blob.size/1024)} kB). Finner du den ikke, sjekk nettleserens nedlastinger.`, 8000);
     }
   } catch (err){
     console.error('exportData failed', err);
@@ -6388,7 +6403,7 @@ HANDLERS.openOutlookEvent = id => {
     ? `${fmtDate(fromKey(e.date))} – ${fmtDate(fromKey(e.endDate))}${e.start?` · ${e.start}${e.end?'–'+e.end:''}`:' (hele perioden)'}`
     : (e.start ? `${fmtDateShort(fromKey(e.date))} kl. ${e.start}${e.end?'–'+e.end:''}` : `${fmtDate(fromKey(e.date))} (hele dagen)`);
   openModal(`
-    <h3>📧 ${escapeHTML(e.title)}</h3>
+    <h3>${escapeHTML(e.title)}</h3>
     <div class="body">
       <div class="field"><label>${multiDay?'Periode':'Tid'}</label><div>${dateLine}</div></div>
       ${e.location?`<div class="field"><label>Sted</label><div>${escapeHTML(e.location)}</div></div>`:''}
@@ -6874,35 +6889,56 @@ function _focusLater(id, ms){
 // den eneste veien tilbake til slettede data.
 // `undoAction` er `{label, action}` der action er et HANDLERS-navn; knappen får
 // data-action og går gjennom den vanlige dispatcheren (ADR 0012).
-// En advarsel (⚠ …) skal ikke byttes ut av en beskjed hun ikke ba om. Nettlesertesten
-// fant det: den ukentlige backup-beskjeden kommer asynkront ~1 s etter oppstart, og en
-// «Kunne ikke flytte oppgaven» som kom like før forsvant etter 7 ms. En slik beskjed
-// venter nå til advarselen har stått ferdig. Angre-toasts slipper alltid til — de er
-// svar på noe hun nettopp gjorde. ADR 0057.
-let _toastWarnUntil = 0;
+// To beskjeder kan stå samtidig, stablet (ADR 0058 — Marias valg). Før var det én om
+// gangen, og den nyeste byttet ut den forrige: den ukentlige backup-beskjeden kom ~1 s
+// etter oppstart og visket ut «⚠ Kunne ikke flytte oppgaven» etter 7 ms (ADR 0057 lot
+// beskjeden vente i stedet, opptil 15 s). Nå legger den nye seg over. Reglene:
+//  1. En beskjed med samme handling (angre, last på nytt) eller samme tekst byttes ut —
+//     det finnes bare ett angrepunkt, så en eldre angre-knapp ville vært død.
+//  2. Blir det mer enn to, går den eldste vanlige beskjeden først; advarsler og
+//     beskjeder med knapp står til de har stått sin tid.
+function _toastStack(){
+  let s = document.getElementById('toast-stack');
+  if (!s || !s.isConnected){
+    s = document.createElement('div');
+    s.id = 'toast-stack'; s.className = 'toast-stack';
+    s.setAttribute('role', 'status'); s.setAttribute('aria-live', 'polite');
+    document.body.appendChild(s);
+  }
+  return s;
+}
 function showToast(msg, duration, undoAction){
   duration = duration || 3000;
-  const isWarn = /^\s*⚠/.test(String(msg));
-  const wait = _toastWarnUntil - Date.now();
-  if (!isWarn && !(undoAction && undoAction.action) && wait > 0){
-    setTimeout(()=>showToast(msg, duration, undoAction), wait);
-    return;
-  }
-  _toastWarnUntil = isWarn ? Date.now() + duration : 0;
-  document.querySelectorAll('.toast').forEach(el=>{ if (el.parentNode) el.parentNode.removeChild(el); });
+  msg = String(msg);
+  const isWarn = /^\s*⚠/.test(msg);
+  const action = undoAction && undoAction.action ? undoAction.action : '';
+  const stack = _toastStack();
+  [...stack.querySelectorAll('.toast')].forEach(el=>{
+    if ((action && el.dataset.action === action) || el.dataset.msg === msg) el.remove();
+  });
   const t = document.createElement('div');
-  t.className = 'toast';
+  t.className = 'toast' + (isWarn ? ' warn' : '');
+  t.dataset.msg = msg;
+  if (action) t.dataset.action = action;
   const span = document.createElement('span');
   span.textContent = msg;
   t.appendChild(span);
-  if (undoAction && undoAction.action){
+  if (action){
     const b = document.createElement('button');
     b.className = 'toast-action';
     b.textContent = undoAction.label || 'Angre';
-    b.dataset.action = undoAction.action;
+    b.dataset.action = action;
     t.appendChild(b);
   }
-  document.body.appendChild(t);
+  stack.insertBefore(t, stack.firstChild);   // nyeste øverst, nærmest innholdet
+  let all = [...stack.querySelectorAll('.toast')];
+  while (all.length > 2){
+    const oldest = all.slice().reverse();
+    const victim = oldest.find(el => el !== t && !el.classList.contains('warn') && !el.dataset.action)
+                || oldest.find(el => el !== t);
+    victim.remove();
+    all = [...stack.querySelectorAll('.toast')];
+  }
   setTimeout(()=>{ if (t.parentNode) t.parentNode.removeChild(t); }, duration);
 }
 
@@ -7011,7 +7047,7 @@ HANDLERS.startVoiceCapture = ()=>{
   // Visual indicator while listening
   const indicator = document.createElement('div');
   indicator.style.cssText = 'position:fixed;bottom:90px;right:24px;background:var(--alert);color:#fff;padding:14px 22px;border-radius:30px;font-size:14px;z-index:200;box-shadow:0 6px 20px rgba(0,0,0,.2);display:flex;align-items:center;gap:10px';
-  indicator.innerHTML = '<span style="width:10px;height:10px;background:var(--accent);border-radius:50%;display:inline-block;animation:pulse 1s ease-in-out infinite"></span>🎤 Lytter — snakk nå';
+  indicator.innerHTML = '<span style="width:10px;height:10px;background:var(--accent);border-radius:50%;display:inline-block;animation:pulse 1s ease-in-out infinite"></span>Lytter — snakk nå';
   document.body.appendChild(indicator);
 
   const recognition = new SR();
@@ -7189,7 +7225,7 @@ async function autoWeeklyExport(){
           await writable.close();
           state.sync.lastWeeklyExport = today.toISOString();
           saveState();
-          if (typeof showToast === 'function') setTimeout(() => showToast(`💾 Ukentlig sikkerhetskopi lagret i ${dirHandle.name}`, 5000), 800);
+          if (typeof showToast === 'function') setTimeout(() => showToast(`Ukentlig sikkerhetskopi lagret i ${dirHandle.name}`, 5000), 800);
           return;
         }
         // Permission lapsed. requestPermission() requires user activation, and this
@@ -7209,7 +7245,7 @@ async function autoWeeklyExport(){
           await writable.close();
           state.sync.lastWeeklyExport = today.toISOString();
           saveState();
-          if (typeof showToast === 'function') setTimeout(() => showToast(`💾 Ukentlig sikkerhetskopi lagret i ${dirHandle.name}`, 5000), 800);
+          if (typeof showToast === 'function') setTimeout(() => showToast(`Ukentlig sikkerhetskopi lagret i ${dirHandle.name}`, 5000), 800);
           return;
         }
         // Otherwise fall through to download
@@ -7232,7 +7268,7 @@ async function autoWeeklyExport(){
     // nothing lands anywhere. Stamping it made the 7-day timer claim success and hid
     // months of silent no-ops. Leaving it unstamped means we retry next load, and the
     // wording below no longer promises a saved file. See ADR 0023.
-    if (typeof showToast === 'function') setTimeout(() => showToast('💾 Ukentlig sikkerhetskopi lastes ned. Velg en mappe i ⚙ Innstillinger for å lagre den automatisk.', 8000), 800);
+    if (typeof showToast === 'function') setTimeout(() => showToast('Ukentlig sikkerhetskopi lastes ned. Velg en mappe i ⚙ Innstillinger for å lagre den automatisk.', 8000), 800);
   } catch (err) { console.error('autoWeeklyExport failed', err); }
 }
 

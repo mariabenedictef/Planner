@@ -300,8 +300,11 @@
 
   /* Toast. Flyttet ut av app.js sin cssText da angre-knappen kom til — en knapp
      med hover-tilstand hører hjemme i CSS. ADR 0039. */
-  .toast{position:fixed;bottom:90px;right:24px;background:var(--accent);color:#fff;
-    padding:12px 16px;border-radius:8px;font-size:14px;z-index:200;
+  /* ADR 0058: beskjedene bor i en stabel — inntil to over hverandre, nyeste øverst. */
+  .toast-stack{position:fixed;bottom:90px;right:24px;z-index:200;max-width:340px;
+    display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}
+  .toast{background:var(--accent);color:#fff;pointer-events:auto;
+    padding:12px 16px;border-radius:8px;font-size:14px;
     box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:340px;
     display:flex;align-items:center;gap:12px}
   [data-theme="dark"] .toast{color:#1a1d24}
@@ -505,7 +508,6 @@
 
   /* Outlook synced event style */
   .ev.ics{background:var(--ics-bg);border-left-color:var(--ics-line) !important;opacity:.95}
-  .ev.ics::before{content:'📧 ';font-style:normal}
 
   /* Multi-day event styling — continuous bar across day-cells within the same week-row.
      Negative margins bleed the bar past the cell's 8px horizontal padding so adjacent
@@ -765,23 +767,18 @@
   .home-item.done .hi-title{text-decoration:line-through;color:var(--ink-muted)}
   /* Prosjekt-tagg som chip (ADR 0035). Erstatter «· Tittel» i kursiv, som leste som en
      fotnote — og fikk prosjektnavnet skrevet inn i tittelen i tillegg. Dempet, men en ting. */
-  .proj-chip{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;
-    background:var(--surface-2);border:1px solid var(--line);color:var(--ink-soft);
-    font-size:11px;line-height:1.5;white-space:nowrap;vertical-align:baseline}
-  /* Fargen kommer fra --pc-h, satt inline av projChipHTML() ut fra prosjekttittelen.
-     Bare nyansen varierer — metning og lyshet står her, én gang for lys og én gang for
-     mørk modus, så kontrasten er kontrollert begge steder. Faller tilbake til den gamle
-     grå chipen hvis --pc-h mangler. ADR 0041. */
-  .proj-chip[style*="--pc-h"]{
-    background:hsl(var(--pc-h), 44%, 94%);
-    border-color:hsl(var(--pc-h), 34%, 82%);
-    color:hsl(var(--pc-h), 42%, 33%)}
-  [data-theme="dark"] .proj-chip[style*="--pc-h"]{
-    background:hsl(var(--pc-h), 20%, 24%);
-    border-color:hsl(var(--pc-h), 18%, 34%);
-    color:hsl(var(--pc-h), 46%, 76%)}
+  /* ADR 0058: ikke lenger en tonet pille — prosjektets prikk og navnet, som overskriftene.
+     Fargen kommer fortsatt fra --pc-h (ADR 0041), men bare i prikken; teksten er --ink-soft,
+     så kontrasten er den samme for alle prosjekter i begge temaer. */
+  .proj-chip{display:inline-flex;align-items:baseline;gap:5px;margin-left:8px;padding:0;
+    background:none;border:none;color:var(--ink-soft);
+    font-size:12px;line-height:1.5;white-space:nowrap;vertical-align:baseline}
+  .proj-chip::before{content:"";width:6px;height:6px;border-radius:50%;flex:0 0 6px;align-self:center;
+    background:var(--ink-muted)}
+  .proj-chip[style*="--pc-h"]::before{background:hsl(var(--pc-h), 38%, 50%)}
+  [data-theme="dark"] .proj-chip[style*="--pc-h"]::before{background:hsl(var(--pc-h), 34%, 62%)}
   .todo-row .proj-chip{cursor:pointer}
-  .todo-row .proj-chip:hover{border-color:var(--alert);color:var(--alert)}
+  .todo-row .proj-chip:hover{color:var(--alert);text-decoration:line-through;text-decoration-thickness:1px}
 
   /* Week calendar view on Hjem — 7 columns (Mon–Sun) */
   .hjem-week-title{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap}
@@ -1124,6 +1121,14 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
 /* Tom «Ukategorisert» er borte — gruppa under trenger ikke ekstra luft over seg */
 .proj-bucket .ptgroup:first-of-type .ptgroup-head{padding-top:10px}
 
+
+/* ===== Utestående fra 0055–0057 (ADR 0058) ============================ */
+/* Ordene på prioritetsknappene vises bare der knappene legger seg over raden (PC med mus) */
+.todo-row:not([data-task-kind="inbox"]) .actions .prio-btn .pb-l{display:none}
+.ev-ms{color:var(--ink-muted);font-size:.85em}
+.date-quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.date-quick button{font-size:12px}
+
   @media (max-width:1100px){.overview{grid-template-columns:repeat(3,1fr)}}
 
   @media (max-width:680px){.overview{grid-template-columns:repeat(2,1fr)}}
@@ -1144,7 +1149,7 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
 
   @media (max-width:680px){.fab{bottom:18px;right:18px}}
 
-  @media (max-width:680px){.toast{left:16px;right:16px;bottom:80px;max-width:none}}
+  @media (max-width:680px){.toast-stack{left:16px;right:16px;bottom:calc(140px + env(safe-area-inset-bottom, 0px));max-width:none;align-items:stretch}.toast{max-width:none}}
 
   @media (max-width:700px){.kanban{grid-template-columns:1fr;gap:10px}}
 
@@ -1562,6 +1567,24 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
     .pinline-add{flex-wrap:wrap}
     .pinline-add input, .pinline-add input.small{flex:1 1 100%; min-width:0}
     .pinline-add button{flex:1 1 100%; min-height:40px}
+  }
+
+  /* ADR 0058: på PC med mus holdt knapperaden av 618 px i hver rad også når den var
+     usynlig (opacity 0), så titlene ble brutt etter halv bredde. Nå står den utenfor
+     flyten og legger seg over høyre ende av raden ved hover og tastaturfokus, med en
+     myk overgang fra radflaten. Innboksen (alltid synlige knapper) og berøringsskjermer
+     beholder den vanlige raden. */
+  @media (hover: hover) and (min-width: 701px){
+    .todo-row{--row-bg:var(--bg)}
+    .todo-row.starred{--row-bg:var(--star-bg)}
+    .todo-row:hover,.todo-row.starred:hover{--row-bg:var(--surface-2)}
+    .todo-row:not([data-task-kind="inbox"]) > .actions{
+      position:absolute;top:0;bottom:0;right:0;z-index:1;padding-left:36px;
+      background:linear-gradient(90deg, transparent 0, var(--row-bg) 32px)}
+    .todo-row:not([data-task-kind="inbox"]):focus-within > .actions{opacity:1}
+    .todo-row:not([data-task-kind="inbox"]) .actions .prio-btn .pb-l{display:inline}
+    .todo-row:not([data-task-kind="inbox"]) .actions .prio-btn{padding:4px 9px;font-size:12px;color:var(--ink-soft)}
+    .todo-row .actions select[onchange*="taskToProject"]{max-width:130px}
   }
 
   /* ============================================================ */
