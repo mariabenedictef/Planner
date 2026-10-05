@@ -172,6 +172,7 @@ HANDLERS.switchView = (view) => {
   // grunn til å beholde et åpent prosjekt. ADR 0034.
   state.ui.openProjectId = null;
   state.ui.view = view;
+  if (CALENDAR_VIEWS.includes(view)) _mobSet('lastCal', view);   // Kalender-fanen på telefon (ADR 0059)
   // Velg-modus hører til To Do's-siden. Et utvalg som lå og ventet mens hun var på
   // Hjem ville handlingslinja plutselig operert på ved retur. ADR 0042.
   _selReset();
@@ -1726,6 +1727,7 @@ function render(){
     else if (v==='week') renderWeek();
     else if (v==='day') renderDay();
     else renderHome(); // fallback
+    if (CALENDAR_VIEWS.includes(state.ui.view) && _isPhone()) _injectCalSwitch();
     _restoreFocus(focus);
     // Speil adressen mot tilstanden, uten historikk-oppføring: pilene i kalenderen og et
     // bakgrunns-pull skal oppdatere URL-en, men ikke fylle tilbakeknappen med hvert
@@ -1737,6 +1739,15 @@ function render(){
   }
 }
 
+// Linjeikoner for bunnmenyen på telefon (ADR 0059). Tegnet her, ikke emoji: de følger
+// tekstfargen (aktiv/inaktiv) og temaet, og er like skarpe på alle skjermer.
+const _svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${d}</svg>`;
+const NAV_ICONS = {
+  home: _svg('<path d="M4 10.2 12 4l8 6.2"/><path d="M6 9v10.5h4.5v-5.5h3v5.5H18V9"/>'),
+  todos: _svg('<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/>'),
+  cal: _svg('<rect x="3.75" y="5.25" width="16.5" height="15" rx="2.5"/><path d="M3.75 10h16.5M8.25 3.5v3.5M15.75 3.5v3.5"/>'),
+  projects: _svg('<path d="M3.75 7.5a2 2 0 0 1 2-2h3.6l2 2h6.9a2 2 0 0 1 2 2v8.25a2 2 0 0 1-2 2H5.75a2 2 0 0 1-2-2z"/>')
+};
 function renderTopbar(){
   const nav = document.getElementById('nav');
   // Compute badge counts
@@ -1761,19 +1772,18 @@ function renderTopbar(){
   const primary = ['home','projects','todos'];
   const secondary = ['day','week','month','overview'];
   if (isMobile){
-    // Mobile: 3 big primary tabs + "Mer" for the rest
-    const secondaryActive = secondary.includes(state.ui.view);
-    const moreLabel = secondaryActive ? I18N.views[state.ui.view] : 'Mer';
-    nav.innerHTML = primary
-      .map(v=>`<button data-view="${v}" class="${state.ui.view===v?'active':''}">${I18N.views[v]}${badgeOf(v)}</button>`).join('')
-      + `<button data-more="1" class="${secondaryActive?'active':''}">${moreLabel} ▾</button>`;
-    nav.querySelectorAll('button').forEach(b=>{
-      if (b.dataset.more){
-        b.onclick = openMoreMenu;
-      } else {
-        b.onclick = ()=>{ HANDLERS.switchView(b.dataset.view); };
-      }
-    });
+    // ADR 0059: fire faner med ikon — Hjem, To Do's, Kalender, Prosjekter. «Mer ▾» er
+    // borte: Kalender-fanen går til sist brukte kalendervisning, og Dag/Uke/Måned/År
+    // byttes med en bryter øverst i kalenderen (_injectCalSwitch).
+    const calActive = CALENDAR_VIEWS.includes(state.ui.view);
+    const lastCal = CALENDAR_VIEWS.includes(_mobPrefs().lastCal) ? _mobPrefs().lastCal : 'week';
+    const tabs = [['home', I18N.views.home, 'home'], ['todos', I18N.views.todos, 'todos'],
+                  [calActive ? state.ui.view : lastCal, 'Kalender', 'cal'], ['projects', I18N.views.projects, 'projects']];
+    nav.innerHTML = tabs.map(([v, label, ic])=>{
+      const active = ic === 'cal' ? calActive : state.ui.view === v;
+      return `<button data-view="${v}" data-tab="${ic}" class="${active?'active':''}"${active?' aria-current="page"':''}>${NAV_ICONS[ic]}<span class="nl">${label}</span>${ic === 'cal' ? '' : badgeOf(v)}</button>`;
+    }).join('');
+    nav.querySelectorAll('button').forEach(b=>{ b.onclick = ()=>{ HANDLERS.switchView(b.dataset.view); }; });
   } else {
     nav.innerHTML = ['home','projects','todos','day','week','month','overview']
       .map(v=>`<button data-view="${v}" class="${state.ui.view===v?'active':''}">${I18N.views[v]}${badgeOf(v)}</button>`).join('');
@@ -1842,7 +1852,8 @@ function _homeTodayTasksHTML(todayTasks, todayK){
             const toggleHandler = isProj ? `HANDLERS.toggleProjectTask('${t._projectId}','${t.id}',event)` : (isMilestone ? `HANDLERS.toggleProjectMilestone('${t._projectId}','${t.id}')` : `HANDLERS.toggleTask('${t.id}',event)`);
             const icon = isMilestone ? '◆' : '';
             const projTag = projChipHTML(t._projectTitle);
-            return `<div class="home-item ${t.done?'done':''}">
+            const ids = isMilestone ? `data-milestone-id="${t.id}" data-project-id="${t._projectId}"` : `data-task-id="${t.id}"`;
+            return `<div class="home-item ${t.done?'done':''}" ${ids}>
               <input type="checkbox" ${t.done?'checked':''} data-action="noop" data-stop="1" onchange="${toggleHandler}">
               <div class="hi-date">${icon||fmtDateShort(fromKey(t.due||todayK))}</div>
               <div class="hi-title" ${click} style="cursor:pointer">${escapeHTML(t.title)}${projTag}</div>
@@ -1871,7 +1882,7 @@ function _homeNoDateHTML(items){
             ? `HANDLERS.toggleProjectTask('${t._projectId}','${t.id}',event)`
             : `HANDLERS.toggleTask('${t.id}',event)`;
           const projTag = projChipHTML(t._projectTitle);
-          return `<div class="home-item">
+          return `<div class="home-item" data-task-id="${t.id}">
             <input type="checkbox" data-action="noop" data-stop="1" onchange="${toggleHandler}">
             <div class="hi-date"></div>
             <div class="hi-title" ${click} style="cursor:pointer">${escapeHTML(t.title)}${projTag}</div>
@@ -3404,7 +3415,7 @@ function renderTodos(){
     </div>
 
     ${inbox.length ? `
-      <div class="todo-bucket">
+      <div class="todo-bucket${_bucketCollapsed('inbox') ? ' m-collapsed' : ''}" data-bucket="inbox">
         <div class="bh">Innboks <span class="bh-hint">ufordelte — dra til en boks under, eller bruk knappene</span> <small>${inbox.length}</small></div>
         ${inbox.slice().reverse().map(i=>{
           const isPrivat = i.category === 'privat';
@@ -3789,7 +3800,7 @@ function projectTodosBucketHTML(){
   const groups = projectTodoGroups();
   if (!groups.length) return '';
   const total = groups.reduce((n,g)=>n + g.open.length, 0);
-  return `<div class="todo-bucket proj-bucket" id="proj-todos">
+  return `<div class="todo-bucket proj-bucket${_bucketCollapsed('proj') ? ' m-collapsed' : ''}" id="proj-todos" data-bucket="proj">
     <div class="bh proj">Fra prosjekter <span class="bh-hint">underoppgaver som bor i et prosjekt — kryss av her eller der, det er samme oppgave</span> <small>${total}</small></div>
     ${groups.map(g=>`
       <div class="ptgroup">
@@ -3807,7 +3818,8 @@ function projectTodosBucketHTML(){
 
 function todoBucketHTML(label, prio, items, projectsList, hint){
   const cls = prio || '';
-  return `<div class="todo-bucket" data-prio="${prio}" ondragover="HANDLERS.todoOver(event)" ondragleave="HANDLERS.todoLeave(event)" ondrop="HANDLERS.todoDrop(event,'${prio}')">
+  const bkey = prio || 'uncat';
+  return `<div class="todo-bucket${_bucketCollapsed(bkey) ? ' m-collapsed' : ''}" data-prio="${prio}" data-bucket="${bkey}" ondragover="HANDLERS.todoOver(event)" ondragleave="HANDLERS.todoLeave(event)" ondrop="HANDLERS.todoDrop(event,'${prio}')">
     <div class="bh ${cls}">${label}${hint?` <span class="bh-hint">${hint}</span>`:''} <small>${items.length}</small></div>
     ${items.length ? items.map(t=>todoRowHTML(t, projectsList)).join('') : `<div class="todo-empty">ren boks</div>`}
   </div>`;
@@ -4439,6 +4451,164 @@ function goToday(){ state.ui.anchor = todayKey(); render(); }
 // Telefon eller ikke avgjøres av samme grense som stilarket bruker (700 px), så JS og
 // CSS aldri er uenige om hvilken modus vi er i. Én dør — ikke `innerWidth` spredt rundt.
 // ADR 0050.
+// ---------------------------------------------------------------------------
+// MOBIL 2.0 (ADR 0059)
+// Telefonen er ikke en smal PC. Radene viser bare det man leser (avkryssing, tittel,
+// dato, prosjekt); alt man GJØR med en oppgave ligger i ett ark som et trykk på tittelen
+// åpner. Bøttene kan brettes sammen. Kalender er en egen fane. Valgene som bare gjelder
+// denne enheten (sammenbrettede bøtter, sist brukte kalender) ligger i en egen
+// localStorage-nøkkel — ikke i `state`, som synkes til PC-en der de ikke gir mening.
+const _MOB_KEY = 'planlegger.mobil.v1';
+function _mobPrefs(){
+  try { return JSON.parse(localStorage.getItem(_MOB_KEY) || '{}') || {}; }
+  catch (e){ return {}; }   // ødelagt eller blokkert lagring: standardvalg
+}
+function _mobSet(k, v){
+  try { const p = _mobPrefs(); p[k] = v; localStorage.setItem(_MOB_KEY, JSON.stringify(p)); }
+  catch (e){ console.warn('[mobil] kunne ikke lagre valget', k, e); }
+}
+// «Fra prosjekter» (30+ rader) er sammenbrettet som standard på telefon; resten åpne.
+function _bucketCollapsed(key){
+  if (!key || !_isPhone()) return false;
+  const c = _mobPrefs().collapsed || {};
+  return Object.prototype.hasOwnProperty.call(c, key) ? !!c[key] : key === 'proj';
+}
+HANDLERS.toggleBucket = (key)=>{
+  if (!_isPhone() || !key) return;
+  const c = Object.assign({}, _mobPrefs().collapsed || {});
+  c[key] = !_bucketCollapsed(key);
+  _mobSet('collapsed', c);
+  render();
+};
+function _injectCalSwitch(){
+  const view = document.getElementById('view');
+  if (!view) return;
+  const labels = { day:'Dag', week:'Uke', month:'Måned', overview:'År' };
+  const el = document.createElement('div');
+  el.className = 'cal-switch';
+  el.setAttribute('role', 'tablist');
+  el.innerHTML = CALENDAR_VIEWS.map(v=>`<button role="tab" aria-selected="${state.ui.view===v}" class="${state.ui.view===v?'on':''}" data-action="switchView" data-args='["${v}"]'>${labels[v]}</button>`).join('');
+  view.insertBefore(el, view.firstChild);
+}
+
+// Ett trykk på en oppgave på telefon → arket. Lyttes i fangstfasen, før den vanlige
+// dispatcheren, så tittelens egen handling (skjema, fjern prosjekt-tagg) ikke også går.
+// Også datochipen og prosjektchipen åpner arket på telefon: ett trykk på raden betyr
+// én ting. Før satte et trykk på datoen fristen til i dag, og et trykk på prosjektnavnet
+// fjernet taggen — begge stille endringer fra et trykk som like gjerne var ment for raden.
+// «I dag» og prosjekt ligger øverst i arket.
+document.addEventListener('click', (ev)=>{
+  if (!_isPhone() || _selMode) return;
+  const tgt = ev.target;
+  if (!tgt || !tgt.closest || tgt.closest('#modal')) return;
+  const bh = tgt.closest('.todo-bucket > .bh');
+  if (bh){
+    const key = bh.parentElement.dataset.bucket;
+    if (key){ ev.stopPropagation(); ev.preventDefault(); HANDLERS.toggleBucket(key); }
+    return;
+  }
+  if (tgt.closest('input, select, textarea, button, .actions, [contenteditable="true"]')) return;
+  const title = tgt.closest('.todo-row .ttitle, .home-item[data-task-id] .hi-title, .home-item[data-milestone-id] .hi-title');
+  if (!title) return;
+  const row = title.closest('.todo-row, .home-item');
+  if (!row || row.classList.contains('selectable')) return;
+  ev.stopPropagation(); ev.preventDefault();
+  _openRowSheetFor(row);
+}, true);
+
+function _openRowSheetFor(row){
+  const ds = row.dataset;
+  if (ds.milestoneId) return HANDLERS.openRowSheet('ms', ds.milestoneId, ds.projectId || '');
+  if (ds.taskKind === 'inbox') return HANDLERS.openRowSheet('inbox', ds.taskId, '');
+  const t = _taskById(ds.taskId);
+  if (!t) return;
+  HANDLERS.openRowSheet(t.kind === 'sub' ? 'sub' : 'free', t.id, t.projectId || '');
+}
+
+const _PRIO_WORD = { urgent:'Urgent', short:'Short term', long:'Long term' };
+HANDLERS.openRowSheet = (kind, id, pid)=>{
+  let o, title;
+  if (kind === 'inbox'){ o = (state.inbox||[]).find(x=>x.id===id); title = o && o.text; }
+  else if (kind === 'ms'){ o = _milestoneById(id); title = o && o.title; }
+  else { o = _taskById(id); title = o && o.title; }
+  if (!o) return;
+  const field = kind === 'ms' ? 'date' : 'due';
+  const todayK = todayKey();
+  const proj = pid ? state.projects.find(p=>p.id===pid) : null;
+  const A = (op, arg) => `data-action="rowSheetDo" data-args='${JSON.stringify([op, kind, id, pid || '', arg === undefined ? null : arg])}'`;
+  const meta = [];
+  if (kind === 'ms') meta.push('Delmål');
+  if (kind === 'inbox') meta.push('Innboks');
+  if (o[field]) meta.push(`<span class="${o[field] < todayK && !o.done ? 'overdue' : ''}">${escapeHTML(relDateLabel(o[field], todayK))}</span>`);
+  if (kind === 'free' && o.priority) meta.push(_PRIO_WORD[o.priority] || '');
+  if (proj) meta.push(escapeHTML(proj.title));
+  if (_isStarred(o)) meta.push('★ Stjernemerket');
+  const dateChips = kind === 'inbox' ? '' : `
+      <div class="rs-label">${kind === 'ms' ? 'Dato' : 'Frist'}</div>
+      <div class="rs-chips">
+        <button ${A('due', 0)}>I dag</button><button ${A('due', 1)}>I morgen</button><button ${A('due', 7)}>Om en uke</button><button ${A('due', null)}>${kind === 'ms' ? 'Ingen dato' : 'Ingen frist'}</button>
+      </div>`;
+  const prioChips = (kind === 'free' || kind === 'inbox') ? `
+      <div class="rs-label">${kind === 'inbox' ? 'Flytt til' : 'Prioritet'}</div>
+      <div class="rs-chips">
+        ${['urgent','short','long'].map(p=>`<button class="prio-btn ${p}${kind==='free' && o.priority===p ? ' on' : ''}" ${A('prio', p)}><span class="pb-l">${_PRIO_WORD[p]}</span></button>`).join('')}
+        ${kind === 'free' ? `<button class="prio-btn none${!o.priority ? ' on' : ''}" ${A('prio', '')}><span class="pb-l">Ingen</span></button>` : ''}
+      </div>` : '';
+  const projOpts = state.projects.filter(p=>!p.archived).map(p=>`<option value="${p.id}" ${o.projectId===p.id?'selected':''}>${escapeHTML(p.title)}</option>`).join('');
+  const list = [];
+  if (kind !== 'inbox') list.push(`<button ${A('star')}>${_isStarred(o) ? 'Fjern stjernen' : 'Stjernemerk'}</button>`);
+  if (kind === 'free' || kind === 'inbox') list.push(`<label class="rs-select"><span>Prosjekt</span><select onchange="HANDLERS.rowSheetDo('proj','${kind}','${id}','',this.value)"><option value="">${kind === 'inbox' ? 'Velg prosjekt…' : 'Ingen'}</option>${projOpts}</select></label>`);
+  if (kind === 'free' || kind === 'inbox') list.push(`<button ${A('cat')}>Kategori: ${o.category === 'privat' ? 'Privat' : 'Jobb'}<span class="rs-hint">bytt til ${o.category === 'privat' ? 'Jobb' : 'Privat'}</span></button>`);
+  list.push(`<button ${A('edit')}>${kind === 'inbox' ? 'Endre teksten' : kind === 'ms' ? 'Rediger delmålet' : 'Rediger detaljer'}</button>`);
+  if (proj) list.push(`<button ${A('open')}>Åpne prosjektet</button>`);
+  if (kind === 'free' || kind === 'inbox') list.push(`<button class="danger" ${A('del')}>Slett</button>`);
+  openModal(`
+    <h3>${escapeHTML(title)}</h3>
+    <div class="body row-sheet" data-kind="${kind}">
+      ${meta.length ? `<div class="rs-meta">${meta.join(' · ')}</div>` : ''}
+      ${dateChips}${prioChips}
+      <div class="rs-list">${list.join('')}</div>
+    </div>
+    <div class="footer"><button data-action="closeModal">Lukk</button></div>`);
+};
+
+// Arkets handlinger går gjennom de samme dørene som knappene på PC — ingen egne kopier.
+HANDLERS.rowSheetDo = (op, kind, id, pid, arg)=>{
+  closeModal();
+  switch (op){
+    case 'due':  return _rowSetDate(kind, id, arg);
+    case 'prio': return kind === 'inbox' ? (arg && HANDLERS.inboxToTodo(id, arg)) : HANDLERS.setTaskPriority(id, arg || '');
+    case 'star': return kind === 'ms' ? HANDLERS.toggleMilestoneStar(pid, id) : HANDLERS.toggleStar(id);
+    case 'cat':  return kind === 'inbox' ? HANDLERS.toggleInboxCategory(id) : HANDLERS.toggleTaskCategory(id);
+    case 'proj':
+      if (kind === 'inbox') return arg ? HANDLERS.inboxToProject(id, arg) : undefined;
+      return arg ? HANDLERS.taskToProject(id, arg) : HANDLERS.untagTaskProject(id);
+    case 'edit':
+      if (kind === 'free') return HANDLERS.openTaskForm(id);
+      if (kind === 'sub') return HANDLERS.openProjectTaskForm(pid, id);
+      if (kind === 'ms') return HANDLERS.openProjectMilestoneForm(pid, id);
+      return HANDLERS.inboxEditStart(id);
+    case 'open': return pid ? HANDLERS.openProject(pid) : undefined;
+    case 'del':  return kind === 'inbox' ? HANDLERS.deleteInbox(id) : HANDLERS.deleteFreeTask(id);
+  }
+};
+
+// Frist fra arket: i dag / i morgen / om en uke / ingen — med angring, som «I dag».
+function _rowSetDate(kind, id, n){
+  const isMs = kind === 'ms';
+  const o = isMs ? _milestoneById(id) : _taskById(id);
+  if (!o) return;
+  const f = isMs ? 'date' : 'due';
+  const nv = (n === null || n === undefined) ? '' : dKey(addDays(fromKey(todayKey()), Number(n)));
+  if ((o[f] || '') === nv){ render(); return; }
+  const snap = _snapshotFields([o], [f]);
+  o[f] = nv;
+  const verb = !nv ? (isMs ? 'Dato fjernet' : 'Frist fjernet') : Number(n) === 0 ? 'Satt til i dag'
+             : Number(n) === 1 ? 'Flyttet til i morgen' : `Flyttet til ${fmtDateShort(fromKey(nv))}`;
+  registerFieldUndo(snap, [f], isMs ? `delmålet «${o.title}»` : `«${o.title}»`, verb, isMs ? _milestoneById : undefined);
+  render();
+}
+
 function _isPhone(){
   try { return !!(window.matchMedia && window.matchMedia('(max-width: 700px)').matches); }
   catch(_) { return false; }
@@ -5019,37 +5189,46 @@ HANDLERS.deleteTask = id => {
 // ============================================================
 // QUICK CAPTURE
 // ============================================================
+// +-knappen er det ene stedet man legger inn noe nytt (ADR 0059). Velg hvor, skriv,
+// «Legg til». Innboks er standard — Enter legger dit med mindre noe annet er valgt.
+let _qcDest = 'inbox';
 function openQuickCapture(){
+  _qcDest = 'inbox';
   const projectsList = state.projects.filter(p=>!p.archived).map(p=>`<option value="${p.id}">${escapeHTML(p.title)}</option>`).join('');
+  const dests = [['inbox','Innboks','none'],['urgent','Urgent','urgent'],['short','Short term','short'],['long','Long term','long']];
   openModal(`
-    <h3>Hurtignotat / Ny To Do</h3>
-    <div class="body">
-      <div class="field"><label>Hva må gjøres?</label><input id="qc-text" type="text" placeholder="Skriv raskt – velg destinasjon under"></div>
-      <div class="field">
-        <label>Velg destinasjon</label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button data-action="qcSave" data-args='["inbox"]' class="btn-sec-lg">→ Innboks</button>
-          <button data-action="qcSave" data-args='["urgent"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #e6b8b8;background:#fce8e8;color:#883333">⚠ Urgent</button>
-          <button data-action="qcSave" data-args='["short"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #dfc99a;background:#fbf1e1;color:#7a5a30">↗ Short term</button>
-          <button data-action="qcSave" data-args='["long"]' style="padding:8px 14px;font-size:13px;border-radius:6px;border:1px solid #bcc7d8;background:#e8eef7;color:#3a4a66">⤳ Long term</button>
-          <button data-action="qcSave" data-args='["event"]' class="btn-sec-lg">Ny hendelse</button>
-          <button data-action="closeModalThenVoice" class="btn-sec-lg" title="Snakk inn et notat">Tale</button>
-        </div>
-        <select id="qc-project" onchange="if(this.value){HANDLERS.qcSave('project',this.value);this.value=''}" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--surface);color:var(--ink-soft)">
-          <option value="">▸ Eller legg som oppgave i prosjekt…</option>${projectsList}
-        </select>
+    <h3>Ny To Do</h3>
+    <div class="body qc-body">
+      <div class="field"><label for="qc-text">Hva må gjøres?</label><input id="qc-text" type="text" placeholder="Skriv kort — du kan endre alt senere" enterkeyhint="done" autocomplete="off"></div>
+      <div class="field"><label>Legg i</label>
+        <div class="qc-dest" role="radiogroup" aria-label="Legg i">${dests.map(([k,l,c])=>`<button type="button" role="radio" aria-checked="${k==='inbox'}" class="prio-btn ${c} qc-d${k==='inbox'?' on':''}" data-dest="${k}" data-action="qcPick" data-args='["${k}"]'><span class="pb-l">${l}</span></button>`).join('')}</div>
       </div>
-      <div class="text-muted-sm">Trykk Enter for innboks (default) · klikk knapp eller velg prosjekt</div>
+      <div class="field"><label for="qc-project">Eller som oppgave i et prosjekt</label>
+        <select id="qc-project" onchange="if(this.value){HANDLERS.qcSave('project',this.value);this.value=''}"><option value="">Velg prosjekt…</option>${projectsList}</select>
+      </div>
+      <div class="qc-more">
+        <button type="button" class="btn-sec-xs" data-action="qcSave" data-args='["event"]'>Lag en hendelse i stedet</button>
+        <button type="button" class="btn-sec-xs" data-action="closeModalThenVoice">Snakk inn</button>
+      </div>
     </div>
     <div class="footer">
-      <button data-action="switchView" data-args='["todos"]'>Se alle To Do's →</button>
       <button data-action="closeModal">${I18N.cancel}</button>
+      <button class="primary" data-action="qcCommit">Legg til</button>
     </div>`);
   _focusLater('qc-text');
   document.getElementById('qc-text').addEventListener('keydown', e=>{
-    if(e.key==='Enter'){ e.preventDefault(); HANDLERS.qcSave('inbox'); }
+    if(e.key==='Enter'){ e.preventDefault(); HANDLERS.qcSave(_qcDest); }
   });
 }
+HANDLERS.qcPick = (dest)=>{
+  _qcDest = dest;
+  document.querySelectorAll('.qc-d').forEach(b=>{
+    const on = b.dataset.dest === dest;
+    b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on));
+  });
+  const i = document.getElementById('qc-text'); if (i) i.focus();
+};
+HANDLERS.qcCommit = ()=> HANDLERS.qcSave(_qcDest);
 HANDLERS.qcSave = (kind, projectId)=>{
   const text = document.getElementById('qc-text').value.trim();
   if (!text) return;
@@ -5063,37 +5242,17 @@ HANDLERS.qcSave = (kind, projectId)=>{
     state.tasks.push({id:uid(),title:text,category:'arbeid',priority:kind,done:false,due:'',kind:'free'});
   }
   closeModal(); render();
+  // Bekreftelse: på telefon skjer lagringen bak arket, og uten en beskjed er det
+  // ingenting som viser at den gikk inn.
+  const where = kind === 'project' ? ((state.projects.find(x=>x.id===projectId)||{}).title || 'prosjektet')
+              : ({ inbox:'Innboks', urgent:'Urgent', short:'Short term', long:'Long term' })[kind] || 'listen';
+  showToast(`Lagt i ${where}`, 2500);
 };
 HANDLERS.deleteInbox = id => {
   const i = (state.inbox||[]).find(x=>x.id===id);
   if (!deleteWithUndo(()=>state.inbox, id, `«${i ? i.text : 'innboks-elementet'}»`)) return;
   render();
 };
-
-// ============================================================
-// "MER" menu (mobile-only secondary nav)
-// ============================================================
-function openMoreMenu(){
-  const items = [
-    {v:'day', label:I18N.views.day},
-    {v:'week', label:I18N.views.week},
-    {v:'month', label:I18N.views.month},
-    {v:'overview', label:I18N.views.overview}
-  ];
-  const buttons = items.map(it=>
-    `<button data-action="switchView" data-args='["${it.v}"]' style="display:flex;align-items:center;gap:14px;padding:16px 18px;font-size:16px;background:${state.ui.view===it.v?'var(--surface-2)':'transparent'};border:none;border-radius:12px;color:var(--ink);width:100%;text-align:left;${state.ui.view===it.v?'font-weight:600;':''}">
-      <span>${it.label}</span>
-    </button>`
-  ).join('');
-  openModal(`
-    <h3>Andre visninger</h3>
-    <div class="body" style="gap:4px">
-      ${buttons}
-    </div>
-    <div class="footer">
-      <button data-action="closeModal">${I18N.cancel}</button>
-    </div>`);
-}
 
 // ============================================================
 // SEARCH

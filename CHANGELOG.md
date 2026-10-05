@@ -6,6 +6,26 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-10-05 — Ny mobilversjon
+
+ADR 0059. Du sa mobilen fortsatt var vanskelig å bruke, og ga full kreativ frihet.
+
+- **Radene er rene:** avkryssing, tittel, og dato og prosjekt etter tittelen. Knappene ★ ✎ × er borte fra radene — titlene har fått dobbelt så mye plass (324 px i stedet for 152) og står stort sett på én linje.
+- **Trykk på en oppgave** for å få opp et ark med alt du kan gjøre: I dag · I morgen · Om en uke · Ingen frist, prioritet, stjerne, prosjekt, kategori, rediger, slett. Avkrysning og sveip virker som før.
+- **+-knappen er stedet å legge inn noe nytt.** Skriv, velg Innboks / Urgent / Short term / Long term (eller et prosjekt), trykk «Legg til». Du får en bekreftelse. Hurtigfeltene øverst på Hjem og To Do's er borte på telefon.
+- **Trykk på en overskrift** (Urgent, Short term …) for å brette bøtta sammen. «Fra prosjekter» er sammenbrettet fra start. Telefonen husker hva du har brettet sammen.
+- **Bunnmenyen har ikoner og fire faner:** Hjem, To Do's, Kalender, Prosjekter. «Mer» er borte — Kalender åpner der du var sist, med Dag | Uke | Måned | År øverst.
+- **Innboksen** viser Urgent / Short term / Long term med ord, så sorteringen er ett trykk.
+- **Dag** viser dagens oppgaver først. **Årsoversikten** er en tidslinje per prosjekt i full bredde — stolpene ble klippet før.
+- **To Do's er en tredjedel så lang** (2 106 px i stedet for 6 184), og du ser sju rader på første skjerm i stedet for tre.
+- **Feil rettet:** i mørk modus var «Lagre» og «Legg til» hvit tekst på nesten hvit knapp, også på PC.
+
+PC-en er uendret, bortsett fra det nye hurtignotat-arket og knappefargen i mørk modus.
+
+Testsuiten: 710 → 745, nettleser 43 → 57.
+
+---
+
 ## 2026-10-01 — Det som sto igjen
 
 ADR 0058. Du ba om at det utestående skulle løses, og valgte at to beskjeder skal stables.

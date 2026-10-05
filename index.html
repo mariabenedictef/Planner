@@ -1129,6 +1129,34 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
 .date-quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .date-quick button{font-size:12px}
 
+
+/* ===== Mobil 2.0 — arkene (ADR 0059) ================================== */
+.cal-switch{display:none}
+.row-sheet .rs-meta{font-size:13px;color:var(--ink-muted);margin-top:-4px;line-height:1.5}
+.row-sheet .rs-meta .overdue{color:var(--alert)}
+.row-sheet .rs-label{font-size:12px;color:var(--ink-muted);margin:16px 0 8px;font-weight:500}
+.row-sheet .rs-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.row-sheet .rs-chips button{min-height:44px;padding:0 6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);
+  font-size:14px;color:var(--ink);display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.row-sheet .rs-chips button.on{border-color:var(--ink);font-weight:600}
+.row-sheet .rs-chips button:active{background:var(--surface-2)}
+.row-sheet .rs-list{margin-top:18px;border-top:1px solid var(--line-soft)}
+.row-sheet .rs-list > button,.row-sheet .rs-list > .rs-select{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  width:100%;min-height:52px;padding:0 2px;border:none;border-bottom:1px solid var(--line-soft);border-radius:0;
+  background:none;font-size:16px;color:var(--ink);text-align:left;cursor:pointer}
+.row-sheet .rs-list > button:active{background:var(--surface-2)}
+.row-sheet .rs-list .danger{color:var(--alert)}
+.row-sheet .rs-hint{font-size:13px;color:var(--ink-muted)}
+.row-sheet .rs-select select{flex:0 1 60%;min-width:0;border:none;background:none;font-size:15px;color:var(--ink-soft);text-align:right;text-align-last:right}
+.qc-dest{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.qc-dest button{min-height:44px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);
+  font-size:13px;color:var(--ink-soft);justify-content:center}
+.qc-dest button.on{border-color:var(--ink);color:var(--ink);font-weight:600;background:var(--surface-2)}
+.qc-more{display:flex;gap:8px;flex-wrap:wrap}
+/* Mørk modus: hovedknappen i arkene hadde hvit tekst på --accent, som er nesten hvit i
+   mørkt tema — «Lagre» og «Legg til» var ikke til å lese. Funnet under ADR 0059. */
+[data-theme="dark"] .modal .footer button.primary{color:var(--bg)}
+
   @media (max-width:1100px){.overview{grid-template-columns:repeat(3,1fr)}}
 
   @media (max-width:680px){.overview{grid-template-columns:repeat(2,1fr)}}
@@ -1819,6 +1847,109 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
     /* Prikkene i minikalenderen er ikke mål — dagen er målet. Uten dette ville et treff
        på en 6 px prikk åpnet hendelsen i stedet for dagen. */
     .month-grid .cell .ev, .month-grid .cell .more{pointer-events:none}
+
+    /* ================================================================
+       MOBIL 2.0 (ADR 0059) — én rad = én linje, ett trykk = alle valg
+       ================================================================ */
+    /* Rammen: ingen merkevare-tekst (fanen sier hvor du er), filteret til venstre */
+    .brand{display:none}
+    header.topbar{gap:8px; padding-left:14px; padding-right:6px}
+    .filter{order:1; flex:0 1 210px; margin:0}
+    .top-actions{order:3; margin-left:auto}
+
+    /* Bunnmenyen: fire faner med ikon og ord */
+    .nav{padding:2px 4px calc(2px + env(safe-area-inset-bottom, 0px))}
+    .nav button{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+      min-height:54px; padding:6px 0 4px; font-size:12px; border-radius:0; overflow:visible}
+    .nav button svg{width:24px; height:24px; flex:0 0 24px; fill:none; stroke:currentColor; stroke-width:1.6;
+      stroke-linecap:round; stroke-linejoin:round}
+    .nav button .nl{line-height:1.15}
+    .nav button.active::before{display:none}
+    .nav button.active svg{stroke-width:2.1}
+    .nav button .badge, .nav button.active .badge{position:absolute; top:4px; left:calc(50% + 7px); margin:0; min-width:18px; height:18px;
+      padding:0 5px; border-radius:9px; font-size:11px; font-weight:600; line-height:18px; text-align:center;
+      background:var(--alert); color:var(--bg)}
+    main{padding-bottom:calc(90px + env(safe-area-inset-bottom, 0px))}
+    .fab{bottom:calc(76px + env(safe-area-inset-bottom, 0px)); right:16px; width:56px; height:56px}
+    .toast-stack{bottom:calc(144px + env(safe-area-inset-bottom, 0px))}
+
+    /* Ett sted å legge inn noe nytt: +-knappen. Hurtigfeltene øverst på Hjem og To Do's
+       tok 250 px før første oppgave. */
+    .todo-quick, .home-quick{display:none}
+
+    /* Kalenderbryter øverst i Dag/Uke/Måned/År */
+    .cal-switch{display:flex; gap:2px; padding:3px; margin:2px 0 16px; border:1px solid var(--line);
+      border-radius:10px; background:var(--surface)}
+    .cal-switch button{flex:1; min-height:36px; border:none; background:none; border-radius:7px;
+      font-size:14px; font-weight:500; color:var(--ink-soft)}
+    .cal-switch button.on{background:var(--surface-2); color:var(--ink); font-weight:600}
+
+    /* Radene: avkryssing | tittel (+ dato og prosjekt i flyten). Ingen knapper — et trykk
+       på tittelen åpner arket. Sveip er som før: høyre = gjort, venstre = slett. */
+    .todo-row:not([data-task-kind="inbox"]) > .actions{display:none}
+    .todo-row{padding:12px 2px; gap:12px; min-height:48px}
+    .todo-row:not([data-task-kind="inbox"]) .ttitle{display:block; font-size:15px; line-height:1.4; cursor:pointer}
+    .todo-row .ttitle .due, .todo-row .ttitle .proj-chip{display:inline-block; margin-left:4px; font-size:13px; line-height:1.4}
+    .todo-row:not([data-task-kind="inbox"]) .star-mark{display:inline; margin-right:2px}
+    .todo-row.ms-row .ms-mark{margin-top:2px}
+    /* Innboksen: sortering er hele poenget, så de tre prioritetene står synlige, med ord */
+    .todo-row[data-task-kind="inbox"] .actions > :not(.prio-btn){display:none}
+    .todo-row[data-task-kind="inbox"] .actions{gap:6px}
+    .todo-row[data-task-kind="inbox"] .actions .prio-btn{flex:1 1 0; min-height:40px; padding:0 8px; font-size:13px;
+      border:1px solid var(--line); border-radius:10px; background:var(--surface); color:var(--ink-soft)}
+    .todo-row[data-task-kind="inbox"] .actions .prio-btn .pb-l{display:inline}
+
+    /* Bøttene kan brettes sammen — trykk på overskriften. Hjelpeteksten om å dra er borte:
+       man drar ikke på telefon. */
+    .todo-bucket > .bh{cursor:pointer; padding-right:26px; position:relative; -webkit-tap-highlight-color:transparent}
+    .todo-bucket > .bh::after{content:""; position:absolute; right:6px; top:50%; width:7px; height:7px;
+      margin-top:-6px; border-right:1.5px solid var(--ink-muted); border-bottom:1.5px solid var(--ink-muted);
+      transform:rotate(45deg); transition:transform .15s}
+    .todo-bucket.m-collapsed > .bh::after{transform:rotate(-45deg); margin-top:-4px}
+    .todo-bucket.m-collapsed > :not(.bh){display:none}
+    .todo-bucket.m-collapsed{padding-bottom:4px}
+    .todo-bucket > .bh .bh-hint{display:none}
+
+    /* Hjem: tittelen først, datoen til høyre — øyet leser hva før når */
+    .home-item{padding:12px 2px; gap:12px; align-items:flex-start}
+    .home-item .hi-title{order:2; flex:1 1 auto; min-width:0; font-size:15px; line-height:1.4}
+    .home-item .hi-date{order:3; flex:0 0 auto; margin-left:4px; text-align:right; font-size:13px; padding-top:2px}
+    .home-item .hi-date:empty{display:none}
+    .home-item.hi-more-row{padding-left:2px}
+    .home-projects .hp-row{padding:12px 2px}
+    .home-projects .hp-when{order:3; margin-left:auto; padding-top:2px}
+
+    /* Dag: dagens oppgaver først, timene under, notatene sist */
+    .day-layout{display:flex; flex-direction:column; gap:22px}
+    .day-side{display:contents}
+    .day-side .tasks-block{order:-1}
+    .day-main{order:0}
+    .day-side .panel:not(.tasks-block){order:1}
+
+    /* Årsoversikt: navnet over en tynn tidslinje i full bredde, i stedet for et 750 px
+       rutenett som klippet stolpene */
+    .gantt{border:none; background:none; border-radius:0}
+    .gantt-scroll{overflow:visible}
+    .gantt-inner{min-width:0}
+    .gantt-headrow{grid-template-columns:1fr; background:none; border-bottom:1px solid var(--ink)}
+    .gantt-headrow .label-col{display:none}
+    .gantt-months .mtick:not(.year-start){font-size:0}
+    .gantt-row{grid-template-columns:1fr; padding:12px 0 14px}
+    .gantt-row .label{border:none; padding:0 0 8px; background:none; font-size:15px}
+    .gantt-row .track{min-height:8px; height:8px; border-radius:4px; background:var(--surface-2)}
+    .gantt-row .track .vline{display:none}
+    .gantt-row .bar, .gantt-row .bar.point{top:0; height:8px; line-height:8px; padding:0; font-size:0; border-radius:4px}
+    .gantt-row .bar.point{width:8px}
+
+    /* Arkene: håndtak øverst, myke hjørner, plass til hjem-indikatoren */
+    .modal{border-radius:16px 16px 0 0}
+    .modal::before{content:""; display:block; width:36px; height:4px; border-radius:2px; background:var(--line); margin:8px auto 0}
+    .modal .footer{padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px))}
+    .row-sheet .rs-chips{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .row-sheet[data-kind="inbox"] .rs-chips{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .todo-row .due-tap{text-decoration:none}
+    .gantt-months{overflow:hidden}
+    .qc-dest{grid-template-columns:repeat(2,minmax(0,1fr))}
   }
 
 </style>
