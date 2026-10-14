@@ -1157,6 +1157,20 @@ body{font-feature-settings:"cv11","ss01","tnum" 0;letter-spacing:-.003em}
    mørkt tema — «Lagre» og «Legg til» var ikke til å lese. Funnet under ADR 0059. */
 [data-theme="dark"] .modal .footer button.primary{color:var(--bg)}
 
+
+/* Arkivet for fullførte oppgaver på prosjektsiden (ADR 0060). En dempet linje med
+   antall og en vinkel; åpnet viser det radene under, uten egen boks. */
+.pt-archive{margin-top:6px;border-top:1px solid var(--line-soft)}
+.pt-archive-head{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:10px 0;
+  border:none;background:none;cursor:pointer;font-size:14px;font-weight:500;color:var(--ink-soft);text-align:left}
+.pt-archive-head:hover{color:var(--ink)}
+.pt-archive-head::after{content:"";width:7px;height:7px;margin-left:2px;border-right:1.5px solid currentColor;
+  border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.pt-archive.open .pt-archive-head::after{transform:rotate(45deg);margin-top:-4px}
+.pt-archive-count{font-size:12px;font-weight:400;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+.pt-archive-list .ptask:first-child{border-top:1px solid var(--line-soft)}
+.pt-alldone{padding:12px 0 6px}
+
   @media (max-width:1100px){.overview{grid-template-columns:repeat(3,1fr)}}
 
   @media (max-width:680px){.overview{grid-template-columns:repeat(2,1fr)}}

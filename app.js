@@ -2958,13 +2958,22 @@ function projectTasksMerged(p){
   return [...own, ...tagged];
 }
 
+// Fullførte oppgaver forsvinner fra prosjektlista og samles i et arkiv nederst, lukket
+// som standard (ADR 0060 — Maria: «når oppgaver er fullført så forsvinner de … typ et
+// arkiv man kan åpne»). Før sto de gjennomstreket under de åpne; på Anteo var hele lista
+// ni gjennomstrekte rader. Arkivet åpnes per prosjekt og huskes bare til siden lastes på
+// nytt — det er et sted man kikker innom, ikke en innstilling.
+const _doneArchiveOpen = new Set();
+HANDLERS.toggleDoneArchive = (pid)=>{
+  if (_doneArchiveOpen.has(pid)) _doneArchiveOpen.delete(pid); else _doneArchiveOpen.add(pid);
+  render();
+};
+function _doneDateKey(t){ return (t.doneAt || '').slice(0, 10); }
+
 function renderProjectTasks(p){
   const all = projectTasksMerged(p);
   if (!all.length) return `<div class="empty-state">Ingen oppgaver ennå${emptyAction('+ Ny oppgave', act('openProjectTaskForm', p.id))}</div>`;
-  return all.sort((a,b)=>{
-    if (a.done !== b.done) return a.done?1:-1;
-    return _dateThenOrderCmp(a, b);
-  }).map(t=>{
+  const row = t => {
     // Relativ etikett når oppgaven har én dato; datointervaller beholder absolutte
     // datoer i begge ender — «om 3 d–14. aug» leses ikke som et intervall. ADR 0040.
     const range = (t.endDate && t.endDate>t.due) ? '–'+fmtDateShort(fromKey(t.endDate)) : '';
@@ -2982,16 +2991,41 @@ function renderProjectTasks(p){
     // Free tasks: not draggable within project view — their order lives in the
     // priority-bucket flow on the To Do's page. Reordering them here would be
     // confusing (which order-field wins?). User can drag them in To Do's instead.
-    const draggable = isFree ? 'false' : 'true';
+    // Arkivet sorteres etter når de ble gjort, så der drar man ikke heller.
+    const draggable = (isFree || t.done) ? 'false' : 'true';
     const dragTitle = isFree ? 'Fra To Do\'s — endres på To Do\'s-siden' : 'Dra for å sortere';
+    // I arkivet er det NÅR den ble gjort som teller; fristen er historie.
+    const dk = t.done ? _doneDateKey(t) : '';
+    const dateHTML = dk
+      ? `<span class="ptdate" title="Fullført ${escapeAttr(absDateTitle(dk))}">${escapeHTML(fmtDateShort(fromKey(dk)))}</span>`
+      : (t.due ? `<span class="ptdate" title="${escapeAttr(absDateTitle(t.due))}">${escapeHTML(dueLabel)}${range}</span>` : '');
     return `<div class="ptask ${t.done?'done':''}" data-task-id="${t.id}" draggable="${draggable}">
-      <span class="drag-handle" title="${dragTitle}"${isFree?' style="opacity:.35"':''}>⋮⋮</span>
-      <input type="checkbox" ${t.done?'checked':''} onchange="${toggleH}">
+      <span class="drag-handle" title="${dragTitle}"${(isFree || t.done)?' style="opacity:.35"':''}>⋮⋮</span>
+      <input type="checkbox" ${t.done?'checked':''} onchange="${toggleH}" title="${t.done ? 'Gjør åpen igjen' : 'Marker som fullført'}">
       <span class="pttitle" ${editAction}>${escapeHTML(t.title)}</span>
-      ${t.due?`<span class="ptdate" title="${escapeAttr(absDateTitle(t.due))}">${escapeHTML(dueLabel)}${range}</span>`:''}
-      <button class="ptdel" ${deleteAction}>×</button>
+      ${dateHTML}
+      <button class="ptdel" ${deleteAction} title="Slett" aria-label="Slett">×</button>
     </div>`;
-  }).join('');
+  };
+  const open = all.filter(t => !t.done).sort(_dateThenOrderCmp);
+  // Sist fullført øverst; uten tidsstempel (fullført før ADR 0052) nederst, etter frist.
+  const done = all.filter(t => t.done).sort((a, b) => {
+    const ad = _doneDateKey(a), bd = _doneDateKey(b);
+    if (ad !== bd) return ad ? (bd ? bd.localeCompare(ad) : -1) : 1;
+    return (b.due || '').localeCompare(a.due || '');
+  });
+  const openHTML = open.length
+    ? open.map(row).join('')
+    : `<div class="empty-state pt-alldone">Alle oppgavene er fullført${emptyAction('+ Ny oppgave', act('openProjectTaskForm', p.id))}</div>`;
+  if (!done.length) return openHTML;
+  const isOpen = _doneArchiveOpen.has(p.id);
+  return openHTML + `
+    <div class="pt-archive${isOpen ? ' open' : ''}">
+      <button type="button" class="pt-archive-head" data-action="toggleDoneArchive" data-args='["${p.id}"]' aria-expanded="${isOpen}">
+        <span>Fullførte oppgaver</span><span class="pt-archive-count">${done.length}</span>
+      </button>
+      ${isOpen ? `<div class="pt-archive-list">${done.map(row).join('')}</div>` : ''}
+    </div>`;
 }
 function renderProjectMilestones(p){
   // Uten delmål rendres seksjonen aldri — _projectMilestonesSectionHTML tar en annen

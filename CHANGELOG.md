@@ -6,6 +6,20 @@ Nye innslag legges øverst.
 
 ---
 
+## 2026-10-14 — Fullførte oppgaver i et arkiv
+
+ADR 0060. Du ba om at fullførte oppgaver skal forsvinne og ligge i et arkiv man kan åpne.
+
+- **Prosjektsiden viser bare det som gjenstår.** Når du krysser av, glir oppgaven ut av lista.
+- **Nederst står «Fullførte oppgaver» med antallet.** Trykk for å åpne — de sist fullførte øverst, med datoen de ble gjort.
+- **Fjern haken i arkivet**, så kommer oppgaven tilbake i lista.
+- **Er alt gjort**, står det «Alle oppgavene er fullført», med en knapp for å lage en ny.
+- Arkivet er lukket igjen neste gang du åpner appen. Kanban og delmål er som før.
+
+Testsuiten: 745 → 753.
+
+---
+
 ## 2026-10-05 — Ny mobilversjon
 
 ADR 0059. Du sa mobilen fortsatt var vanskelig å bruke, og ga full kreativ frihet.
