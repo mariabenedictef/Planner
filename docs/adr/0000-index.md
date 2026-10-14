@@ -63,6 +63,7 @@ Architecture Decision Records. Each ADR captures *why* a structural choice was m
 | [0057](0057-second-design-pass.md) | Andre designgjennomgang: prosjektkort som rammede fliser (eneste boks, med vilje), Hjem-prosjekter som liste uten røde tall, prioritet som prikk i alle knapper, ingen kursiv, en advarsel byttes ikke ut av en beskjed | Accepted (bygger på 0041/0045/0055/0056) |
 | [0058](0058-open-items-closed.md) | Det utestående fra 0055–0057: beskjedstabel (maks to), knapperaden legger seg over raden på PC (titler 546 → 1 174 px) med ord på prioritetsprikkene, prosjektchip som prikk + navn, ingen fargede emoji, hurtigdatoer i skjemaene | Accepted (erstatter delvis 0039/0057 om toasts) |
 | [0059](0059-mobile-two.md) | Mobil 2.0: rader uten knapper og ett ark med alle valgene, +-knappen som eneste inngang, sammenbrettbare bøtter, fire faner med ikon (Kalender som egen fane med Dag/Uke/Måned/År-bryter), årsoversikt som tidslinjer; To Do's 6 184 → 2 106 px | Accepted (erstatter delvis 0050/0055) |
+| [0060](0060-done-tasks-archive.md) | Fullførte oppgaver forsvinner fra prosjektlista og samles i arkivet «Fullførte oppgaver», lukket som standard, sist fullført øverst | Accepted (bygger på 0037/0052) |
 
 ## How to add a new ADR
 
